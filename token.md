@@ -43,8 +43,8 @@
    
     | Token     | Description                          | Regex             | 
     | --------- | ------------------------------------ | ----------------- | 
-    | CHARACTER | Character literal (supports escapes) | `'(\\.|[^'])'`    | 
-    | STRING    | String literal (supports escapes)    | `"(\\.|[^"\\])*"` |
+    | CHARACTER | Character literal (supports escapes) | `'(\\.\|[^'])'`    | 
+    | STRING    | String literal (supports escapes)    | `"(\\.\|[^"\\])*"` |
 
 5. Keywords
    
