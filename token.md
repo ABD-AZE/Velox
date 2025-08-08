@@ -1,4 +1,5 @@
-# 1. Whitespace & Comments (skip)
+# List of Velox Tokens
+## 1. Whitespace & Comments (skip)
 
 | Token          | Description                         | Regex                          |
 | -------------- | ----------------------------------- | ------------------------------ |
@@ -6,15 +7,15 @@
 | LINE\_COMMENT  | `// …` to end of line               | `\/\/[^\n]*`                   |
 | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*([^*]\|\*+[^*/])*\*+\/`    |
 
-# 2. Identifiers
+## 2. Identifiers
 
 | Token      | Description       | Regex                    |
 | ---------- | ----------------- | ------------------------ |
 | IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
 
-# 3. Constants (literals)
+## 3. Constants (literals)
 
-## 3.1 Integer constants
+### 3.1 Integer constants
 
 | Token           | Description                        | Regex                            | 
 | --------------- | ---------------------------------- | -------------------------------- | 
@@ -23,20 +24,20 @@
 | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]`                     | 
 | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
 
-## 3.2 Floating constants
+### 3.2 Floating constants
    
 | Token            | Description                                        | Regex                            |               
 | ---------------- | -------------------------------------------------- | -------------------------------- | 
 | FLOAT\_CONSTANT  | Floating‑point constant (123. , .123 , 123.123)    | `([0-9]+\.[0-9]*)\|(\.[0-9]+)`   |
    
-## 3.3 Character & string constants
+### 3.3 Character & string constants
    
 | Token     | Description                          | Regex             | 
 | --------- | ------------------------------------ | ----------------- | 
 | CHARACTER | Character literal (supports escapes) | `'(\\.\|[^'])'`    | 
 | STRING    | String literal (supports escapes)    | `"(\\.\|[^"\\])*"` |
 
-# 4. Keywords
+## 4. Keywords
    
 | Token          | Description                                   | Regex      |
 | -------------- | --------------------------------------------- | ---------- |
@@ -65,7 +66,7 @@
 | `DEFAULT_CASE` | Fallback label in a `switch` block            | `default`  |
 
 
-# 5. Punctuators / Grammar tokens
+## 5. Punctuators / Grammar tokens
 Note: Some of these characters need the escape sequence because they have special meaning in regex syntax
    
 | Token              | Description         | Regex     |
@@ -83,8 +84,8 @@ Note: Some of these characters need the escape sequence because they have specia
 | QUESTION\_MARK     | `?` (ternary)       | `\?`      |
 | ELLIPSIS           | `...`               | `\.\.\.`  |
 
-# 6. Operators
-## 6.1 Unary operators
+## 6. Operators
+### 6.1 Unary operators
 
 | Token                  | Description                            | Regex  |
 | ---------------------- | -------------------------------------- | ------ |
@@ -96,7 +97,7 @@ Note: Some of these characters need the escape sequence because they have specia
 | AMP                    | `&` address‑of (also bitwise AND)      | `&`    |
 | ASTERISK               | `*` dereference (also multiply)        | `\*`   |
 
-## 6.2 Binary arithmetic & misc
+### 6.2 Binary arithmetic & misc
 
 | Token           | Description             | Regex |
 | --------------- | ----------------------- | ----- |
@@ -107,7 +108,7 @@ Note: Some of these characters need the escape sequence because they have specia
 | ASSIGNMENT      | `=` assignment          | `=`   |
 | ARROW\_OPERATOR | `->` member via pointer | `->`  |
 
-## 6.3 Comparisons (logical group)
+### 6.3 Comparisons (logical group)
 
 | Token            | Description           | Regex |
 | ---------------- | --------------------- | ----- |
@@ -118,14 +119,14 @@ Note: Some of these characters need the escape sequence because they have specia
 | LESSTHANEQUAL    | `<=` less or equal    | `<=`  |
 | GREATERTHANEQUAL | `>=` greater or equal | `>=`  |
 
-## 6.4 Logical connective operators
+### 6.4 Logical connective operators
 
 | Token | Description      | Regex | 
 | ----- | ---------------- | ----- | 
 | LAND  | `&&` logical AND | `&&`  |  
 | LOR   | `\|\|` logical OR| `\|\|`| 
 
-## 6.5 Bitwise operators (and shifts)
+### 6.5 Bitwise operators (and shifts)
 
 | Token        | Description     | Regex         |  
 | ------------ | --------------- | ------------- | 
@@ -135,7 +136,7 @@ Note: Some of these characters need the escape sequence because they have specia
 | LEFT\_SHIFT  | `<<`            | `<<`          |  
 | RIGHT\_SHIFT | `>>`            | `>>`          |  
 
-## 6.6 Compound assignments
+### 6.6 Compound assignments
 
 | Token                | Description | Regex | 
 | -------------------- | ----------- | ----- | 
@@ -148,4 +149,15 @@ Note: Some of these characters need the escape sequence because they have specia
 | COMPOUND\_XOR        | `^=`        | `\^=` |       
 | COMPOUND\_OR         | `\`         | `\|=` | 
 | COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
-| COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
+| COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |   
+
+# Priority Order
+Key Considerations When Ordering:
+1. Longest match wins: Multi-character tokens (like >>= or +=) must be placed before their prefixes (like >, > or +), otherwise the lexer will prematurely match a shorter token.
+2. Keywords before identifiers: int, for, if, etc., should match as keywords, not identifiers.
+3. Whitespace and comments: These should be matched early so they can be skipped cleanly.
+4. Specificity and greediness:
+   a. Floating-point regex must come before integer constants.
+   b. IDENTIFIER must come after all keywords to avoid misclassification.
+5. Operators: Multi-character operators like >>=, <<=, ++, -- should be matched before their constituent symbols.
+6. Compound vs basic operators: += before +, >>= before >>, >> before > etc.
