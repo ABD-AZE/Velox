@@ -1,26 +1,26 @@
 0. Non‑emitting category sentinels
-| Token (enum)                | Description                                                                       | Regex |
-| --------------------------- | --------------------------------------------------------------------------------- | ----- |
-| UNKNOWN                     | Placeholder for unknown token kind (shouldn’t be emitted once errors are handled) | —     |
-| CONSTANTSTART / CONSTANTEND | Delimit “constants” block in enum                                                 | —     |
-| KEYWORDSTART / KEYWORDEND   | Delimit “keywords” block in enum                                                  | —     |
-| GRAMMARSTART / GRAMMAREND   | Delimit “grammar/punctuator” block in enum                                        | —     |
-| UNARYSTART / UNARYEND       | Delimit “unary operators” block                                                   | —     |
-| BINARYSTART / BINARYEND     | Delimit “binary operators” block                                                  | —     |
-| BITWISESTART / BITWISEEND   | Delimit “bitwise operators” block                                                 | —     |
-| LOGICALSTART / LOGICALEND   | Delimit “logical operators” block                                                 | —     |
+    | Token (enum)                | Description                                                                       | Regex |
+    | --------------------------- | --------------------------------------------------------------------------------- | ----- |
+    | UNKNOWN                     | Placeholder for unknown token kind (shouldn’t be emitted once errors are handled) | —     |
+    | CONSTANTSTART / CONSTANTEND | Delimit “constants” block in enum                                                 | —     |
+    | KEYWORDSTART / KEYWORDEND   | Delimit “keywords” block in enum                                                  | —     |
+    | GRAMMARSTART / GRAMMAREND   | Delimit “grammar/punctuator” block in enum                                        | —     |
+    | UNARYSTART / UNARYEND       | Delimit “unary operators” block                                                   | —     |
+    | BINARYSTART / BINARYEND     | Delimit “binary operators” block                                                  | —     |
+    | BITWISESTART / BITWISEEND   | Delimit “bitwise operators” block                                                 | —     |
+    | LOGICALSTART / LOGICALEND   | Delimit “logical operators” block                                                 | —     |
 
 1. Whitespace & Comments (skip)
-| Token          | Description                         | Regex                          |
-| -------------- | ----------------------------------- | ------------------------------ |
-| WS             | Whitespace (spaces, tabs, newlines) | `[ \t\r\n\f\v]+`               |
-| LINE\_COMMENT  | `// …` to end of line               | `//[^\r\n]*`                   |
-| BLOCK\_COMMENT | `/* … */` (non‑nested)              | `/\*[^*]*\*+([^/*][^*]*\*+)*/` |
+    | Token          | Description                         | Regex                          |
+    | -------------- | ----------------------------------- | ------------------------------ |
+    | WS             | Whitespace (spaces, tabs, newlines) | `[ \t\r\n\f\v]+`               |
+    | LINE\_COMMENT  | `// …` to end of line               | `//[^\r\n]*`                   |
+    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `/\*[^*]*\*+([^/*][^*]*\*+)*/` |
 
 2. Identifiers
-| Token      | Description       | Regex                    |
-| ---------- | ----------------- | ------------------------ |
-| IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
+    | Token      | Description       | Regex                    |
+    | ---------- | ----------------- | ------------------------ |
+    | IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
 
 3. Constants (literals)
     3.1 Integer constants
