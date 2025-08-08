@@ -27,7 +27,7 @@
    
 | Token            | Description                                        | Regex                              |               
 | ---------------- | -------------------------------------------------- | --------------------------------   | 
-| DOUBLE\_CONSTANT | Floating‑point constant (fraction with no exponent)| `([0-9]+(\.[0-9]*)?)\|(\.[0-9]+)`  |
+| FLOAT\_CONSTANT  | Floating‑point constant                            | `([0-9]+(\.[0-9]*)?)\|(\.[0-9]+)`  |
    
 ## 3.3 Character & string constants
    
@@ -149,9 +149,3 @@ Note: Some of these characgters need the escape sequence because they have speci
 | COMPOUND\_OR         | `\`         | `=\`  | 
 | COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
 | COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
-
-9. Error handling
-    | Token         | Description                                                                      | Regex                      |
-    | ------------- | -------------------------------------------------------------------------------- | -------------------------- |
-    | INVALID\_CHAR | Any single unmatched character (emit and continue to collect all lexical errors) | `.` (final catch‑all rule) |
-
