@@ -2,8 +2,8 @@
     | Token          | Description                         | Regex                          |
     | -------------- | ----------------------------------- | ------------------------------ |
     | WS             | Whitespace (spaces, tabs, newlines) | `\s+`                          |
-    | LINE\_COMMENT  | `// …` to end of line               | `\/\/[^\n]*`                   |
-    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*[\s\S]*?\*\/`             |
+    | LINE\_COMMENT  | `// …` to end of line               | `//[^\n]*`                     |
+    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `/*[\s\S]*?*/`                 |
 
 2. Identifiers
     | Token      | Description       | Regex                    |
