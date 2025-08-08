@@ -25,9 +25,9 @@
 
 ## 3.2 Floating constants
    
-| Token            | Description                                        | Regex                              |               
-| ---------------- | -------------------------------------------------- | --------------------------------   | 
-| FLOAT\_CONSTANT  | Floating‑point constant                            | `([0-9]+(\.[0-9]*)?)\|(\.[0-9]+)`  |
+| Token            | Description                                        | Regex                            |               
+| ---------------- | -------------------------------------------------- | -------------------------------- | 
+| FLOAT\_CONSTANT  | Floating‑point constant                            | `([0-9]+\.[0-9]*)\|(\.[0-9]+)`   |
    
 ## 3.3 Character & string constants
    
