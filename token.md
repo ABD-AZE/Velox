@@ -123,14 +123,14 @@ Note: Some of these characgters need the escape sequence because they have speci
 | Token | Description      | Regex | 
 | ----- | ---------------- | ----- | 
 | LAND  | `&&` logical AND | `&&`  |  
-| LOR   | `||` logical OR  | `||`  | 
+| LOR   | `\|\|` logical OR| `\|\|`| 
 
 ## 6.5 Bitwise operators (and shifts)
 
 | Token        | Description     | Regex         |  
 | ------------ | --------------- | ------------- | 
 | AAND         | `&` bitwise AND | `&`           |   
-| AOR          | `|` bitwise OR  | `\|`          |
+| AOR          | `\|` bitwise OR | `\|`          |
 | XOR          | `^` bitwise XOR | `\^`          |  
 | LEFT\_SHIFT  | `<<`            | `<<`          |  
 | RIGHT\_SHIFT | `>>`            | `>>`          |  
