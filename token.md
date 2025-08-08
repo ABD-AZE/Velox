@@ -166,3 +166,103 @@ Key Considerations When Ordering:
    b. IDENTIFIER must come after all keywords to avoid misclassification.
 5. Operators: Multi-character operators like >>=, <<=, ++, -- should be matched before their constituent symbols.
 6. Compound vs basic operators: += before +, >>= before >>, >> before > etc.
+
+
+Here is the **complete and correctly ordered priority list** of all the tokens you provided, arranged according to lexical analysis principles like **longest match wins**, **keywords before identifiers**, **whitespace/comments early**, and **compound before base operators**.
+
+---
+1. `WS`
+2. `LINE_COMMENT`
+3. `BLOCK_COMMENT`
+---
+4. `ELLIPSIS`
+5. `COMPOUND_RIGHTSHIFT`
+6. `COMPOUND_LEFTSHIFT`
+7. `COMPOUND_SUM`
+8. `COMPOUND_DIFFERENCE`
+9. `COMPOUND_PRODUCT`
+10. `COMPOUND_DIVISION`
+11. `COMPOUND_REMAINDER`
+12. `COMPOUND_AND`
+13. `COMPOUND_XOR`
+14. `COMPOUND_OR`
+15. `EQUAL`
+16. `NOTEQUAL`
+17. `LESSTHANEQUAL`
+18. `GREATERTHANEQUAL`
+19. `INCREMENT_OPERATOR`
+20. `DECREMENT_OPERATOR`
+21. `ARROW_OPERATOR`
+22. `LEFT_SHIFT`
+23. `RIGHT_SHIFT`
+24. `LAND`
+25. `LOR`
+---
+26. `VOID`
+27. `RETURN`
+28. `IF`
+29. `ELSE`
+30. `DO`
+31. `WHILE`
+32. `FOR`
+33. `BREAK`
+34. `CONTINUE`
+35. `STATIC`
+36. `EXTERN`
+37. `INT`
+38. `LONG`
+39. `SIGNED`
+40. `UNSIGNED`
+41. `DOUBLE`
+42. `CHAR`
+43. `SIZEOF`
+44. `STRUCT`
+45. `GOTO`
+46. `SWITCH`
+47. `CASE`
+48. `DEFAULT_CASE`
+49. `PRINTF`
+50. `SCANF`
+51. `TYPEDEF`
+52. `ENUM`
+53. `UNION`
+---
+54. `FLOAT_CONSTANT`
+55. `ULONG_CONSTANT`
+56. `LONG_CONSTANT`
+57. `UINT_CONSTANT`
+58. `INT_CONSTANT`
+---
+59. `CHARACTER`
+60. `STRING`
+---
+61. `IDENTIFIER`
+---
+62. `OPEN_PARANTHESES`
+63. `CLOSE_PARANTHESES`
+64. `OPEN_BRACE`
+65. `CLOSE_BRACE`
+66. `OPEN_BRACKET`
+67. `CLOSE_BRACKET`
+68. `SEMICOLON`
+69. `COLON`
+70. `COMMA`
+71. `DOT`
+72. `QUESTION_MARK`
+---
+73. `ASSIGNMENT`
+74. `PLUS`
+75. `HYPHEN`
+76. `ASTERISK`
+77. `FORWARD_SLASH`
+78. `PERCENT_SIGN`
+---
+79. `TILDE`
+80. `NOT`
+81. `AMP`
+---
+82. `LESSTHAN`
+83. `GREATERTHAN`
+84. `AAND`
+85. `AOR`
+86. `XOR`
