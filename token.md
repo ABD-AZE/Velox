@@ -75,9 +75,9 @@
     | SEMICOLON          | `;`                 | `;`      |
     | COLON              | `:`                 | `:`      |
     | COMMA              | `,`                 | `,`      |
-    | DOT                | `.` (member access) | `\.`     |
-    | QUESTION\_MARK     | `?` (ternary)       | `\?`     |
-    | ELLIPSIS           | `...`               | `\.\.\.` |
+    | DOT                | `.` (member access) | `.`      |
+    | QUESTION\_MARK     | `?` (ternary)       | `?`      |
+    | ELLIPSIS           | `...`               | `...`    |
 
 8. Operators
     6.1 Unary operators
