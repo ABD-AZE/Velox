@@ -1,15 +1,3 @@
-0. Non‑emitting category sentinels
-    | Token (enum)                | Description                                                                       | Regex |
-    | --------------------------- | --------------------------------------------------------------------------------- | ----- |
-    | UNKNOWN                     | Placeholder for unknown token kind (shouldn’t be emitted once errors are handled) | —     |
-    | CONSTANTSTART / CONSTANTEND | Delimit “constants” block in enum                                                 | —     |
-    | KEYWORDSTART / KEYWORDEND   | Delimit “keywords” block in enum                                                  | —     |
-    | GRAMMARSTART / GRAMMAREND   | Delimit “grammar/punctuator” block in enum                                        | —     |
-    | UNARYSTART / UNARYEND       | Delimit “unary operators” block                                                   | —     |
-    | BINARYSTART / BINARYEND     | Delimit “binary operators” block                                                  | —     |
-    | BITWISESTART / BITWISEEND   | Delimit “bitwise operators” block                                                 | —     |
-    | LOGICALSTART / LOGICALEND   | Delimit “logical operators” block                                                 | —     |
-
 1. Whitespace & Comments (skip)
     | Token          | Description                         | Regex                          |
     | -------------- | ----------------------------------- | ------------------------------ |
@@ -28,7 +16,7 @@
    
     | Token           | Description                        | Regex                            | 
     | --------------- | ---------------------------------- | -------------------------------- | 
-    | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]`                          | 
+    | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]+`                          | 
     | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]\b`                   |     
     | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]\b`                   | 
     | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
@@ -78,12 +66,12 @@
 7. Punctuators / Grammar tokens
     | Token              | Description         | Regex    |
     | ------------------ | ------------------- | -------- |
-    | OPEN\_PARANTHESES  | `(`                 | `\(`     |
-    | CLOSE\_PARANTHESES | `)`                 | `\)`     |
-    | OPEN\_BRACE        | `{`                 | `\{`     |
-    | CLOSE\_BRACE       | `}`                 | `\}`     |
-    | OPEN\_BRACKET      | `[`                 | `\[`     |
-    | CLOSE\_BRACKET     | `]`                 | `\]`     |
+    | OPEN\_PARANTHESES  | `(`                 | `(`      |
+    | CLOSE\_PARANTHESES | `)`                 | `)`      |
+    | OPEN\_BRACE        | `{`                 | `{`      |
+    | CLOSE\_BRACE       | `}`                 | `}`      |
+    | OPEN\_BRACKET      | `[`                 | `[`      |
+    | CLOSE\_BRACKET     | `]`                 | `]`      |
     | SEMICOLON          | `;`                 | `;`      |
     | COLON              | `:`                 | `:`      |
     | COMMA              | `,`                 | `,`      |
@@ -133,7 +121,7 @@
     | Token        | Description     | Regex         |  
     | ------------ | --------------- | ------------- | 
     | AAND         | `&` bitwise AND | `&`           |   
-    | AOR          | `|` bitwise OR  | \|`           |
+    | AOR          | `|` bitwise OR  | `\|`          |
     | XOR          | `^` bitwise XOR | `\^`          |  
     | LEFT\_SHIFT  | `<<`            | `<<`          |  
     | RIGHT\_SHIFT | `>>`            | `>>`          |  
@@ -148,7 +136,7 @@
     | COMPOUND\_REMAINDER  | `%=`        | `%=`  |       
     | COMPOUND\_AND        | `&=`        | `&=`  |       
     | COMPOUND\_XOR        | `^=`        | `\^=` |       
-    | COMPOUND\_OR         | \`          | =\`   | 
+    | COMPOUND\_OR         | `\`         | `=\`  | 
     | COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
     | COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
 
