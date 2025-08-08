@@ -66,83 +66,89 @@
 
 
 # 5. Punctuators / Grammar tokens
-\n Note: Some of these characgters need the escape sequence because they have special meaning in regex syntax
+Note: Some of these characgters need the escape sequence because they have special meaning in regex syntax
    
-    | Token              | Description         | Regex     |
-    | ------------------ | ------------------- | --------- |
-    | OPEN\_PARANTHESES  | `(`                 | `\(`      |
-    | CLOSE\_PARANTHESES | `)`                 | `\)`      |
-    | OPEN\_BRACE        | `{`                 | `\{`      |
-    | CLOSE\_BRACE       | `}`                 | `\}`      |
-    | OPEN\_BRACKET      | `[`                 | `\[`      |
-    | CLOSE\_BRACKET     | `]`                 | `\]`      |
-    | SEMICOLON          | `;`                 | `;`       |
-    | COLON              | `:`                 | `:`       |
-    | COMMA              | `,`                 | `,`       |
-    | DOT                | `.` (member access) | `\.`      |
-    | QUESTION\_MARK     | `?` (ternary)       | `\?`      |
-    | ELLIPSIS           | `...`               | `\.\.\.`  |
+| Token              | Description         | Regex     |
+| ------------------ | ------------------- | --------- |
+| OPEN\_PARANTHESES  | `(`                 | `\(`      |
+| CLOSE\_PARANTHESES | `)`                 | `\)`      |
+| OPEN\_BRACE        | `{`                 | `\{`      |
+| CLOSE\_BRACE       | `}`                 | `\}`      |
+| OPEN\_BRACKET      | `[`                 | `\[`      |
+| CLOSE\_BRACKET     | `]`                 | `\]`      |
+| SEMICOLON          | `;`                 | `;`       |
+| COLON              | `:`                 | `:`       |
+| COMMA              | `,`                 | `,`       |
+| DOT                | `.` (member access) | `\.`      |
+| QUESTION\_MARK     | `?` (ternary)       | `\?`      |
+| ELLIPSIS           | `...`               | `\.\.\.`  |
 
-6. Operators
-    6.1 Unary operators
-    | Token                  | Description                            | Regex  |
-    | ---------------------- | -------------------------------------- | ------ |
-    | TILDE                  | `~` bitwise complement                 | `~`    |
-    | HYPHEN                 | `-` unary negation (also binary minus) | `-`    |
-    | DECREMENT\_OPERATOR    | `--`                                   | `--`   |
-    | INCREMENT\_OPERATOR    | `++`                                   | `\+\+` |
-    | NOT                    | `!` logical NOT                        | `!`    |
-    | AMP (address‑of)       | `&` address‑of (also bitwise AND)      | `&`    |
-    | ASTERISK (dereference) | `*` dereference (also multiply)        | `\*`   |
+# 6. Operators
+## 6.1 Unary operators
 
-    6.2 Binary arithmetic & misc
-    | Token           | Description             | Regex |
-    | --------------- | ----------------------- | ----- |
-    | PLUS            | `+` addition            | `\+`  |
-    | ASTERISK        | `*` multiplication      | `\*`  |
-    | FORWARD\_SLASH  | `/` division            | `/`   |
-    | PERCENT\_SIGN   | `%` remainder           | `%`   |
-    | ASSIGNMENT      | `=` assignment          | `=`   |
-    | ARROW\_OPERATOR | `->` member via pointer | `->`  |
+| Token                  | Description                            | Regex  |
+| ---------------------- | -------------------------------------- | ------ |
+| TILDE                  | `~` bitwise complement                 | `~`    |
+| HYPHEN                 | `-` unary negation (also binary minus) | `-`    |
+| DECREMENT\_OPERATOR    | `--`                                   | `--`   |
+| INCREMENT\_OPERATOR    | `++`                                   | `\+\+` |
+| NOT                    | `!` logical NOT                        | `!`    |
+| AMP                    | `&` address‑of (also bitwise AND)      | `&`    |
+| ASTERISK               | `*` dereference (also multiply)        | `\*`   |
 
-    6.3 Comparisons (logical group)
-    | Token            | Description           | Regex |
-    | ---------------- | --------------------- | ----- |
-    | EQUAL            | `==` equal to         | `==`  |
-    | NOTEQUAL         | `!=` not equal        | `!=`  |
-    | LESSTHAN         | `<` less than         | `<`   |
-    | GREATERTHAN      | `>` greater than      | `>`   |
-    | LESSTHANEQUAL    | `<=` less or equal    | `<=`  |
-    | GREATERTHANEQUAL | `>=` greater or equal | `>=`  |
+## 6.2 Binary arithmetic & misc
 
-    6.4 Logical connective operators
-    | Token | Description      | Regex | 
-    | ----- | ---------------- | ----- | 
-    | LAND  | `&&` logical AND | `&&`  |  
-    | LOR   | `||` logical OR  | `||`  | 
+| Token           | Description             | Regex |
+| --------------- | ----------------------- | ----- |
+| PLUS            | `+` addition            | `\+`  |
+| ASTERISK        | `*` multiplication      | `\*`  |
+| FORWARD\_SLASH  | `/` division            | `/`   |
+| PERCENT\_SIGN   | `%` remainder           | `%`   |
+| ASSIGNMENT      | `=` assignment          | `=`   |
+| ARROW\_OPERATOR | `->` member via pointer | `->`  |
 
-    6.5 Bitwise operators (and shifts)
-    | Token        | Description     | Regex         |  
-    | ------------ | --------------- | ------------- | 
-    | AAND         | `&` bitwise AND | `&`           |   
-    | AOR          | `|` bitwise OR  | `\|`          |
-    | XOR          | `^` bitwise XOR | `\^`          |  
-    | LEFT\_SHIFT  | `<<`            | `<<`          |  
-    | RIGHT\_SHIFT | `>>`            | `>>`          |  
+## 6.3 Comparisons (logical group)
 
-    6.6 Compound assignments
-    | Token                | Description | Regex | 
-    | -------------------- | ----------- | ----- | 
-    | COMPOUND\_SUM        | `+=`        | `\+=` |  
-    | COMPOUND\_DIFFERENCE | `-=`        | `-=`  |   
-    | COMPOUND\_PRODUCT    | `*=`        | `\*=` |
-    | COMPOUND\_DIVISION   | `/=`        | `/=`  |  
-    | COMPOUND\_REMAINDER  | `%=`        | `%=`  |       
-    | COMPOUND\_AND        | `&=`        | `&=`  |       
-    | COMPOUND\_XOR        | `^=`        | `\^=` |       
-    | COMPOUND\_OR         | `\`         | `=\`  | 
-    | COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
-    | COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
+| Token            | Description           | Regex |
+| ---------------- | --------------------- | ----- |
+| EQUAL            | `==` equal to         | `==`  |
+| NOTEQUAL         | `!=` not equal        | `!=`  |
+| LESSTHAN         | `<` less than         | `<`   |
+| GREATERTHAN      | `>` greater than      | `>`   |
+| LESSTHANEQUAL    | `<=` less or equal    | `<=`  |
+| GREATERTHANEQUAL | `>=` greater or equal | `>=`  |
+
+## 6.4 Logical connective operators
+
+| Token | Description      | Regex | 
+| ----- | ---------------- | ----- | 
+| LAND  | `&&` logical AND | `&&`  |  
+| LOR   | `||` logical OR  | `||`  | 
+
+## 6.5 Bitwise operators (and shifts)
+
+| Token        | Description     | Regex         |  
+| ------------ | --------------- | ------------- | 
+| AAND         | `&` bitwise AND | `&`           |   
+| AOR          | `|` bitwise OR  | `\|`          |
+| XOR          | `^` bitwise XOR | `\^`          |  
+| LEFT\_SHIFT  | `<<`            | `<<`          |  
+| RIGHT\_SHIFT | `>>`            | `>>`          |  
+
+## 6.6 Compound assignments
+
+| Token                | Description | Regex | 
+| -------------------- | ----------- | ----- | 
+| COMPOUND\_SUM        | `+=`        | `\+=` |  
+| COMPOUND\_DIFFERENCE | `-=`        | `-=`  |   
+| COMPOUND\_PRODUCT    | `*=`        | `\*=` |
+| COMPOUND\_DIVISION   | `/=`        | `/=`  |  
+| COMPOUND\_REMAINDER  | `%=`        | `%=`  |       
+| COMPOUND\_AND        | `&=`        | `&=`  |       
+| COMPOUND\_XOR        | `^=`        | `\^=` |       
+| COMPOUND\_OR         | `\`         | `=\`  | 
+| COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
+| COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
 
 9. Error handling
     | Token         | Description                                                                      | Regex                      |
