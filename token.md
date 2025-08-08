@@ -23,50 +23,50 @@
 | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]`                     | 
 | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
 
-    3.2 Floating constants
+## 3.2 Floating constants
    
-    | Token            | Description                                        | Regex                          |               
-    | ---------------- | -------------------------------------------------- | ----------------------------   | 
-    | DOUBLE\_CONSTANT | Floating‑point constant (fraction with no exponent)| `([0-9]+\.[0-9]*)|(\.[0-9]+)`  |
+| Token            | Description                                        | Regex                          |               
+| ---------------- | -------------------------------------------------- | ----------------------------   | 
+| DOUBLE\_CONSTANT | Floating‑point constant (fraction with no exponent)| `([0-9]+\.[0-9]*)|(\.[0-9]+)`  |
    
-    3.3 Character & string constants
+## 3.3 Character & string constants
    
-    | Token     | Description                          | Regex             | 
-    | --------- | ------------------------------------ | ----------------- | 
-    | CHARACTER | Character literal (supports escapes) | `'(\\.\|[^'])'`    | 
-    | STRING    | String literal (supports escapes)    | `"(\\.\|[^"\\])*"` |
+| Token     | Description                          | Regex             | 
+| --------- | ------------------------------------ | ----------------- | 
+| CHARACTER | Character literal (supports escapes) | `'(\\.\|[^'])'`    | 
+| STRING    | String literal (supports escapes)    | `"(\\.\|[^"\\])*"` |
 
-4. Keywords
+# 4. Keywords
    
-    | Token          | Description                                   | Regex      |
-    | -------------- | --------------------------------------------- | ---------- |
-    | `VOID`         | No return value or no data type               | `void`     |
-    | `RETURN`       | Exit a function and optionally return value   | `return`   |
-    | `IF`           | Conditional branching                         | `if`       |
-    | `ELSE`         | Alternate path for `if` condition             | `else`     |
-    | `DO`           | Start of a do-while loop                      | `do`       |
-    | `WHILE`        | Loop that runs while condition is true        | `while`    |
-    | `FOR`          | General-purpose counting loop                 | `for`      |
-    | `BREAK`        | Exit from loops or switch                     | `break`    |
-    | `CONTINUE`     | Skip to next iteration of loop                | `continue` |
-    | `STATIC`       | Persist across calls or limit linkage         | `static`   |
-    | `EXTERN`       | Declare global variable/function elsewhere    | `extern`   |
-    | `INT`          | Integer data type                             | `int`      |
-    | `LONG`         | Extended-size integer                         | `long`     |
-    | `SIGNED`       | Signed integer type                           | `signed`   |
-    | `UNSIGNED`     | Only non-negative integers                    | `unsigned` |
-    | `DOUBLE`       | Double-precision floating-point type          | `double`   |
-    | `CHAR`         | Single character data type                    | `char`     |
-    | `SIZEOF`       | Yields size of a type or variable (in bytes)  | `sizeof`   |
-    | `STRUCT`       | User-defined data structure                   | `struct`   |
-    | `GOTO`         | Unconditional jump to a label                 | `goto`     |
-    | `SWITCH`       | Multi-branch conditional                      | `switch`   |
-    | `CASE`         | Label within a `switch` block                 | `case`     |
-    | `DEFAULT_CASE` | Fallback label in a `switch` block            | `default`  |
+| Token          | Description                                   | Regex      |
+| -------------- | --------------------------------------------- | ---------- |
+| `VOID`         | No return value or no data type               | `void`     |
+| `RETURN`       | Exit a function and optionally return value   | `return`   |
+| `IF`           | Conditional branching                         | `if`       |
+| `ELSE`         | Alternate path for `if` condition             | `else`     |
+| `DO`           | Start of a do-while loop                      | `do`       |
+| `WHILE`        | Loop that runs while condition is true        | `while`    |
+| `FOR`          | General-purpose counting loop                 | `for`      |
+| `BREAK`        | Exit from loops or switch                     | `break`    |
+| `CONTINUE`     | Skip to next iteration of loop                | `continue` |
+| `STATIC`       | Persist across calls or limit linkage         | `static`   |
+| `EXTERN`       | Declare global variable/function elsewhere    | `extern`   |
+| `INT`          | Integer data type                             | `int`      |
+| `LONG`         | Extended-size integer                         | `long`     |
+| `SIGNED`       | Signed integer type                           | `signed`   |
+| `UNSIGNED`     | Only non-negative integers                    | `unsigned` |
+| `DOUBLE`       | Double-precision floating-point type          | `double`   |
+| `CHAR`         | Single character data type                    | `char`     |
+| `SIZEOF`       | Yields size of a type or variable (in bytes)  | `sizeof`   |
+| `STRUCT`       | User-defined data structure                   | `struct`   |
+| `GOTO`         | Unconditional jump to a label                 | `goto`     |
+| `SWITCH`       | Multi-branch conditional                      | `switch`   |
+| `CASE`         | Label within a `switch` block                 | `case`     |
+| `DEFAULT_CASE` | Fallback label in a `switch` block            | `default`  |
 
 
-5. Punctuators / Grammar tokens
-    Note: Some of these characgters need the escape sequence because they have special meaning in regex syntax
+# 5. Punctuators / Grammar tokens
+\n Note: Some of these characgters need the escape sequence because they have special meaning in regex syntax
    
     | Token              | Description         | Regex     |
     | ------------------ | ------------------- | --------- |
