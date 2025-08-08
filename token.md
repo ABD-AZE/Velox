@@ -66,7 +66,7 @@
 
 
 # 5. Punctuators / Grammar tokens
-Note: Some of these characgters need the escape sequence because they have special meaning in regex syntax
+Note: Some of these characters need the escape sequence because they have special meaning in regex syntax
    
 | Token              | Description         | Regex     |
 | ------------------ | ------------------- | --------- |
