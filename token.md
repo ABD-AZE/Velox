@@ -146,6 +146,6 @@ Note: Some of these characgters need the escape sequence because they have speci
 | COMPOUND\_REMAINDER  | `%=`        | `%=`  |       
 | COMPOUND\_AND        | `&=`        | `&=`  |       
 | COMPOUND\_XOR        | `^=`        | `\^=` |       
-| COMPOUND\_OR         | `\`         | `=\`  | 
+| COMPOUND\_OR         | `\`         | `\|=` | 
 | COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
 | COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
