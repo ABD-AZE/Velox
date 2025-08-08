@@ -15,7 +15,7 @@ We welcome contributions to Velox! Here are some guidelines to get you started:
 
 We use `clang-format` for code formatting. Please ensure all your modified files are formatted before submitting:
 
-*```bash
+```bash
 clang-format -i path/to/modified/files/
 ```
 
