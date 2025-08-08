@@ -64,6 +64,11 @@
 | `SWITCH`       | Multi-branch conditional                      | `switch`   |
 | `CASE`         | Label within a `switch` block                 | `case`     |
 | `DEFAULT_CASE` | Fallback label in a `switch` block            | `default`  |
+| `PRINTF`       | `printf` function call                        | `printf`   |
+| `SCANF`        | `scanf` function call                         | `scanf`    |
+| `TYPEDEF`      | Create new type alias                         | `typedef`  |
+| `ENUM`         | User-defined integer constants group          | `enum`     |
+| `UNION`        | Shared memory for different members           | `union`    |
 
 
 ## 5. Punctuators / Grammar tokens
