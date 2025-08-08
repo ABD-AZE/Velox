@@ -7,15 +7,15 @@
 | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*([^*]\|\*+[^*/])*\*+\/`    |
 
 # 2. Identifiers
-    | Token      | Description       | Regex                    |
-    | ---------- | ----------------- | ------------------------ |
-    | IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
 
-3. Constants (literals)
+| Token      | Description       | Regex                    |
+| ---------- | ----------------- | ------------------------ |
+| IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
+
+# 3. Constants (literals)
+## 3.1 Integer constants
    
-    3.1 Integer constants
-   
-    | Token           | Description                        | Regex                            | 
+| Token           | Description                        | Regex                            | 
     | --------------- | ---------------------------------- | -------------------------------- | 
     | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]+`                         | 
     | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]`                     |     
