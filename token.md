@@ -1,9 +1,10 @@
 # 1. Whitespace & Comments (skip)
-    | Token          | Description                         | Regex                          |
-    | -------------- | ----------------------------------- | ------------------------------ |
-    | WS             | Whitespace (spaces, tabs, newlines) | `[ \t\n\r\f\v]+`               |
-    | LINE\_COMMENT  | `// …` to end of line               | `\/\/[^\n]*`                   |
-    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*([^*]|\*+[^*/])*\*+\/`    |
+
+| Token          | Description                         | Regex                          |
+| -------------- | ----------------------------------- | ------------------------------ |
+| WS             | Whitespace (spaces, tabs, newlines) | `[ \t\n\r\f\v]+`               |
+| LINE\_COMMENT  | `// …` to end of line               | `\/\/[^\n]*`                   |
+| BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*([^*]|\*+[^*/])*\*+\/`    |
 
 # 2. Identifiers
     | Token      | Description       | Regex                    |
