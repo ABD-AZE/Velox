@@ -13,14 +13,15 @@
 | IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
 
 # 3. Constants (literals)
+
 ## 3.1 Integer constants
-   
+
 | Token           | Description                        | Regex                            | 
-    | --------------- | ---------------------------------- | -------------------------------- | 
-    | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]+`                         | 
-    | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]`                     |     
-    | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]`                     | 
-    | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
+| --------------- | ---------------------------------- | -------------------------------- | 
+| INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]+`                         | 
+| UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]`                     |     
+| LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]`                     | 
+| ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
 
     3.2 Floating constants
    
