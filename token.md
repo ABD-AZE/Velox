@@ -1,9 +1,9 @@
 1. Whitespace & Comments (skip)
     | Token          | Description                         | Regex                          |
     | -------------- | ----------------------------------- | ------------------------------ |
-    | WS             | Whitespace (spaces, tabs, newlines) | `\s+`                          |
-    | LINE\_COMMENT  | `// …` to end of line               | `//[^\n]*`                     |
-    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `/*[\s\S]*?*/`                 |
+    | WS             | Whitespace (spaces, tabs, newlines) | `[ \t\n\r\f\v]+`               |
+    | LINE\_COMMENT  | `// …` to end of line               | `\/\/[^\n]*`                   |
+    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*([^*]|\*+[^*/])*\*+\/`    |
 
 2. Identifiers
     | Token      | Description       | Regex                    |
@@ -16,16 +16,16 @@
    
     | Token           | Description                        | Regex                            | 
     | --------------- | ---------------------------------- | -------------------------------- | 
-    | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]+`                          | 
-    | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]\b`                   |     
-    | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]\b`                   | 
+    | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]+`                         | 
+    | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]`                     |     
+    | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]`                     | 
     | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
 
     3.2 Floating constants
    
-    | Token            | Description                                        | Regex               |                          
-    | ---------------- | -------------------------------------------------- | ------------------- | 
-    | DOUBLE\_CONSTANT | Floating‑point constant (fraction and/or exponent) | `[0-9]+\.[0-9]+\b`  |
+    | Token            | Description                                        | Regex                          |               
+    | ---------------- | -------------------------------------------------- | ----------------------------   | 
+    | DOUBLE\_CONSTANT | Floating‑point constant (fraction with no exponent)| `([0-9]+\.[0-9]*)|(\.[0-9]+)`  |
    
     3.3 Character & string constants
    
@@ -34,52 +34,54 @@
     | CHARACTER | Character literal (supports escapes) | `'(\\.\|[^'])'`    | 
     | STRING    | String literal (supports escapes)    | `"(\\.\|[^"\\])*"` |
 
-5. Keywords
+4. Keywords
    
-    | Token         | Description               | Regex          |
-    | ------------- | ------------------------- | -------------- |
-    | VOID          | `void`                    | `\bvoid\b`     |
-    | RETURN        | `return`                  | `\breturn\b`   |
-    | IF            | `if`                      | `\bif\b`       |
-    | ELSE          | `else`                    | `\belse\b`     |
-    | DO            | `do`                      | `\bdo\b`       |
-    | WHILE         | `while`                   | `\bwhile\b`    |
-    | UNTIL         | `until`                   | `\buntil\b`    |
-    | FOR           | `for`                     | `\bfor\b`      |
-    | BREAK         | `break`                   | `\bbreak\b`    |
-    | CONTINUE      | `continue`                | `\bcontinue\b` |
-    | STATIC        | `static`                  | `\bstatic\b`   |
-    | EXTERN        | `extern`                  | `\bextern\b`   |
-    | INT           | `int`                     | `\bint\b`      |
-    | LONG          | `long`                    | `\blong\b`     |
-    | SIGNED        | `signed`                  | `\bsigned\b`   |
-    | UNSIGNED      | `unsigned`                | `\bunsigned\b` |
-    | DOUBLE        | `double`                  | `\bdouble\b`   |
-    | CHAR          | `char`                    | `\bchar\b`     |
-    | SIZEOF        | `sizeof`                  | `\bsizeof\b`   |
-    | STRUCT        | `struct`                  | `\bstruct\b`   |
-    | GOTO          | `goto`                    | `\bgoto\b`     |
-    | SWITCH        | `switch`                  | `\bswitch\b`   |
-    | CASE          | `case`                    | `\bcase\b`     |
-    | DEFAULT\_CASE | `default`                 | `\bdefault\b`  |
+    | Token          | Description                                   | Regex      |
+    | -------------- | --------------------------------------------- | ---------- |
+    | `VOID`         | No return value or no data type               | `void`     |
+    | `RETURN`       | Exit a function and optionally return value   | `return`   |
+    | `IF`           | Conditional branching                         | `if`       |
+    | `ELSE`         | Alternate path for `if` condition             | `else`     |
+    | `DO`           | Start of a do-while loop                      | `do`       |
+    | `WHILE`        | Loop that runs while condition is true        | `while`    |
+    | `FOR`          | General-purpose counting loop                 | `for`      |
+    | `BREAK`        | Exit from loops or switch                     | `break`    |
+    | `CONTINUE`     | Skip to next iteration of loop                | `continue` |
+    | `STATIC`       | Persist across calls or limit linkage         | `static`   |
+    | `EXTERN`       | Declare global variable/function elsewhere    | `extern`   |
+    | `INT`          | Integer data type                             | `int`      |
+    | `LONG`         | Extended-size integer                         | `long`     |
+    | `SIGNED`       | Signed integer type                           | `signed`   |
+    | `UNSIGNED`     | Only non-negative integers                    | `unsigned` |
+    | `DOUBLE`       | Double-precision floating-point type          | `double`   |
+    | `CHAR`         | Single character data type                    | `char`     |
+    | `SIZEOF`       | Yields size of a type or variable (in bytes)  | `sizeof`   |
+    | `STRUCT`       | User-defined data structure                   | `struct`   |
+    | `GOTO`         | Unconditional jump to a label                 | `goto`     |
+    | `SWITCH`       | Multi-branch conditional                      | `switch`   |
+    | `CASE`         | Label within a `switch` block                 | `case`     |
+    | `DEFAULT_CASE` | Fallback label in a `switch` block            | `default`  |
 
-7. Punctuators / Grammar tokens
-    | Token              | Description         | Regex    |
-    | ------------------ | ------------------- | -------- |
-    | OPEN\_PARANTHESES  | `(`                 | `(`      |
-    | CLOSE\_PARANTHESES | `)`                 | `)`      |
-    | OPEN\_BRACE        | `{`                 | `{`      |
-    | CLOSE\_BRACE       | `}`                 | `}`      |
-    | OPEN\_BRACKET      | `[`                 | `[`      |
-    | CLOSE\_BRACKET     | `]`                 | `]`      |
-    | SEMICOLON          | `;`                 | `;`      |
-    | COLON              | `:`                 | `:`      |
-    | COMMA              | `,`                 | `,`      |
-    | DOT                | `.` (member access) | `.`      |
-    | QUESTION\_MARK     | `?` (ternary)       | `?`      |
-    | ELLIPSIS           | `...`               | `...`    |
 
-8. Operators
+5. Punctuators / Grammar tokens
+    Note: Some of these characgters need the escape sequence because they have special meaning in regex syntax
+   
+    | Token              | Description         | Regex     |
+    | ------------------ | ------------------- | --------- |
+    | OPEN\_PARANTHESES  | `(`                 | `\(`      |
+    | CLOSE\_PARANTHESES | `)`                 | `\)`      |
+    | OPEN\_BRACE        | `{`                 | `\{`      |
+    | CLOSE\_BRACE       | `}`                 | `\}`      |
+    | OPEN\_BRACKET      | `[`                 | `\[`      |
+    | CLOSE\_BRACKET     | `]`                 | `\]`      |
+    | SEMICOLON          | `;`                 | `;`       |
+    | COLON              | `:`                 | `:`       |
+    | COMMA              | `,`                 | `,`       |
+    | DOT                | `.` (member access) | `\.`      |
+    | QUESTION\_MARK     | `?` (ternary)       | `\?`      |
+    | ELLIPSIS           | `...`               | `\.\.\.`  |
+
+6. Operators
     6.1 Unary operators
     | Token                  | Description                            | Regex  |
     | ---------------------- | -------------------------------------- | ------ |
