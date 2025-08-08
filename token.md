@@ -13,9 +13,9 @@
 1. Whitespace & Comments (skip)
     | Token          | Description                         | Regex                          |
     | -------------- | ----------------------------------- | ------------------------------ |
-    | WS             | Whitespace (spaces, tabs, newlines) | `[ \t\r\n\f\v]+`               |
-    | LINE\_COMMENT  | `// …` to end of line               | `//[^\r\n]*`                   |
-    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `/\*[^*]*\*+([^/*][^*]*\*+)*/` |
+    | WS             | Whitespace (spaces, tabs, newlines) | `\s+`                          |
+    | LINE\_COMMENT  | `// …` to end of line               | `\/\/[^\n]*`                   |
+    | BLOCK\_COMMENT | `/* … */` (non‑nested)              | `\/\*[\s\S]*?\*\/`             |
 
 2. Identifiers
     | Token      | Description       | Regex                    |
@@ -23,26 +23,31 @@
     | IDENTIFIER | User‑defined name | `[_A-Za-z][_A-Za-z0-9]*` |
 
 3. Constants (literals)
+   
     3.1 Integer constants
-    | Token           | Description                        | Regex                | 
-    | --------------- | ---------------------------------- | -------------------- | 
-    | INT\_CONSTANT   | Signed decimal integer (no suffix) | \`0                  | 
-    | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]\b`       |     
-    | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]\b`       | 
-    | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | \`\[0-9]+(\[lL]\[uU] | 
+   
+    | Token           | Description                        | Regex                           | 
+    | --------------- | ---------------------------------- | ------------------------------- | 
+    | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]`                         | 
+    | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]\b`                  |     
+    | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]\b`                  | 
+    | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])|([lL][uU]))` | 
 
     3.2 Floating constants
-    | Token            | Description                                        | Regex               |                          |
+   
+    | Token            | Description                                        | Regex               |                          
     | ---------------- | -------------------------------------------------- | ------------------- | 
-    | DOUBLE\_CONSTANT | Floating‑point constant (fraction and/or exponent) | \`(\[0-9]+.\[0-9]\* |
+    | DOUBLE\_CONSTANT | Floating‑point constant (fraction and/or exponent) | `[0-9]+\.[0-9]+\b`  |
    
     3.3 Character & string constants
-    | Token     | Description                          | Regex         | 
-    | --------- | ------------------------------------ | ------------- | 
-    | CHARACTER | Character literal (supports escapes) | \`'(?:\[^'\\] | 
-    | STRING    | String literal (supports escapes)    | \`"(?:\[^"\\] |
+   
+    | Token     | Description                          | Regex             | 
+    | --------- | ------------------------------------ | ----------------- | 
+    | CHARACTER | Character literal (supports escapes) | `'(\\.|[^'])'`    | 
+    | STRING    | String literal (supports escapes)    | `"(\\.|[^"\\])*"` |
 
 5. Keywords
+   
     | Token         | Description               | Regex          |
     | ------------- | ------------------------- | -------------- |
     | VOID          | `void`                    | `\bvoid\b`     |
@@ -51,7 +56,7 @@
     | ELSE          | `else`                    | `\belse\b`     |
     | DO            | `do`                      | `\bdo\b`       |
     | WHILE         | `while`                   | `\bwhile\b`    |
-    | UNTIL         | `until` (Velox extension) | `\buntil\b`    |
+    | UNTIL         | `until`                   | `\buntil\b`    |
     | FOR           | `for`                     | `\bfor\b`      |
     | BREAK         | `break`                   | `\bbreak\b`    |
     | CONTINUE      | `continue`                | `\bcontinue\b` |
@@ -70,7 +75,7 @@
     | CASE          | `case`                    | `\bcase\b`     |
     | DEFAULT\_CASE | `default`                 | `\bdefault\b`  |
 
-6. Punctuators / Grammar tokens
+7. Punctuators / Grammar tokens
     | Token              | Description         | Regex    |
     | ------------------ | ------------------- | -------- |
     | OPEN\_PARANTHESES  | `(`                 | `\(`     |
@@ -86,7 +91,7 @@
     | QUESTION\_MARK     | `?` (ternary)       | `\?`     |
     | ELLIPSIS           | `...`               | `\.\.\.` |
 
-7. Operators
+8. Operators
     6.1 Unary operators
     | Token                  | Description                            | Regex  |
     | ---------------------- | -------------------------------------- | ------ |
@@ -147,7 +152,7 @@
     | COMPOUND\_LEFTSHIFT  | `<<=`       | `<<=` |       
     | COMPOUND\_RIGHTSHIFT | `>>=`       | `>>=` |       
 
-8. Error handling
+9. Error handling
     | Token         | Description                                                                      | Regex                      |
     | ------------- | -------------------------------------------------------------------------------- | -------------------------- |
     | INVALID\_CHAR | Any single unmatched character (emit and continue to collect all lexical errors) | `.` (final catch‑all rule) |
