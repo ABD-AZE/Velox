@@ -31,7 +31,7 @@
     | INT\_CONSTANT   | Signed decimal integer (no suffix) | `[0-9]`                          | 
     | UINT\_CONSTANT  | Unsigned decimal integer (u/U)     | `[0-9]+[uU]\b`                   |     
     | LONG\_CONSTANT  | Long decimal integer (l/L)         | `[0-9]+[lL]\b`                   | 
-    | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])/|([lL][uU]))` | 
+    | ULONG\_CONSTANT | Unsigned long (ul/lu, any case)    | `[0-9]+(([uU][lL])\|([lL][uU]))` | 
 
     3.2 Floating constants
    
