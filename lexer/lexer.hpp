@@ -116,6 +116,7 @@ public:
   } // starting column number
   void push(char c) { lexeme.push_back(c); }
   void reset() { lexeme.clear(); }
+  void pop() { lexeme.pop_back(); }
 
 private:
   TokenType type;
@@ -132,6 +133,8 @@ public:
   void PrintErrors() const;
   const std::vector<Token> &GenerateTokens();
   bool IsSuccess() const { return success; }
+  void ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
+                     TokenType lastAcceptedTokenType);
 
 private:
   std::string fileName;

@@ -1,4 +1,5 @@
 #include "lexer.hpp"
+#include "../utils/char_classifier.hpp"
 #include "termcolor.hpp"
 #include <format>
 #include <fstream>
@@ -169,7 +170,7 @@ void Lexer::PrintErrors() const {
     const int col=e.columnNumber;
 
     std::cout<<red
-            <<std::format("  {}:{}: unexpected character '{}'\n",ln,col,e.unexpectedChar)
+            <<std::format("  {}:{}: unexpected character '{}'\n",ln,col,e.unidentifiedToken)
             <<reset;
 
     if(ln>=1&&ln<=static_cast<int>(lines.size())){
@@ -188,6 +189,21 @@ void Lexer::PrintErrors() const {
   }
 }
 
+void Lexer::ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
+                          TokenType lastAcceptedTokenType) {
+  if (lastAcceptedTokenPos == std::streampos(-1)) {
+    errors.emplace_back(token.GetLineNumber(), token.GetColumnNumber(),
+                        token.GetLexeme());
+  } else {
+    while (inputFileStream.tellg() > lastAcceptedTokenPos) {
+      token.pop();
+      inputFileStream.unget();
+    }
+    token.SetType(lastAcceptedTokenType);
+    tokens.push_back(token);
+  }
+}
+
 /*
 NOTE for self: peek() doesn't move fp, get() does
 */
@@ -200,7 +216,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
   Token token;
   std::streampos lastAcceptedTokenPos =
       std::streampos(-1); // default invalid position
-
+  TokenType lastAcceptedTokenType;
   while (c = inputFileStream.get()) {
     //-----------------------------------COMMENTS_START------------------------------------
 
@@ -218,6 +234,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       token.SetColumnNumber(currentColumnNumber);
       token.SetLineNumber(currentLineNumber);
       lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::DOT;
       c = inputFileStream.get();
       if (c == '.') {
         token.push(c);
@@ -227,25 +244,62 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           // ellipsis found
           token.SetType(TokenType::ELLIPSIS);
           lastAcceptedTokenPos = inputFileStream.tellg();
+          lastAcceptedTokenType = TokenType::ELLIPSIS;
           tokens.push_back(token);
           continue;
-        }
-        // this else block will be repeated a lot so better to export it as a
-        // function
-        else {
+        } else {
           // Careful review required
-          if (lastAcceptedTokenPos == std::streampos(-1)) {
-            errors.emplace_back(currentLineNumber, currentColumnNumber,
-                                token.GetLexeme());
-            continue;
-          } else {
-            // reset the fp to the last accepted state position and push the
-            // token after popping relevant characters
-          }
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType);
+          continue;
         }
+      }
+      else if(isDigit(c)){
+        // potential FLOAT_CONSTANT
+        token.SetType(TokenType::FLOAT_CONSTANT);
+        while (isDigit(c)) {
+          token.push(c);
+          currentColumnNumber++;
+          c = inputFileStream.get();
+          lastAcceptedTokenPos = inputFileStream.tellg();
+          lastAcceptedTokenType = TokenType::FLOAT_CONSTANT;
+        }
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType);
+      } 
+      else {
+        // dot found
+        token.SetType(TokenType::DOT);
+        tokens.push_back(token);
+        continue;
       }
     }
 
+    // potential tokens: PLUS, COMPOUND_SUM, INCREMENT_OPERATOR
+    if(c == '+') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::PLUS;
+      c = inputFileStream.get();
+      if(c == '+') {
+          token.push(c);
+          currentColumnNumber++;
+          token.SetType(TokenType::INCREMENT_OPERATOR);
+          lastAcceptedTokenPos = inputFileStream.tellg();
+          lastAcceptedTokenType = TokenType::INCREMENT_OPERATOR;
+          tokens.push_back(token);
+      } else if(c == '=') {
+          token.push(c);
+          currentColumnNumber++;
+          token.SetType(TokenType::COMPOUND_SUM);
+          lastAcceptedTokenPos = inputFileStream.tellg();
+          lastAcceptedTokenType = TokenType::COMPOUND_SUM;
+          tokens.push_back(token);
+      } else {
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType);
+      }
+      continue;
+    }
     //-----------------------------------OPERATORS_END-------------------------------------
   }
   return tokens;
