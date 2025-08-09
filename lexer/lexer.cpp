@@ -98,6 +98,37 @@ static const std::unordered_map<TokenType, std::string> TokenTypeNames = {
     {TokenType::XOR, "XOR"},
 };
 
+static const std::unordered_map<std::string, TokenType> keywords = {
+    {"void", TokenType::VOID},
+    {"return", TokenType::RETURN},
+    {"if", TokenType::IF},
+    {"else", TokenType::ELSE},
+    {"do", TokenType::DO},
+    {"while", TokenType::WHILE},
+    {"for", TokenType::FOR},
+    {"break", TokenType::BREAK},
+    {"continue", TokenType::CONTINUE},
+    {"static", TokenType::STATIC},
+    {"extern", TokenType::EXTERN},
+    {"int", TokenType::INT},
+    {"long", TokenType::LONG},
+    {"signed", TokenType::SIGNED},
+    {"unsigned", TokenType::UNSIGNED},
+    {"double", TokenType::DOUBLE},
+    {"char", TokenType::CHAR},
+    {"sizeof", TokenType::SIZEOF},
+    {"struct", TokenType::STRUCT},
+    {"goto", TokenType::GOTO},
+    {"switch", TokenType::SWITCH},
+    {"case", TokenType::CASE},
+    {"default", TokenType::DEFAULT_CASE},
+    {"printf", TokenType::PRINTF},
+    {"scanf", TokenType::SCANF},
+    {"typedef", TokenType::TYPEDEF},
+    {"enum", TokenType::ENUM},
+    {"union", TokenType::UNION}
+};
+
 static std::string TokenTypeToString(TokenType type) {
   if (auto it = TokenTypeNames.find(type); it != TokenTypeNames.end()) {
     return it->second;
@@ -277,7 +308,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     }
 
     // potential tokens: PLUS, COMPOUND_SUM, INCREMENT_OPERATOR
-    if (c == '+') {
+    else if (c == '+') {
       token.push(c);
       currentColumnNumber++;
       token.SetColumnNumber(currentColumnNumber);
@@ -340,7 +371,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
 
     // potential tokens: COMPOUND_RIGHTSHIFT, RIGHT_SHIFT, GREATERTHAN,
     // GREATERTHANEQUAL
-    if (c == '>') {
+    else if (c == '>') {
       token.push(c);
       currentColumnNumber++;
       token.SetColumnNumber(currentColumnNumber);
@@ -387,7 +418,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     }
 
     // potential tokens: COMPOUND_LEFTSHIFT, LEFT_SHIFT, LESSTHAN, LESSTHANEQUAL
-    if (c == '<') {
+    else if (c == '<') {
       token.push(c);
       currentColumnNumber++;
       token.SetColumnNumber(currentColumnNumber);
@@ -435,9 +466,41 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     }
 
     //-----------------------------------OPERATORS_END-------------------------------------
-
+    
     //-----------------------------------PRADY---------------------------------------------
+    //--------------------------------IDENTIFIERS AND TOKENS-------------------------------
+    else if(isAlpha(c)) {
+      token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::IDENTIFIER;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
+      while(true) {
+        c = inputFileStream.get();
+        currentColumnNumber++;
+        if(!isAlphanumeric(c)) {
+          inputFileStream.unget();
+          currentColumnNumber--;
+          break;
+        }
+        lastAcceptedColumnNumber = currentColumnNumber;
+        lastAcceptedLineNumber = currentLineNumber;
+        lastAcceptedTokenPos = inputFileStream.tellg();
+      }
 
+      if(keywords.find(token.GetLexeme()) != keywords.end()) {
+        token.SetType(keywords.at(token.GetLexeme()));
+      } else {
+        token.SetType(TokenType::IDENTIFIER);
+      }
+
+      tokens.push_back(token);
+      continue;
+    }
+    //--------------------------------IDENTIFIERS AND TOKENS END---------------------------
     //-----------------------------------PRADY_END-----------------------------------------
   }
   return tokens;
