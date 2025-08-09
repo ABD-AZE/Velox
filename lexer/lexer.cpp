@@ -104,16 +104,6 @@ static std::string TokenTypeToString(TokenType type) {
     return "UNKNOWN_TOKEN";
 }
 
-static std::vector<std::string> loadFileLines(const std::string& path) {
-  std::ifstream in(path);
-  std::vector<std::string> lines;
-  std::string line;
-  while(std::getline(in, line)){
-    lines.push_back(line);
-  } 
-  return lines;
-}
-
 Lexer::Lexer(const std::string &file) : inputFileStream(file) {
   inputFileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
   if (!inputFileStream.is_open()) {
@@ -155,39 +145,24 @@ void Lexer::PrintTokens() const {
 }
 
 void Lexer::PrintErrors() const {
-  using namespace termcolor;
+    using namespace termcolor;
 
-  if(errors.empty()){
-    std::cout<<green<<"[ok] No lexical errors.\n"<<reset;
-    return;
-  }
-
-  auto lines=loadFileLines(fileName);
-  std::cout<<bold<<red<<"[errors] Lexical errors found: "<<errors.size()<<"\n"<<reset;
-
-  for(const auto& e:errors){
-    const int ln=e.lineNumber;
-    const int col=e.columnNumber;
-
-    std::cout<<red
-            <<std::format("  {}:{}: unexpected character '{}'\n",ln,col,e.unidentifiedToken)
-            <<reset;
-
-    if(ln>=1&&ln<=static_cast<int>(lines.size())){
-      const std::string& src=lines[ln-1];
-      std::cout<<"    "<<src<<"\n";
-      std::cout<<"    ";
-      int caretPos=std::max(1,col)-1;
-      for(int i=0;i<caretPos;++i){
-        std::cout<<' ';
-      }
-      std::cout<<red<<"^\n"<<reset;
-    } 
-    else {
-      std::cout<<termcolor::grey<<"    (no source context available)\n"<<reset;
+    if (errors.empty()) {
+        std::cout << green << "[ok] No lexical errors.\n" << reset;
+        return;
     }
-  }
+
+    std::cout << bold << red << "[errors] Lexical errors found: "
+              << errors.size() << "\n" << reset;
+
+    for (const auto& e : errors) {
+        std::cout << red
+                  << std::format("  {}:{}: unexpected token '{}'\n",
+                                 e.lineNumber, e.columnNumber, e.unidentifiedToken)
+                  << reset;
+    }
 }
+
 
 void Lexer::ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
                           TokenType lastAcceptedTokenType) {
