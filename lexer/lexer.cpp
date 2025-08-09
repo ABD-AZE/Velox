@@ -106,9 +106,13 @@ static std::string TokenTypeToString(TokenType type) {
 }
 
 Lexer::Lexer(const std::string &file) : inputFileStream(file) {
-  inputFileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-  if (!inputFileStream.is_open()) {
-    throw std::runtime_error("Failed to open file: " + file);
+  try {
+    inputFileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    if (!inputFileStream.is_open()) {
+      throw std::runtime_error("Failed to open file: " + file);
+    }
+  } catch (const std::ios_base::failure& e) {
+    throw std::runtime_error("Error opening file: " + file + " - " + e.what());
   }
 }
 
@@ -198,7 +202,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
   currentLineNumber = 1;   // 1 based indexing
   currentColumnNumber = 0; // 1 based indexing
   char c;
-  while (c = inputFileStream.get()) {
+  while (inputFileStream.get(c)) {
     Token token;
     std::streampos lastAcceptedTokenPos =
         std::streampos(-1); // default invalid position
@@ -225,11 +229,17 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       lastAcceptedTokenType = TokenType::DOT;
       lastAcceptedColumnNumber = currentColumnNumber;
       lastAcceptedLineNumber = currentLineNumber;
-      c = inputFileStream.get();
+      if(!inputFileStream.get(c)) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
       if (c == '.') {
         token.push(c);
         currentColumnNumber++;
-        c = inputFileStream.get();
+        if(!inputFileStream.get(c)) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
         if (c == '.') {
           // ellipsis found
           token.SetType(TokenType::ELLIPSIS);
@@ -247,7 +257,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         while (isDigit(c)) {
           token.push(c);
           currentColumnNumber++;
-          c = inputFileStream.get();
+          if(!inputFileStream.get(c)) {
+            ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                          lastAcceptedColumnNumber, lastAcceptedLineNumber);
+          }
           lastAcceptedTokenPos = inputFileStream.tellg();
           lastAcceptedTokenType = TokenType::FLOAT_CONSTANT;
           lastAcceptedColumnNumber = currentColumnNumber;
@@ -273,7 +286,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       lastAcceptedTokenType = TokenType::PLUS;
       lastAcceptedColumnNumber = currentColumnNumber;
       lastAcceptedLineNumber = currentLineNumber;
-      c = inputFileStream.get();
+      if(!inputFileStream.get(c)) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
       if (c == '+') {
         token.push(c);
         currentColumnNumber++;
@@ -301,7 +317,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       lastAcceptedTokenType = TokenType::DECREMENT_OPERATOR;
       lastAcceptedColumnNumber = currentColumnNumber;
       lastAcceptedLineNumber = currentLineNumber;
-      c = inputFileStream.get();
+      if(!inputFileStream.get(c)) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
       if (c == '-') {
         token.push(c);
         currentColumnNumber++;
@@ -330,7 +349,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       lastAcceptedTokenType = TokenType::GREATERTHAN;
       lastAcceptedColumnNumber = currentColumnNumber;
       lastAcceptedLineNumber = currentLineNumber;
-      c = inputFileStream.get();
+      if(!inputFileStream.get(c)) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
       // rightshift, compountrightshift
       if (c == '>') {
         token.push(c);
@@ -339,7 +361,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         lastAcceptedTokenType = TokenType::RIGHT_SHIFT;
         lastAcceptedColumnNumber = currentColumnNumber;
         lastAcceptedLineNumber = currentLineNumber;
-        c = inputFileStream.get();
+        if(!inputFileStream.get(c)) {
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        }
         if (c == '=') {
           token.push(c);
           currentColumnNumber++;
@@ -371,7 +396,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       lastAcceptedTokenType = TokenType::LESSTHAN;
       lastAcceptedColumnNumber = currentColumnNumber;
       lastAcceptedLineNumber = currentLineNumber;
-      c = inputFileStream.get();
+      if(!inputFileStream.get(c)) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
       // leftshift, compoundleftshift
       if (c == '<') {
         token.push(c);
@@ -380,7 +408,10 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         lastAcceptedTokenType = TokenType::LEFT_SHIFT;
         lastAcceptedColumnNumber = currentColumnNumber;
         lastAcceptedLineNumber = currentLineNumber;
-        c = inputFileStream.get();
+        if(!inputFileStream.get(c)) {
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        }
         if (c == '=') {
           token.push(c);
           currentColumnNumber++;
@@ -410,4 +441,11 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     //-----------------------------------PRADY_END-----------------------------------------
   }
   return tokens;
+}
+
+int main(){
+  Lexer lex = Lexer("input");
+  std::vector<Token> tokens = lex.GenerateTokens();
+  lex.PrintTokens();
+  return 0;
 }
