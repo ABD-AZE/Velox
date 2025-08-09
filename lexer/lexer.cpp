@@ -169,15 +169,19 @@ void Lexer::PrintErrors() const {
 }
 
 void Lexer::ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
-                          TokenType lastAcceptedTokenType) {
+                          TokenType lastAcceptedTokenType,
+                          int lastAcceptedColumnNumber,
+                          int lastAcceptedLineNumber) {
   if (lastAcceptedTokenPos == std::streampos(-1)) {
     errors.emplace_back(token.GetLineNumber(), token.GetColumnNumber(),
                         token.GetLexeme());
   } else {
-    while (inputFileStream.tellg() > lastAcceptedTokenPos) {
+    while (inputFileStream.tellg() != lastAcceptedTokenPos) {
       token.pop();
       inputFileStream.unget();
     }
+    currentColumnNumber = lastAcceptedColumnNumber;
+    currentLineNumber = lastAcceptedLineNumber;
     token.SetType(lastAcceptedTokenType);
     tokens.push_back(token);
   }
@@ -189,13 +193,15 @@ NOTE for self: peek() doesn't move fp, get() does
 
 const std::vector<Token> &Lexer::GenerateTokens() {
   // main logic goes here
-  currentLineNumber = 1;
-  currentColumnNumber = 1;
+  currentLineNumber = 1;   // 1 based indexing
+  currentColumnNumber = 0; // 1 based indexing
   char c;
   Token token;
   std::streampos lastAcceptedTokenPos =
       std::streampos(-1); // default invalid position
   TokenType lastAcceptedTokenType;
+  int lastAcceptedColumnNumber = 0;
+  int lastAcceptedLineNumber = 0;
   while (c = inputFileStream.get()) {
     //-----------------------------------COMMENTS_START------------------------------------
 
@@ -210,10 +216,13 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     // potential tokens: FLOAT_CONSTANT, DOT, ELLIPSIS
     else if (c == '.') {
       token.push(c);
+      currentColumnNumber++;
       token.SetColumnNumber(currentColumnNumber);
       token.SetLineNumber(currentLineNumber);
       lastAcceptedTokenPos = inputFileStream.tellg();
       lastAcceptedTokenType = TokenType::DOT;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
       c = inputFileStream.get();
       if (c == '.') {
         token.push(c);
@@ -224,11 +233,14 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           token.SetType(TokenType::ELLIPSIS);
           lastAcceptedTokenPos = inputFileStream.tellg();
           lastAcceptedTokenType = TokenType::ELLIPSIS;
+          lastAcceptedColumnNumber = currentColumnNumber;
+          lastAcceptedLineNumber = currentLineNumber;
           tokens.push_back(token);
           continue;
         } else {
           // Careful review required
-          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType);
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
           continue;
         }
       } else if (isDigit(c)) {
@@ -240,13 +252,15 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           c = inputFileStream.get();
           lastAcceptedTokenPos = inputFileStream.tellg();
           lastAcceptedTokenType = TokenType::FLOAT_CONSTANT;
+          lastAcceptedColumnNumber = currentColumnNumber;
+          lastAcceptedLineNumber = currentLineNumber;
         }
-        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType);
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
       } else {
-        // dot found
-        token.SetType(TokenType::DOT);
-        tokens.push_back(token);
-        inputFileStream.unget(); 
+        // dot
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
         continue;
       }
     }
@@ -254,10 +268,13 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     // potential tokens: PLUS, COMPOUND_SUM, INCREMENT_OPERATOR
     if (c == '+') {
       token.push(c);
+      currentColumnNumber++;
       token.SetColumnNumber(currentColumnNumber);
       token.SetLineNumber(currentLineNumber);
       lastAcceptedTokenPos = inputFileStream.tellg();
       lastAcceptedTokenType = TokenType::PLUS;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
       c = inputFileStream.get();
       if (c == '+') {
         token.push(c);
@@ -265,6 +282,8 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         token.SetType(TokenType::INCREMENT_OPERATOR);
         lastAcceptedTokenPos = inputFileStream.tellg();
         lastAcceptedTokenType = TokenType::INCREMENT_OPERATOR;
+        lastAcceptedColumnNumber = currentColumnNumber;
+        lastAcceptedLineNumber = currentLineNumber;
         tokens.push_back(token);
       } else if (c == '=') {
         token.push(c);
@@ -272,16 +291,65 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         token.SetType(TokenType::COMPOUND_SUM);
         lastAcceptedTokenPos = inputFileStream.tellg();
         lastAcceptedTokenType = TokenType::COMPOUND_SUM;
+        lastAcceptedColumnNumber = currentColumnNumber;
+        lastAcceptedLineNumber = currentLineNumber;
         tokens.push_back(token);
       } else {
-        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType);
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
       }
       continue;
+    }
+
+    // potential tokens: COMPOUND_RIGHTSHIFT, RIGHT_SHIFT, GREATERTHAN,
+    // GREATERTHANEQUAL
+    if (c == '>') {
+      token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::GREATERTHAN;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
+      c = inputFileStream.get();
+      // rightshift, compountrightshift
+      if (c == '>') {
+        token.push(c);
+        currentColumnNumber++;
+        lastAcceptedTokenPos = inputFileStream.tellg();
+        lastAcceptedTokenType = TokenType::COMPOUND_RIGHTSHIFT;
+        lastAcceptedColumnNumber = currentColumnNumber;
+        lastAcceptedLineNumber = currentLineNumber;
+        c = inputFileStream.get();
+        if (c == '=') {
+          token.push(c);
+          currentColumnNumber++;
+          token.SetType(TokenType::COMPOUND_RIGHTSHIFT);
+          tokens.push_back(token);
+          continue;
+        } else {
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        }
+      } else if (c == '=') {
+        token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::GREATERTHANEQUAL);
+        lastAcceptedTokenPos = inputFileStream.tellg();
+        lastAcceptedTokenType = TokenType::GREATERTHANEQUAL;
+        lastAcceptedColumnNumber = currentColumnNumber;
+        lastAcceptedLineNumber = currentLineNumber;
+        tokens.push_back(token);
+      } else {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
     }
     //-----------------------------------OPERATORS_END-------------------------------------
 
     //-----------------------------------PRADY---------------------------------------------
-    
+
     //-----------------------------------PRADY_END-----------------------------------------
   }
   return tokens;

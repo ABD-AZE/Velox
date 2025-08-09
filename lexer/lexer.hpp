@@ -134,7 +134,8 @@ public:
   const std::vector<Token> &GenerateTokens();
   bool IsSuccess() const { return success; }
   void ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
-                     TokenType lastAcceptedTokenType);
+                     TokenType lastAcceptedTokenType,
+                     int lastAcceptedColumnNumber, int lastAcceptedLineNumber);
 
 private:
   std::string fileName;
