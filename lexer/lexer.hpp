@@ -97,10 +97,10 @@ enum TokenType {
 struct ErrorInfo {
   int lineNumber;
   int columnNumber;
-  char unexpectedChar;
+  const std::string &unidentifiedToken;
 
-  ErrorInfo(int line, int column, char unexpected)
-      : lineNumber(line), columnNumber(column), unexpectedChar(unexpected) {}
+  ErrorInfo(int line, int column, const std::string &lexeme)
+      : lineNumber(line), columnNumber(column), unidentifiedToken(lexeme) {}
 };
 
 class Token {
@@ -110,8 +110,10 @@ public:
   int GetLineNumber() const { return lineNumber; }
   int GetColumnNumber() const { return columnNumber; }
   void SetType(TokenType t) { type = t; }
-  void SetLineNumber(int line) { lineNumber = line; }
-  void SetColumnNumber(int column) { columnNumber = column; }
+  void SetLineNumber(int line) { lineNumber = line; } // starting line number
+  void SetColumnNumber(int column) {
+    columnNumber = column;
+  } // starting column number
   void push(char c) { lexeme.push_back(c); }
   void reset() { lexeme.clear(); }
 
