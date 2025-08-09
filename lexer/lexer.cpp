@@ -180,6 +180,8 @@ void Lexer::ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
       token.pop();
       inputFileStream.unget();
     }
+    token.pop();
+    inputFileStream.unget();
     currentColumnNumber = lastAcceptedColumnNumber;
     currentLineNumber = lastAcceptedLineNumber;
     token.SetType(lastAcceptedTokenType);
@@ -196,16 +198,16 @@ const std::vector<Token> &Lexer::GenerateTokens() {
   currentLineNumber = 1;   // 1 based indexing
   currentColumnNumber = 0; // 1 based indexing
   char c;
-  Token token;
-  std::streampos lastAcceptedTokenPos =
-      std::streampos(-1); // default invalid position
-  TokenType lastAcceptedTokenType;
-  int lastAcceptedColumnNumber = 0;
-  int lastAcceptedLineNumber = 0;
   while (c = inputFileStream.get()) {
+    Token token;
+    std::streampos lastAcceptedTokenPos =
+        std::streampos(-1); // default invalid position
+    TokenType lastAcceptedTokenType;
+    int lastAcceptedColumnNumber = 0;
+    int lastAcceptedLineNumber = 0;
     //-----------------------------------COMMENTS_START------------------------------------
 
-    if (c == '\\') {
+    if (c == '/') {
 
     }
 
@@ -231,10 +233,6 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         if (c == '.') {
           // ellipsis found
           token.SetType(TokenType::ELLIPSIS);
-          lastAcceptedTokenPos = inputFileStream.tellg();
-          lastAcceptedTokenType = TokenType::ELLIPSIS;
-          lastAcceptedColumnNumber = currentColumnNumber;
-          lastAcceptedLineNumber = currentLineNumber;
           tokens.push_back(token);
           continue;
         } else {
@@ -280,19 +278,39 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         token.push(c);
         currentColumnNumber++;
         token.SetType(TokenType::INCREMENT_OPERATOR);
-        lastAcceptedTokenPos = inputFileStream.tellg();
-        lastAcceptedTokenType = TokenType::INCREMENT_OPERATOR;
-        lastAcceptedColumnNumber = currentColumnNumber;
-        lastAcceptedLineNumber = currentLineNumber;
         tokens.push_back(token);
       } else if (c == '=') {
         token.push(c);
         currentColumnNumber++;
         token.SetType(TokenType::COMPOUND_SUM);
-        lastAcceptedTokenPos = inputFileStream.tellg();
-        lastAcceptedTokenType = TokenType::COMPOUND_SUM;
-        lastAcceptedColumnNumber = currentColumnNumber;
-        lastAcceptedLineNumber = currentLineNumber;
+        tokens.push_back(token);
+      } else {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
+      continue;
+    }
+
+    // potential tokens: HYPHEN, COMPOUND_DIFFERENCE, DECREMENT_OPERATOR
+    if (c == '-') {
+      token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::DECREMENT_OPERATOR;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
+      c = inputFileStream.get();
+      if (c == '-') {
+        token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::DECREMENT_OPERATOR);
+        tokens.push_back(token);
+      } else if (c == '=') {
+        token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::COMPOUND_DIFFERENCE);
         tokens.push_back(token);
       } else {
         ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
@@ -318,7 +336,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         token.push(c);
         currentColumnNumber++;
         lastAcceptedTokenPos = inputFileStream.tellg();
-        lastAcceptedTokenType = TokenType::COMPOUND_RIGHTSHIFT;
+        lastAcceptedTokenType = TokenType::RIGHT_SHIFT;
         lastAcceptedColumnNumber = currentColumnNumber;
         lastAcceptedLineNumber = currentLineNumber;
         c = inputFileStream.get();
@@ -326,6 +344,47 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           token.push(c);
           currentColumnNumber++;
           token.SetType(TokenType::COMPOUND_RIGHTSHIFT);
+          tokens.push_back(token);
+        } else {
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        }
+      } else if (c == '=') {
+        token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::GREATERTHANEQUAL);
+        tokens.push_back(token);
+      } else {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
+      continue;
+    }
+
+    // potential tokens: COMPOUND_LEFTSHIFT, LEFT_SHIFT, LESSTHAN, LESSTHANEQUAL
+    if (c == '<') {
+      token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::LESSTHAN;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
+      c = inputFileStream.get();
+      // leftshift, compoundleftshift
+      if (c == '<') {
+        token.push(c);
+        currentColumnNumber++;
+        lastAcceptedTokenPos = inputFileStream.tellg();
+        lastAcceptedTokenType = TokenType::LEFT_SHIFT;
+        lastAcceptedColumnNumber = currentColumnNumber;
+        lastAcceptedLineNumber = currentLineNumber;
+        c = inputFileStream.get();
+        if (c == '=') {
+          token.push(c);
+          currentColumnNumber++;
+          token.SetType(TokenType::COMPOUND_LEFTSHIFT);
           tokens.push_back(token);
           continue;
         } else {
@@ -335,17 +394,15 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       } else if (c == '=') {
         token.push(c);
         currentColumnNumber++;
-        token.SetType(TokenType::GREATERTHANEQUAL);
-        lastAcceptedTokenPos = inputFileStream.tellg();
-        lastAcceptedTokenType = TokenType::GREATERTHANEQUAL;
-        lastAcceptedColumnNumber = currentColumnNumber;
-        lastAcceptedLineNumber = currentLineNumber;
+        token.SetType(TokenType::LESSTHANEQUAL);
         tokens.push_back(token);
       } else {
         ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
                       lastAcceptedColumnNumber, lastAcceptedLineNumber);
       }
+      continue;
     }
+
     //-----------------------------------OPERATORS_END-------------------------------------
 
     //-----------------------------------PRADY---------------------------------------------
