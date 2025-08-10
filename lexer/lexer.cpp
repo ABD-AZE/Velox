@@ -821,7 +821,153 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       }
       continue;
     }
+    // =, ==
+    else if (c == '=') {
+      token.push(c);
+      currentColumnNumber++;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::ASSIGNMENT;
+      c = inputFileStream.get();
+      if (c == '=') {
+        token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::EQUAL);
+        tokens.push_back(token);
+      } else {
+        if (c == std::char_traits<char>::eof()) {
+          inputFileStream.clear();
+          inputFileStream.seekg(0, std::ios::end);
+        } else {
+          inputFileStream.unget();
+        }
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
+      continue;
+    }
 
+    // ! , !=
+    else if (c == '!') {
+      token.push(c);
+      currentColumnNumber++;
+      lastAcceptedColumnNumber = currentColumnNumber;
+      lastAcceptedLineNumber = currentLineNumber;
+      lastAcceptedTokenPos = inputFileStream.tellg();
+      lastAcceptedTokenType = TokenType::NOT;
+      c = inputFileStream.get();
+      if (c == '=') {
+        token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::NOTEQUAL);
+        tokens.push_back(token);
+      } else {
+        if (c == std::char_traits<char>::eof()) {
+          inputFileStream.clear();
+          inputFileStream.seekg(0, std::ios::end);
+        } else {
+          inputFileStream.unget();
+        }
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
+      continue;
+    }
+
+    // ~
+    else if (c == '~') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::TILDE);
+      tokens.push_back(token);
+      continue;
+    }
+
+    // ?
+    else if (c == '?') {
+      token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::QUESTION_MARK);
+      tokens.push_back(token);
+      continue;
+    }
+
+    // (
+    else if (c == '(') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::OPEN_PARENTHESES);
+      tokens.push_back(token);
+      continue;
+    }
+    // )
+    else if (c == ')') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::CLOSE_PARENTHESES);
+      tokens.push_back(token);
+      continue;
+    }
+    // {
+    else if (c == '{') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::OPEN_BRACE);
+      tokens.push_back(token);
+      continue;
+    }
+    // }
+    else if (c == '}') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::CLOSE_BRACE);
+      tokens.push_back(token);
+      continue;
+    }
+    // [
+    else if (c == '[') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::OPEN_BRACKET);
+      tokens.push_back(token);
+      continue;
+    }
+    // ]
+    else if (c == ']') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::CLOSE_BRACKET);
+      tokens.push_back(token);
+      continue;
+    }
+    // ,
+    else if (c == ',') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::COMMA);
+      tokens.push_back(token);
+      continue;
+    }
+    // ;
+    else if (c == ';') {
+      token.push(c);
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      token.SetType(TokenType::SEMICOLON);
+      tokens.push_back(token);
+      continue;
+    }
     //-----------------------------------OPERATORS_END-------------------------------------
 
     //-----------------------------------PRADY---------------------------------------------
