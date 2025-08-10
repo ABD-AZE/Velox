@@ -117,6 +117,11 @@ public:
   void push(char c) { lexeme.push_back(c); }
   void reset() { lexeme.clear(); }
   void pop() { lexeme.pop_back(); }
+  void pop_front() {
+    if (!lexeme.empty()) {
+      lexeme.erase(lexeme.begin());
+    }
+  }
 
 private:
   TokenType type;
