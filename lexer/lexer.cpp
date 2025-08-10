@@ -1,6 +1,6 @@
 #include "lexer.hpp"
 #include "../utils/char_classifier.hpp"
-#include "termcolor.hpp"
+#include "../utils/termcolor.hpp"
 #include <algorithm>
 #include <format>
 #include <fstream>
