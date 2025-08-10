@@ -1011,6 +1011,206 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     }
 
     //--------------------------------IDENTIFIERS_AND_TOKENS_END---------------------------
+    //-------------------------------STRINGS_AND_CHARACTERS_START--------------------------
+
+    else if(c == '"') {
+      // STRING
+      // token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+      bool good = true;
+      //we don't accept a single quote as a string
+      while(true) {
+        c = inputFileStream.get();
+        if (c == EOF) {
+          inputFileStream.clear();
+          inputFileStream.seekg(0, std::ios::end);
+          good = false;
+          break;
+        }
+        else if( c == '"') {
+          // token.push(c);
+          currentColumnNumber++;
+          token.SetType(TokenType::STRING);
+          tokens.push_back(token);
+          break;
+        }
+        else if(c == '\n') {
+          inputFileStream.unget();
+          good = false;
+          break;
+        }
+        else if(c == '\\') {
+          currentColumnNumber++;
+          c = inputFileStream.get();
+          if (c == EOF) {
+            inputFileStream.clear();
+            inputFileStream.seekg(0, std::ios::end);
+            good = false;
+            break;
+          }
+          else if(c == '\n') {
+            currentColumnNumber = 0;
+            currentLineNumber++;
+          }
+          else if(c == '"') {
+            token.push('"');
+            currentColumnNumber++;
+          }
+          else if(c == '\'') {
+            token.push('\'');
+            currentColumnNumber++;
+          }
+          else if(c == '\\') {
+            token.push('\\');
+            currentColumnNumber++;
+          }
+          else if(c == 'n') {
+            token.push('\n');
+            currentColumnNumber++;
+          }
+          else if(c == 't') {
+            token.push('\t');
+            currentColumnNumber++;
+          }
+          else if(c == 'r') {
+            token.push('\r');
+            currentColumnNumber++;
+          }
+          else if(c == 'f') {
+            token.push('\f');
+            currentColumnNumber++;
+          }
+          else if(c == 'v') {
+            token.push('\v');
+            currentColumnNumber++;
+          }
+          else if(c == '0') {
+            token.push('\0');
+            currentColumnNumber++;
+          }
+          else {
+            inputFileStream.unget();
+            good = false;
+            break;
+          }
+        }
+        else{
+          token.push(c);
+          currentColumnNumber++;
+        }
+      }
+      if (!good) {
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
+    }
+    else if(c == '\'') {
+      // CHARACTER
+      // token.push(c);
+      currentColumnNumber++;
+      token.SetColumnNumber(currentColumnNumber);
+      token.SetLineNumber(currentLineNumber);
+    LABEL:
+      c = inputFileStream.get();
+      bool good = true;
+      if (c == EOF) {
+        inputFileStream.clear();
+        inputFileStream.seekg(0, std::ios::end);
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        continue;
+      }
+      else if(c == '\n' || c == '\'') {
+        inputFileStream.unget();
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        continue;
+      }
+      else if(c == '\\') {
+        currentColumnNumber++;
+        c = inputFileStream.get();
+        if(c == '\n') {
+          currentColumnNumber = 0;
+          currentLineNumber++;
+          goto LABEL;
+        }
+        else if (c == EOF) {
+          inputFileStream.clear();
+          inputFileStream.seekg(0, std::ios::end);
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+          continue;
+        }
+        else if(c == '\'') {
+          token.push('\'');
+          currentColumnNumber++;
+        }
+        else if(c == '"') {
+          token.push('"');
+          currentColumnNumber++;
+        }
+        else if(c == '\\') {
+          token.push('\\');
+          currentColumnNumber++;
+        }
+        else if(c == 'n') {
+          token.push('\n');
+          currentColumnNumber++;
+        }
+        else if(c == 't') {
+          token.push('\t');
+          currentColumnNumber++;
+        }
+        else if(c == 'r') {
+          token.push('\r');
+          currentColumnNumber++;
+        }
+        else if(c == 'f') {
+          token.push('\f');
+          currentColumnNumber++;
+        }
+        else if(c == 'v') {
+          token.push('\v');
+          currentColumnNumber++;
+        }
+        else if(c == '0') {
+          token.push('\0');
+          currentColumnNumber++;
+        }
+        else {
+          inputFileStream.unget();
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
+          continue;
+        }
+      }
+      else {
+        token.push(c);
+        currentColumnNumber++;
+      }
+      c = inputFileStream.get();
+      if(c == EOF) {
+        inputFileStream.clear();
+        inputFileStream.seekg(0, std::ios::end);
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+        continue;
+      }
+      else if(c == '\'') {
+        // token.push(c);
+        currentColumnNumber++;
+        token.SetType(TokenType::CHARACTER);
+        tokens.push_back(token);
+      }
+      else {
+        inputFileStream.unget();
+        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
+      }
+    }
+    //-------------------------------STRINGS_AND_CHARACTERS_END----------------------------
     //-----------------------------------PRADY_END-----------------------------------------
     else {
       token.push(c);
