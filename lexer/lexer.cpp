@@ -170,7 +170,7 @@ void Lexer::PrintTokens() const {
   auto quote_and_escape = [](const std::string &s) -> std::string {
     std::string out;
     out.reserve(s.size() + 2);
-    out.push_back('\'');
+    // out.push_back('\'');
     for (unsigned char c : s) {
       switch (c) {
       case '\n':
@@ -204,7 +204,7 @@ void Lexer::PrintTokens() const {
         }
       }
     }
-    out.push_back('\'');
+    // out.push_back('\'');
     return out;
   };
 
@@ -275,7 +275,7 @@ void Lexer::PrintErrors() const {
 
   for (const auto &e : errors) {
     std::cout << red
-              << std::format("  {}:{}: unexpected token '{}'\n", e.lineNumber,
+              << std::format("  {}:{}: unexpected token {}\n", e.lineNumber,
                              e.columnNumber, e.unidentifiedToken)
               << reset;
   }
@@ -1326,4 +1326,16 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     }
   }
   return tokens;
+}
+
+int main(){
+  Lexer lexer("input");
+  lexer.GenerateTokens();
+  if(size_t(lexer.sizeOfErrors()) == 0){
+    lexer.PrintTokens();
+  }
+  else{
+    lexer.PrintErrors();
+  }
+  return 0;
 }

@@ -135,6 +135,7 @@ public:
   void PrintSymbolTable() const;
   void PrintTokens() const;
   void PrintErrors() const;
+  int sizeOfErrors() const { return errors.size(); }
   const std::vector<Token> &GenerateTokens();
   void ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
                      TokenType lastAcceptedTokenType,
