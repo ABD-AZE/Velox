@@ -204,11 +204,9 @@ void Lexer::PrintTokens() const {
         }
       }
     }
-    // out.push_back('\'');
     return out;
   };
 
-  // Computing dynamic widths
   int maxLine = 1, maxCol = 1;
   size_t nameW = std::string("Name").size();
   size_t lexW = std::string("Lexeme").size();
@@ -317,6 +315,8 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     } else if (c == '\n') {
       currentLineNumber++;
       currentColumnNumber = 0;
+      continue;
+    } else if (c == '\r') {
       continue;
     } else if (c == ' ') {
       currentColumnNumber++;
@@ -1074,6 +1074,15 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           token.SetColumnNumber(currentColumnNumber);
           token.SetLineNumber(currentLineNumber);
           tokens.push_back(token);
+        } else {
+          if (c == std::char_traits<char>::eof()) {
+            inputFileStream.clear();
+            inputFileStream.seekg(0, std::ios::end);
+          } else {
+            inputFileStream.unget();
+          }
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
         }
       } else if (c == 'u' || c == 'U') {
         token.push(c);
@@ -1083,27 +1092,27 @@ const std::vector<Token> &Lexer::GenerateTokens() {
         lastAcceptedTokenPos = inputFileStream.tellg();
         lastAcceptedTokenType = TokenType::UINT_CONSTANT;
         token.SetType(TokenType::UINT_CONSTANT);
-        if (inputFileStream.peek() == 'l' || inputFileStream.peek() == 'L') {
-          c = inputFileStream.get();
+        c = inputFileStream.get();
+        if (c == 'l' || c == 'L') {
           token.push(c);
           currentColumnNumber++;
           token.SetColumnNumber(currentColumnNumber);
           token.SetLineNumber(currentLineNumber);
           token.SetType(TokenType::ULONG_CONSTANT);
-        }
-      } else {
-        if (c == std::char_traits<char>::eof()) {
-          inputFileStream.clear();
-          inputFileStream.seekg(0, std::ios::end);
+          tokens.push_back(token);
         } else {
-          inputFileStream.unget();
+          if (c == std::char_traits<char>::eof()) {
+            inputFileStream.clear();
+            inputFileStream.seekg(0, std::ios::end);
+          } else {
+            inputFileStream.unget();
+          }
+          ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
+                        lastAcceptedColumnNumber, lastAcceptedLineNumber);
         }
-        ErrorRecovery(token, lastAcceptedTokenPos, lastAcceptedTokenType,
-                      lastAcceptedColumnNumber, lastAcceptedLineNumber);
       }
       continue;
     }
-    //-----------------------------------PRADY---------------------------------------------
     //--------------------------------IDENTIFIERS_AND_TOKENS-------------------------------
     else if (isAlpha(c)) {
       token.push(c);
@@ -1314,7 +1323,6 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       }
     }
     //-------------------------------STRINGS_AND_CHARACTERS_END----------------------------
-    //-----------------------------------PRADY_END-----------------------------------------
     else {
       token.push(c);
       currentColumnNumber++;
@@ -1325,16 +1333,4 @@ const std::vector<Token> &Lexer::GenerateTokens() {
     }
   }
   return tokens;
-}
-
-int main(){
-  Lexer lexer("input");
-  lexer.GenerateTokens();
-  if(size_t(lexer.sizeOfErrors()) == 0){
-    lexer.PrintTokens();
-  }
-  else{
-    lexer.PrintErrors();
-  }
-  return 0;
 }
