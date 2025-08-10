@@ -1148,7 +1148,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
 
     else if (c == '"') {
       // STRING
-      // token.push(c);
+      token.push(c);
       currentColumnNumber++;
       token.SetColumnNumber(currentColumnNumber);
       token.SetLineNumber(currentLineNumber);
@@ -1163,7 +1163,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           break;
         } else if (c == '"') {
           // token.push(c);
-          // token.pop_front();
+          token.pop_front();
           currentColumnNumber++;
           token.SetType(TokenType::STRING);
           tokens.push_back(token);
