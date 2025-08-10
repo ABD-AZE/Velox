@@ -1,1 +1,5 @@
 .vscode/
+*.o
+*.out
+build/
+writing-a-c-compiler-tests/

@@ -86,7 +86,6 @@ enum TokenType {
   PERCENT_SIGN,
   TILDE,
   NOT,
-  AMP,
   LESSTHAN,
   GREATERTHAN,
   AAND,
