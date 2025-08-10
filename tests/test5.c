@@ -5,8 +5,8 @@ a += 1
 /* block
    with
    newlines */
-b >>= 2  // although you don't emit >>= yet, keep shifts you do: >> and then = should recover nicely
-// slash vs operator:
+b >>= 2  
 x = y / z
 /* a */ /=
-/* b */ /  /* single slash */
+/* b */ /  
+
