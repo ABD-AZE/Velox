@@ -97,7 +97,7 @@ enum TokenType {
 struct ErrorInfo {
   int lineNumber;
   int columnNumber;
-  const std::string &unidentifiedToken;
+  const std::string unidentifiedToken;
 
   ErrorInfo(int line, int column, const std::string &lexeme)
       : lineNumber(line), columnNumber(column), unidentifiedToken(lexeme) {}
@@ -132,14 +132,13 @@ public:
   void PrintTokens() const;
   void PrintErrors() const;
   const std::vector<Token> &GenerateTokens();
-  bool IsSuccess() const { return success; }
   void ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
                      TokenType lastAcceptedTokenType,
                      int lastAcceptedColumnNumber, int lastAcceptedLineNumber);
+  bool success = 1;
 
 private:
   std::string fileName;
-  bool success;
   std::vector<Token> tokens;
   std::vector<ErrorInfo> errors;
   std::ifstream inputFileStream;

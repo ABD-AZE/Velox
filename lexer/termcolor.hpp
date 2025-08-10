@@ -601,9 +601,6 @@ on_bright_magenta(std::basic_ostream<CharT> &stream) {
   if (_internal::is_colorized(stream)) {
 #if defined(TERMCOLOR_USE_ANSI_ESCAPE_SEQUENCES)
     stream << "\033[105m";
-#elif defined(TERMCOLOR_USE_WINDOWS_API)
-    _internal::win_change_attributes(
-        stream, -1, BACKGROUND_BLUE | BACKGROUND_RED | BACKGROUND_INTENSITY);
 #endif
   }
   return stream;
@@ -614,9 +611,6 @@ std::basic_ostream<CharT> &on_bright_cyan(std::basic_ostream<CharT> &stream) {
   if (_internal::is_colorized(stream)) {
 #if defined(TERMCOLOR_USE_ANSI_ESCAPE_SEQUENCES)
     stream << "\033[106m";
-#elif defined(TERMCOLOR_USE_WINDOWS_API)
-    _internal::win_change_attributes(
-        stream, -1, BACKGROUND_GREEN | BACKGROUND_BLUE | BACKGROUND_INTENSITY);
 #endif
   }
   return stream;
@@ -627,10 +621,6 @@ std::basic_ostream<CharT> &on_bright_white(std::basic_ostream<CharT> &stream) {
   if (_internal::is_colorized(stream)) {
 #if defined(TERMCOLOR_USE_ANSI_ESCAPE_SEQUENCES)
     stream << "\033[107m";
-#elif defined(TERMCOLOR_USE_WINDOWS_API)
-    _internal::win_change_attributes(stream, -1,
-                                     BACKGROUND_GREEN | BACKGROUND_BLUE |
-                                         BACKGROUND_RED | BACKGROUND_INTENSITY);
 #endif
   }
 
@@ -698,93 +688,16 @@ bool is_atty(const std::basic_ostream<CharT> &stream) {
 
 #if defined(TERMCOLOR_TARGET_POSIX)
   return ::isatty(fileno(std_stream));
-#elif defined(TERMCOLOR_TARGET_WINDOWS)
-  return ::_isatty(_fileno(std_stream));
 #else
   return false;
 #endif
 }
-
-#if defined(TERMCOLOR_TARGET_WINDOWS)
-
-//! same hack as used in get_standard_stream function, but for Windows with
-//! `std::ostream`
-inline HANDLE get_terminal_handle(std::ostream &stream) {
-  if (&stream == &std::cout)
-    return GetStdHandle(STD_OUTPUT_HANDLE);
-  else if (&stream == &std::cerr || &stream == &std::clog)
-    return GetStdHandle(STD_ERROR_HANDLE);
-  return nullptr;
-}
-
-//! same hack as used in get_standard_stream function, but for Windows with
-//! `std::wostream`
-inline HANDLE get_terminal_handle(std::wostream &stream) {
-  if (&stream == &std::wcout)
-    return GetStdHandle(STD_OUTPUT_HANDLE);
-  else if (&stream == &std::wcerr || &stream == &std::wclog)
-    return GetStdHandle(STD_ERROR_HANDLE);
-  return nullptr;
-}
-
-//! Change Windows Terminal colors attribute. If some
-//! parameter is `-1` then attribute won't changed.
-template <typename CharT>
-void win_change_attributes(std::basic_ostream<CharT> &stream, int foreground,
-                           int background) {
-  // yeah, i know.. it's ugly, it's windows.
-  static WORD defaultAttributes = 0;
-
-  // Windows doesn't have ANSI escape sequences and so we use special
-  // API to change Terminal output color. That means we can't
-  // manipulate colors by means of "std::stringstream" and hence
-  // should do nothing in this case.
-  if (!_internal::is_atty(stream))
-    return;
-
-  // get terminal handle
-  HANDLE hTerminal = INVALID_HANDLE_VALUE;
-  hTerminal = get_terminal_handle(stream);
-
-  // save default terminal attributes if it unsaved
-  if (!defaultAttributes) {
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    if (!GetConsoleScreenBufferInfo(hTerminal, &info))
-      return;
-    defaultAttributes = info.wAttributes;
-  }
-
-  // restore all default settings
-  if (foreground == -1 && background == -1) {
-    SetConsoleTextAttribute(hTerminal, defaultAttributes);
-    return;
-  }
-
-  // get current settings
-  CONSOLE_SCREEN_BUFFER_INFO info;
-  if (!GetConsoleScreenBufferInfo(hTerminal, &info))
-    return;
-
-  if (foreground != -1) {
-    info.wAttributes &= ~(info.wAttributes & 0x0F);
-    info.wAttributes |= static_cast<WORD>(foreground);
-  }
-
-  if (background != -1) {
-    info.wAttributes &= ~(info.wAttributes & 0xF0);
-    info.wAttributes |= static_cast<WORD>(background);
-  }
-
-  SetConsoleTextAttribute(hTerminal, info.wAttributes);
-}
-#endif // TERMCOLOR_TARGET_WINDOWS
 
 } // namespace _internal
 
 } // namespace termcolor
 
 #undef TERMCOLOR_TARGET_POSIX
-#undef TERMCOLOR_TARGET_WINDOWS
 
 #if defined(TERMCOLOR_AUTODETECTED_IMPLEMENTATION)
 #undef TERMCOLOR_USE_ANSI_ESCAPE_SEQUENCES
