@@ -1,10 +1,7 @@
 int i=0; i+=1; /* star run *********/ i = i/**/ + /**/1;
-/* many * before */ end */ a = 1;  
-x = y/*c1*/ / z/*c2*/ /= w;  // '/=' after a block comment
-u = v / /* split */ 2;
-/* block
-   with
-   newlines */
+/* hii * hello */ end */ a = 1;  
+x = y/*c1*/ / z/*c2*/ /= w;  // '/=' 
+u = v / /* ghielwenfiwegl */ 2;
 "quoted \"inside\" with \\ and \n and \t ok"
 'a' '\n' '\\' '\"' '\''
 . ... .5 9. 10.0
@@ -14,3 +11,4 @@ if(!a != !!b){ a = b ? c : d; }
 x = y / z
 /=
 /
+
