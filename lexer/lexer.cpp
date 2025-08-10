@@ -1163,7 +1163,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
           break;
         } else if (c == '"') {
           // token.push(c);
-          token.pop_front();
+          // token.pop_front();
           currentColumnNumber++;
           token.SetType(TokenType::STRING);
           tokens.push_back(token);
@@ -1232,7 +1232,7 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       token.SetLineNumber(currentLineNumber);
     LABEL:
       c = inputFileStream.get();
-      bool good = true;
+      // bool good = true;
       if (c == EOF) {
         inputFileStream.clear();
         inputFileStream.seekg(0, std::ios::end);
