@@ -86,7 +86,6 @@ enum TokenType {
   PERCENT_SIGN,
   TILDE,
   NOT,
-  AMP,
   LESSTHAN,
   GREATERTHAN,
   AAND,
@@ -97,10 +96,10 @@ enum TokenType {
 struct ErrorInfo {
   int lineNumber;
   int columnNumber;
-  char unexpectedChar;
+  const std::string unidentifiedToken;
 
-  ErrorInfo(int line, int column, char unexpected)
-      : lineNumber(line), columnNumber(column), unexpectedChar(unexpected) {}
+  ErrorInfo(int line, int column, const std::string &lexeme)
+      : lineNumber(line), columnNumber(column), unidentifiedToken(lexeme) {}
 };
 
 class Token {
@@ -110,10 +109,18 @@ public:
   int GetLineNumber() const { return lineNumber; }
   int GetColumnNumber() const { return columnNumber; }
   void SetType(TokenType t) { type = t; }
-  void SetLineNumber(int line) { lineNumber = line; }
-  void SetColumnNumber(int column) { columnNumber = column; }
+  void SetLineNumber(int line) { lineNumber = line; } // starting line number
+  void SetColumnNumber(int column) {
+    columnNumber = column;
+  } // starting column number
   void push(char c) { lexeme.push_back(c); }
   void reset() { lexeme.clear(); }
+  void pop() { lexeme.pop_back(); }
+  void pop_front() {
+    if (!lexeme.empty()) {
+      lexeme.erase(lexeme.begin());
+    }
+  }
 
 private:
   TokenType type;
@@ -129,11 +136,13 @@ public:
   void PrintTokens() const;
   void PrintErrors() const;
   const std::vector<Token> &GenerateTokens();
-  bool IsSuccess() const { return success; }
+  void ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
+                     TokenType lastAcceptedTokenType,
+                     int lastAcceptedColumnNumber, int lastAcceptedLineNumber);
+  bool success = 1;
 
 private:
   std::string fileName;
-  bool success;
   std::vector<Token> tokens;
   std::vector<ErrorInfo> errors;
   std::ifstream inputFileStream;

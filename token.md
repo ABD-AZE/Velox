@@ -99,7 +99,6 @@ Note: Some of these characters need the escape sequence because they have specia
 | DECREMENT\_OPERATOR    | `--`                                   | `--`   |
 | INCREMENT\_OPERATOR    | `++`                                   | `\+\+` |
 | NOT                    | `!` logical NOT                        | `!`    |
-| AMP                    | `&` address‑of (also bitwise AND)      | `&`    |
 | ASTERISK               | `*` dereference (also multiply)        | `\*`   |
 
 ### 6.2 Binary arithmetic & misc
@@ -259,10 +258,9 @@ Here is the **complete and correctly ordered priority list** of all the tokens y
 ---
 79. `TILDE`
 80. `NOT`
-81. `AMP`
 ---
-82. `LESSTHAN`
-83. `GREATERTHAN`
-84. `AAND`
-85. `AOR`
-86. `XOR`
+81. `LESSTHAN`
+82. `GREATERTHAN`
+83. `AAND`
+84. `AOR`
+85. `XOR`
