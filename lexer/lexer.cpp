@@ -1232,7 +1232,6 @@ const std::vector<Token> &Lexer::GenerateTokens() {
       token.SetLineNumber(currentLineNumber);
     LABEL:
       c = inputFileStream.get();
-      // bool good = true;
       if (c == EOF) {
         inputFileStream.clear();
         inputFileStream.seekg(0, std::ios::end);
