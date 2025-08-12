@@ -140,7 +140,6 @@ public:
                      TokenType lastAcceptedTokenType,
                      int lastAcceptedColumnNumber, int lastAcceptedLineNumber);
 
-  // Utility function to initialize token with position and tracking variables
   void initializeToken(Token &token, char c, TokenType tokenType,
                        int &lastAcceptedColumnNumber,
                        int &lastAcceptedLineNumber,

@@ -13,9 +13,6 @@ bool isWhitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-// Utility function to handle escape sequences
-// Returns a pair: <escaped_character, success>
-// If success is false, the character should not be processed as an escape
 std::pair<char, bool> processEscapeSequence(char c) {
   switch (c) {
   case '"':
