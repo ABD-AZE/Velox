@@ -139,6 +139,13 @@ public:
   void ErrorRecovery(Token &token, std::streampos lastAcceptedTokenPos,
                      TokenType lastAcceptedTokenType,
                      int lastAcceptedColumnNumber, int lastAcceptedLineNumber);
+
+  void initializeToken(Token &token, char c, TokenType tokenType,
+                       int &lastAcceptedColumnNumber,
+                       int &lastAcceptedLineNumber,
+                       std::streampos &lastAcceptedTokenPos,
+                       TokenType &lastAcceptedTokenType);
+
   bool success = 1;
 
 private:

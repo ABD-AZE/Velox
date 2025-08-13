@@ -3,11 +3,15 @@ CXXFLAGS = -std=c++20 -Wall -Wextra -g
 
 .PHONY: all clean help
 
-all: velox
+all: build/velox build/debug
 
-velox: build/obj/lexer.o build/obj/velox.o
+build/velox: build/obj/lexer.o build/obj/velox.o
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ $^
+
+build/debug: build/obj/lexer.o build/obj/velox.o
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) -g -o $@ $^
 
 build/obj/lexer.o: lexer/lexer.cpp
 	@mkdir -p build/obj
@@ -18,7 +22,7 @@ build/obj/velox.o: velox.cpp
 	$(CXX) $(CXXFLAGS) -Ilexer -c $< -o $@
 
 clean:
-	rm -rf build velox
+	rm -rf build
 
 help:
 	@echo "Available targets:"

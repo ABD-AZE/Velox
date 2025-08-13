@@ -9,9 +9,9 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Check if velox binary exists
-if [ ! -f "./velox" ]; then
-    echo -e "${RED}Error: velox binary not found. Run 'make' first.${NC}"
-    exit 1
+if [ ! -f "build/velox" ]; then
+	echo -e "${RED}Error: velox binary not found in build directory. Run 'make' first.${NC}"
+	exit 1
 fi
 
 # Iterate over tests directory
@@ -25,7 +25,7 @@ for test_file in tests/*; do
 		echo -e "${CYAN}========================================${NC}"
 		# Run the velox binary with the test file
 		echo -e "\n${PURPLE}Lexer Output:${NC}"
-		./velox "$test_file" 2>&1
+		build/velox "./$test_file" 2>&1
 		echo -e "\n${CYAN}Return code: $?${NC}"
 		echo -e "${CYAN}========================================${NC}"
 		((test_number++))
