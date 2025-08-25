@@ -60,6 +60,9 @@
 | `CHAR`         | Single character data type                    | `char`     |
 | `SIZEOF`       | Yields size of a type or variable (in bytes)  | `sizeof`   |
 | `STRUCT`       | User-defined data structure                   | `struct`   |
+| `CLASS`        | User-defined data structure                   | `class`    |
+| `PUBLIC`       | Access specifier                              | `public`   |
+| `PRIVATE`      | Access specifier                              | `private`  |
 | `GOTO`         | Unconditional jump to a label                 | `goto`     |
 | `SWITCH`       | Multi-branch conditional                      | `switch`   |
 | `CASE`         | Label within a `switch` block                 | `case`     |
