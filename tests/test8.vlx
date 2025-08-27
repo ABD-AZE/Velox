@@ -14,7 +14,7 @@ int main(){
   Node n; n.v = 10; n.next = &n;
   Node* p = &n; if (p->next->next == &n) { ... } 
   w = .123; z = 7.; x = .9;
-  a = b / c;        /=
+  a = b / c;      
   return 0;
 }
 

@@ -22,7 +22,7 @@ clang-format -i path/to/modified/files/
 You can also run the formatter on all source files:
 
 ```bash
-find src -name "*.[ch]" -o -name "*.[ch]pp" -o -name "*.cc" -o -name "*.hh" -o -name "*.[ch]xx" | xargs clang-format
+find -name "*.[ch]pp" | xargs clang-format -i
 ```
 
 ### Pull Requests
