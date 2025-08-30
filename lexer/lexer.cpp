@@ -1,20 +1,4 @@
 #include "lexer.hpp"
-#include "../utils/char_classifier.hpp"
-#include "../utils/termcolor.hpp"
-#include <algorithm>
-#include <format>
-#include <fstream>
-#include <iostream>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
-std::string TokenTypeToString(TokenType type) {
-  if (auto it = TokenTypeNames.find(type); it != TokenTypeNames.end()) {
-    return it->second;
-  }
-  return "UNKNOWN_TOKEN";
-}
 
 Lexer::Lexer(const std::string &file) : inputFileStream(file) {
   try {

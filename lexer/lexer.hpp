@@ -1,11 +1,14 @@
 #pragma once
 #include "../token/token.hpp"
+#include "../utils/char_classifier.hpp"
+#include "../utils/termcolor.hpp"
+#include <algorithm>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <unordered_map>
 #include <vector>
-
-std::string TokenTypeToString(TokenType type);
 
 class Lexer {
 public:

@@ -1,0 +1,320 @@
+# Velox C Compiler Grammar
+
+This document defines the grammar rules for the Velox C compiler using Extended Backus-Naur Form (EBNF) notation.
+
+## Program Structure
+
+### `<program>`
+```ebnf
+<program> ::= { <declaration> }
+```
+**Example:** `int x; void main() { return 0; }`
+
+### `<declaration>`
+```ebnf
+<declaration> ::= <variable-declaration> | <function-declaration>
+```
+**Examples:**
+- Variable declaration: `int x = 5;`
+- Function declaration: `int add(int a, int b);`
+
+## Declarations
+
+### `<variable-declaration>`
+```ebnf
+<variable-declaration> ::= { <specifier> }+ <declarator> [ "=" <initializer> ] ";"
+```
+**Examples:**
+- `int x;`
+- `static int count = 0;`
+- `unsigned long *ptr = NULL;`
+
+### `<function-declaration>`
+```ebnf
+<function-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";")
+```
+**Examples:**
+- Function prototype: `int factorial(int n);`
+- Function definition: `int factorial(int n) { return n <= 1 ? 1 : n * factorial(n-1); }`
+
+### `<declarator>`
+```ebnf
+<declarator> ::= "*" <declarator> | <direct-declarator>
+```
+**Examples:**
+- Direct: `x`
+- Pointer: `*ptr`
+- Pointer to pointer: `**ptr`
+
+### `<direct-declarator>`
+```ebnf
+<direct-declarator> ::= <simple-declarator> [ <declarator-suffix> ]
+```
+**Examples:**
+- Simple: `x`
+- Function: `func(int a, int b)`
+- Array: `arr[10]`
+
+### `<declarator-suffix>`
+```ebnf
+<declarator-suffix> ::= <param-list> | { "[" <const> "]" }+
+```
+**Examples:**
+- Parameter list: `(int x, char y)`
+- Array dimensions: `[10][20]`
+
+### `<param-list>`
+```ebnf
+<param-list> ::= "(" "void" ")" | "(" <param> { "," <param> } ")"
+```
+**Examples:**
+- Void parameters: `(void)`
+- Multiple parameters: `(int x, char *str, double val)`
+
+### `<param>`
+```ebnf
+<param> ::= { <type-specifier> }+ <declarator>
+```
+**Example:** `int *ptr`
+
+### `<simple-declarator>`
+```ebnf
+<simple-declarator> ::= <identifier> | "(" <declarator> ")"
+```
+**Examples:**
+- Identifier: `variable`
+- Parenthesized: `(*func_ptr)`
+
+## Type System
+
+### `<type-specifier>`
+```ebnf
+<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double" | "char" | "void"
+```
+**Examples:** `int`, `unsigned long`, `char`, `void`
+
+### `<specifier>`
+```ebnf
+<specifier> ::= <type-specifier> | "static" | "extern"
+```
+**Examples:** `static`, `extern int`, `unsigned`
+
+### `<type-name>`
+```ebnf
+<type-name> ::= { <type-specifier> }+ [ <abstract-declarator> ]
+```
+**Examples:**
+- `int`
+- `unsigned long *`
+- `char[10]`
+
+### `<abstract-declarator>`
+```ebnf
+<abstract-declarator> ::= "*" [ <abstract-declarator> ]
+                        | <direct-abstract-declarator>
+```
+**Examples:**
+- `*`
+- `**`
+- `[10]`
+
+### `<direct-abstract-declarator>`
+```ebnf
+<direct-abstract-declarator> ::= "(" <abstract-declarator> ")" { "[" <const> "]" }
+                               | { "[" <const> "]" }+
+```
+**Examples:**
+- `(*)[10]`
+- `[5][10]`
+
+## Statements and Blocks
+
+### `<block>`
+```ebnf
+<block> ::= "{" { <block-item> } "}"
+```
+**Example:** `{ int x = 5; printf("%d", x); }`
+
+### `<block-item>`
+```ebnf
+<block-item> ::= <statement> | <declaration>
+```
+**Examples:**
+- Statement: `x = 10;`
+- Declaration: `int y = 20;`
+
+### `<statement>`
+```ebnf
+<statement> ::= "return" [ <exp> ] ";"
+              | <exp> ";"
+              | "if" "(" <exp> ")" <statement> [ "else" <statement> ]
+              | <block>
+              | "break" ";"
+              | "continue" ";"
+              | "while" "(" <exp> ")" <statement>
+              | "do" <statement> "while" "(" <exp> ")" ";"
+              | "for" "(" <for-init> [ <exp> ] ";" [ <exp> ] ")" <statement>
+              | ";"
+```
+**Examples:**
+- Return: `return 42;`
+- Expression: `x = y + 1;`
+- If-else: `if (x > 0) return x; else return -x;`
+- While loop: `while (i < 10) i++;`
+- Do-while: `do { x++; } while (x < 5);`
+- For loop: `for (int i = 0; i < 10; i++) sum += i;`
+- Empty statement: `;`
+
+### `<for-init>`
+```ebnf
+<for-init> ::= <variable-declaration> | [ <exp> ] ";"
+```
+**Examples:**
+- Declaration: `int i = 0`
+- Expression: `i = 0;`
+- Empty: `;`
+
+## Expressions
+
+### `<exp>`
+```ebnf
+<exp> ::= <cast-exp> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
+```
+**Examples:**
+- Simple: `x`
+- Binary operation: `a + b * c`
+- Conditional: `x > 0 ? x : -x`
+
+### `<cast-exp>`
+```ebnf
+<cast-exp> ::= "(" <type-name> ")" <cast-exp>
+             | <unary-exp>
+```
+**Examples:**
+- Cast: `(int)3.14`
+- Unary: `-x`
+
+### `<unary-exp>`
+```ebnf
+<unary-exp> ::= <unop> <cast-exp>
+              | "sizeof" <unary-exp>
+              | "sizeof" "(" <type-name> ")"
+              | <postfix-exp>
+```
+**Examples:**
+- Unary operator: `-x`, `!flag`, `*ptr`
+- Sizeof expression: `sizeof x`
+- Sizeof type: `sizeof(int)`
+- Postfix: `arr[i]`
+
+### `<postfix-exp>`
+```ebnf
+<postfix-exp> ::= <primary-exp> { "[" <exp> "]" }
+```
+**Examples:**
+- Array access: `arr[0]`
+- Multi-dimensional: `matrix[i][j]`
+
+### `<primary-exp>`
+```ebnf
+<primary-exp> ::= <const> | <identifier> | "(" <exp> ")" | { <string> }+
+                | <identifier> "(" [ <argument-list> ] ")"
+```
+**Examples:**
+- Constant: `42`, `3.14`, `'a'`
+- Identifier: `variable`
+- Parenthesized: `(x + y)`
+- String: `"Hello World"`
+- Function call: `printf("Hello")`
+
+### `<argument-list>`
+```ebnf
+<argument-list> ::= <exp> { "," <exp> }
+```
+**Example:** `x + 1, y * 2, "string"`
+
+## Initializers
+
+### `<initializer>`
+```ebnf
+<initializer> ::= <exp> | "{" <initializer> { "," <initializer> } [ "," ] "}"
+```
+**Examples:**
+- Expression: `42`
+- Array initializer: `{1, 2, 3, 4}`
+- Nested initializer: `{{1, 2}, {3, 4}}`
+
+## Operators
+
+### `<unop>`
+```ebnf
+<unop> ::= "-" | "~" | "!" | "*" | "&"
+```
+**Examples:** `-x`, `~bits`, `!flag`, `*ptr`, `&var`
+
+### `<binop>`
+```ebnf
+<binop> ::= "-" | "+" | "*" | "/" | "%" | "&&" | "||"
+          | "==" | "!=" | "<" | "<=" | ">" | ">=" | "="
+```
+**Examples:**
+- Arithmetic: `a + b`, `x * y`, `n % 2`
+- Logical: `a && b`, `x || y`
+- Comparison: `x == y`, `a < b`, `p != NULL`
+- Assignment: `x = 5`
+
+## Constants and Tokens
+
+### `<const>`
+```ebnf
+<const> ::= <int> | <long> | <uint> | <ulong> | <double> | <char>
+```
+**Examples:** `42`, `123L`, `456U`, `789UL`, `3.14`, `'a'`
+
+### `<identifier>`
+```ebnf
+<identifier> ::= ? An identifier token ?
+```
+**Examples:** `variable`, `function_name`, `MAX_SIZE`
+
+### `<string>`
+```ebnf
+<string> ::= ? A string token ?
+```
+**Examples:** `"Hello"`, `"World\n"`, `""`
+
+### `<int>`
+```ebnf
+<int> ::= ? An int token ?
+```
+**Examples:** `0`, `42`, `0x1A`, `077`
+
+### `<char>`
+```ebnf
+<char> ::= ? A char token ?
+```
+**Examples:** `'a'`, `'\n'`, `'\0'`, `'\x41'`
+
+### `<long>`
+```ebnf
+<long> ::= ? An int or long token ?
+```
+**Examples:** `123L`, `0x1234L`
+
+### `<uint>`
+```ebnf
+<uint> ::= ? An unsigned int token ?
+```
+**Examples:** `123U`, `0xFFFFU`
+
+### `<ulong>`
+```ebnf
+<ulong> ::= ? An unsigned int or unsigned long token ?
+```
+**Examples:** `123UL`, `456LU`, `0xFFFFFFFFUL`
+
+### `<double>`
+```ebnf
+<double> ::= ? A floating-point constant token ?
+```
+**Examples:** `3.14`, `2.5e10`, `1.23E-4`, `.5`, `10.`

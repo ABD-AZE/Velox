@@ -1,19 +1,19 @@
 #pragma once
 #include <utility>
 
-bool isDigit(char c) { return c >= '0' && c <= '9'; }
+constexpr bool isDigit(char c) { return c >= '0' && c <= '9'; }
 
-bool isAlpha(char c) {
+constexpr bool isAlpha(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_');
 }
 
-bool isAlphanumeric(char c) { return isAlpha(c) || isDigit(c); }
+constexpr bool isAlphanumeric(char c) { return isAlpha(c) || isDigit(c); }
 
-bool isWhitespace(char c) {
+constexpr bool isWhitespace(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r';
 }
 
-std::pair<char, bool> processEscapeSequence(char c) {
+constexpr std::pair<char, bool> processEscapeSequence(char c) {
   switch (c) {
   case '"':
     return {'"', true};
