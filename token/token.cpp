@@ -111,7 +111,10 @@ const std::unordered_map<TokenType, std::string> TokenTypeNames = {
     {TokenType::FSCANF, "FSCANF"},                       // fscanf
     {TokenType::MALLOC, "MALLOC"},                       // malloc
     {TokenType::FREE, "FREE"},                           // free
-    {TokenType::UNTIL, "UNTIL"}                          // until
+    {TokenType::UNTIL, "UNTIL"},                         // until
+    {TokenType::CONST, "CONST"},                           // const
+    {TokenType::END_OF_FILE, "END_OF_FILE"}
+
 };
 
 const std::unordered_map<std::string, TokenType> keywords = {
@@ -158,4 +161,6 @@ const std::unordered_map<std::string, TokenType> keywords = {
     {"fscanf", TokenType::FSCANF},
     {"malloc", TokenType::MALLOC},
     {"free", TokenType::FREE},
-    {"until", TokenType::UNTIL}};
+    {"until", TokenType::UNTIL},
+    {"const", TokenType::CONST},
+};
