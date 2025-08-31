@@ -16,30 +16,30 @@ This document defines the precedence levels and binding powers for all operators
 
 | Precedence | Operator | Token | Associativity | LBP | RBP | Description |
 |------------|----------|-------|---------------|-----|-----|-------------|
-| 16 | `()` `[]` `->` `.` | OPEN_PARANTHESES, OPEN_BRACKET, ARROW_OPERATOR, DOT | Left | 160 | 159 | Postfix, function call, array subscript, member access |
-| 15 | `++` `--` (postfix) | INCREMENT_OPERATOR, DECREMENT_OPERATOR | Left | 150 | 149 | Postfix increment/decrement |
-| 14 | `++` `--` (prefix) | INCREMENT_OPERATOR, DECREMENT_OPERATOR | Right | 139 | 140 | Prefix increment/decrement |
-| 14 | `+` `-` (unary) | PLUS, HYPHEN | Right | 139 | 140 | Unary plus/minus |
-| 14 | `!` `~` | NOT, TILDE | Right | 139 | 140 | Logical NOT, bitwise complement |
-| 14 | `*` (dereference) | ASTERISK | Right | 139 | 140 | Pointer dereference |
-| 14 | `&` (address-of) | AAND | Right | 139 | 140 | Address-of operator |
-| 14 | `sizeof` | SIZEOF | Right | 139 | 140 | Size of operator |
-| 13 | `*` `/` `%` | ASTERISK, FORWARD_SLASH, PERCENT_SIGN | Left | 130 | 129 | Multiplication, division, modulo |
-| 12 | `+` `-` (binary) | PLUS, HYPHEN | Left | 120 | 119 | Addition, subtraction |
-| 11 | `<<` `>>` | LEFT_SHIFT, RIGHT_SHIFT | Left | 110 | 109 | Bitwise shift operators |
-| 10 | `<` `<=` `>` `>=` | LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL | Left | 100 | 99 | Relational operators |
-| 9 | `==` `!=` | EQUAL, NOTEQUAL | Left | 90 | 89 | Equality operators |
-| 8 | `&` (bitwise) | AAND | Left | 80 | 79 | Bitwise AND |
-| 7 | `^` | XOR | Left | 70 | 69 | Bitwise XOR |
-| 6 | `\|` | AOR | Left | 60 | 59 | Bitwise OR |
-| 5 | `&&` | LAND | Left | 50 | 49 | Logical AND |
-| 4 | `\|\|` | LOR | Left | 40 | 39 | Logical OR |
-| 3 | `?:` | QUESTION_MARK, COLON | Right | 29 | 30 | Conditional (ternary) operator |
-| 2 | `=` | ASSIGNMENT | Right | 19 | 20 | Simple assignment |
-| 2 | `+=` `-=` `*=` `/=` `%=` | COMPOUND_SUM, COMPOUND_DIFFERENCE, COMPOUND_PRODUCT, COMPOUND_DIVISION, COMPOUND_REMAINDER | Right | 19 | 20 | Compound assignment |
-| 2 | `&=` `^=` `\|=` | COMPOUND_AND, COMPOUND_XOR, COMPOUND_OR | Right | 19 | 20 | Bitwise compound assignment |
-| 2 | `<<=` `>>=` | COMPOUND_LEFTSHIFT, COMPOUND_RIGHTSHIFT | Right | 19 | 20 | Shift compound assignment |
-| 1 | `,` | COMMA | Left | 10 | 9 | Comma operator |
+| 16 | `()` `[]` `->` `.` | OPEN_PARANTHESES, OPEN_BRACKET, ARROW_OPERATOR, DOT | Left | 159 | 160 | Postfix, function call, array subscript, member access |
+| 15 | `++` `--` (postfix) | INCREMENT_OPERATOR, DECREMENT_OPERATOR | Left | 149 | 150 | Postfix increment/decrement |
+| 14 | `++` `--` (prefix) | INCREMENT_OPERATOR, DECREMENT_OPERATOR | Right | 140 | 139 | Prefix increment/decrement |
+| 14 | `+` `-` (unary) | PLUS, HYPHEN | Right | 140 | 139 | Unary plus/minus |
+| 14 | `!` `~` | NOT, TILDE | Right | 140 | 139 | Logical NOT, bitwise complement |
+| 14 | `*` (dereference) | ASTERISK | Right | 140 | 139 | Pointer dereference |
+| 14 | `&` (address-of) | AAND | Right | 140 | 139 | Address-of operator |
+| 14 | `sizeof` | SIZEOF | Right | 140 | 139 | Size of operator |
+| 13 | `*` `/` `%` | ASTERISK, FORWARD_SLASH, PERCENT_SIGN | Left | 129 | 130 | Multiplication, division, modulo |
+| 12 | `+` `-` (binary) | PLUS, HYPHEN | Left | 119 | 120 | Addition, subtraction |
+| 11 | `<<` `>>` | LEFT_SHIFT, RIGHT_SHIFT | Left | 109 | 110 | Bitwise shift operators |
+| 10 | `<` `<=` `>` `>=` | LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL | Left | 99 | 100 | Relational operators |
+| 9 | `==` `!=` | EQUAL, NOTEQUAL | Left | 89 | 90 | Equality operators |
+| 8 | `&` (bitwise) | AAND | Left | 79 | 80 | Bitwise AND |
+| 7 | `^` | XOR | Left | 69 | 70 | Bitwise XOR |
+| 6 | `\|` | AOR | Left | 59 | 60 | Bitwise OR |
+| 5 | `&&` | LAND | Left | 49 | 50 | Logical AND |
+| 4 | `\|\|` | LOR | Left | 39 | 40 | Logical OR |
+| 3 | `?:` | QUESTION_MARK, COLON | Right | 30 | 29 | Conditional (ternary) operator |
+| 2 | `=` | ASSIGNMENT | Right | 20 | 19 | Simple assignment |
+| 2 | `+=` `-=` `*=` `/=` `%=` | COMPOUND_SUM, COMPOUND_DIFFERENCE, COMPOUND_PRODUCT, COMPOUND_DIVISION, COMPOUND_REMAINDER | Right | 20 | 19 | Compound assignment |
+| 2 | `&=` `^=` `\|=` | COMPOUND_AND, COMPOUND_XOR, COMPOUND_OR | Right | 20 | 19 | Bitwise compound assignment |
+| 2 | `<<=` `>>=` | COMPOUND_LEFTSHIFT, COMPOUND_RIGHTSHIFT | Right | 20 | 19 | Shift compound assignment |
+| 1 | `,` | COMMA | Left | 9 | 10 | Comma operator |
 
 ## Special Cases
 

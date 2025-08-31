@@ -4,7 +4,7 @@
 #include<vector>
 #include<memory>
 #include <algorithm>
-#include "../ast/ast_variant.hpp"
+#include "../ast/ast.hpp"
 #include "../token/token.hpp"
 
 // Type aliases for unique_ptr AST node types
@@ -84,7 +84,9 @@ class Parser {
     Parser(const std::vector<Token>& tokens);
     void parseProgram();
     AST_Node_programPtr program;
-  
+    
+    // Expression parsing - public for testing
+    AST_Node_expPtr parseExpression(int min_bp = 0);
 
   private:
     std::vector<Token> tokens;
@@ -110,11 +112,13 @@ class Parser {
 
     AST_Node_typePtr parseType();
 
-    AST_Node_member_declarationPtr parseMemberDeclaration(){}
+    AST_Node_member_declarationPtr parseMemberDeclaration(){ return nullptr; }
     AST_Node_initializerPtr parseInitializer();
 
     // to be handled using pratt
-    AST_Node_expPtr parseExpression();
+
+private:
+    AST_Node_expPtr parsePrimary();
 
     AST_Node_for_initPtr parseForInit();
 
