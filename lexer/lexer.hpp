@@ -10,6 +10,15 @@
 #include <unordered_map>
 #include <vector>
 
+struct LexerErrorInfo {
+  int lineNumber;
+  int columnNumber;
+  const std::string unidentifiedToken;
+
+  LexerErrorInfo(int line, int column, const std::string &lexeme)
+      : lineNumber(line), columnNumber(column), unidentifiedToken(lexeme) {}
+};
+
 class Lexer {
 public:
   Lexer(const std::string &file);
@@ -32,7 +41,7 @@ public:
 private:
   std::string fileName;
   std::vector<Token> tokens;
-  std::vector<ErrorInfo> errors;
+  std::vector<LexerErrorInfo> errors;
   std::ifstream inputFileStream;
   int currentLineNumber;
   int currentColumnNumber;

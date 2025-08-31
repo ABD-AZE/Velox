@@ -3,8 +3,9 @@
 #include<string>
 #include<vector>
 #include<memory>
-#include "ast/ast.hpp"
-#include "token/token.hpp"
+#include <algorithm>
+#include "../ast/ast.hpp"
+#include "../token/token.hpp"
 
 // Type aliases for unique_ptr AST node types
 using AST_Node_programPtr = std::unique_ptr<AST_Node_program>;
@@ -62,37 +63,44 @@ using AST_Node_constructor_memberPtr = std::unique_ptr<AST_Node_constructor_memb
 using AST_Node_class_memberPtr = std::unique_ptr<AST_Node_class_member>;
 using AST_Node_array_sizePtr = std::unique_ptr<AST_Node_array_size>;
 
-// just a temporary astnode type
-struct ASTNode {
-    TokenType type;
-    std::string value;
-    std::vector<ASTNode> children;
-};
-
 // unary operators to be handled separately while parsing
 int GetPrecedence(TokenType token);
 std::pair<int, int> GetBindingPower(TokenType token);
 int GetUnaryPrecedence(TokenType token);
 std::pair<int, int> GetUnaryBindingPower(TokenType token);
 
+struct ParserErrorInfo{
+  int lineNumber;
+  int columnNumber;
+  TokenType expectedToken;
+  TokenType actualToken;
+
+  ParserErrorInfo(int line, int column, TokenType expected, TokenType actual)
+      : lineNumber(line), columnNumber(column), expectedToken(expected), actualToken(actual) {}
+};
+
 class Parser {
   public:
     Parser(const std::vector<Token>& tokens);
+    void parseProgram();
+    AST_Node_programPtr program;
+  
+
+  private:
+    std::vector<Token> tokens;
+    size_t tokenSize = 0;
+    size_t currentIndex = tokenSize-1; // Add this for parsing position
+    bool success = 1;
+    std::vector<ParserErrorInfo> errors;
+
     // advances the index
     Token get();
     // token at current index
     Token peek();
+    Token peekNext();
+    Token consume();
+    void reset();
     bool expect(TokenType expected, TokenType actual);
-    void parseProgram();
-    AST_Node_programPtr program;
-    
-
-  private:
-    std::vector<Token> tokens;
-    size_t tokenSize;
-    size_t currentIndex = 0; // Add this for parsing position
-    bool success;
-    std::vector<std::string> errors;
 
     AST_Node_declarationPtr parseDeclaration();
     // declaration

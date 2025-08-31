@@ -109,15 +109,6 @@ enum TokenType {
   END_OF_FILE,
 };
 
-struct ErrorInfo {
-  int lineNumber;
-  int columnNumber;
-  const std::string unidentifiedToken;
-
-  ErrorInfo(int line, int column, const std::string &lexeme)
-      : lineNumber(line), columnNumber(column), unidentifiedToken(lexeme) {}
-};
-
 class Token {
 public:
   TokenType GetType() const { return type; }
