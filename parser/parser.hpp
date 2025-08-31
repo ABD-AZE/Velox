@@ -4,7 +4,7 @@
 #include<vector>
 #include<memory>
 #include <algorithm>
-#include "../ast/ast.hpp"
+#include "../ast/ast_variant.hpp"
 #include "../token/token.hpp"
 
 // Type aliases for unique_ptr AST node types
@@ -110,7 +110,7 @@ class Parser {
 
     AST_Node_typePtr parseType();
 
-    AST_Node_member_declarationPtr parseMemberDeclaration();
+    AST_Node_member_declarationPtr parseMemberDeclaration(){}
     AST_Node_initializerPtr parseInitializer();
 
     // to be handled using pratt
@@ -154,7 +154,7 @@ class Parser {
     AST_Node_unary_operatorPtr parseUnaryOperator();
     AST_Node_binary_operatorPtr parseBinaryOperator();
 
-    // Missing parse functions for additional AST node types
+    // // Missing parse functions for additional AST node types
     AST_Node_union_declarationPtr parseUnionDeclaration();
     AST_Node_enum_declarationPtr parseEnumDeclaration();
     AST_Node_typedef_declarationPtr parseTypedefDeclaration();

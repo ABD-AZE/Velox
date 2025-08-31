@@ -38,6 +38,8 @@ public:
 
   bool success = 1;
 
+  std::vector<Token> GetTokens() const { return tokens; }
+
 private:
   std::string fileName;
   std::vector<Token> tokens;

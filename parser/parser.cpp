@@ -299,11 +299,7 @@ void Parser::parseProgram()
 {
     while (currentIndex < tokenSize)
     {
-        auto declaration = parseDeclaration();
-        if (declaration)
-        {
-            program->AddDeclaration(std::move(declaration));
-        }
+        program->AddDeclaration(std::move(parseDeclaration()));
     }
 }
 
@@ -345,36 +341,37 @@ AST_Node_declarationPtr Parser::parseDeclaration()
     {
     case TokenType::STRUCT:
         {
-            declaration->info.structure = std::move(parseStructDeclaration());
+            std::get<AST_Node_struct_declarationPtr>(declaration->info) = std::move(parseStructDeclaration());
         }
         break;
     case TokenType::CLASS:
         {
-            declaration->info.class_decl = std::move(parseClassDeclaration());
-            }
+            std::get<AST_Node_class_declarationPtr>(declaration->info) = std::move(parseClassDeclaration());
+        }
         break;
     case TokenType::ENUM:
         {
-            declaration->info.enum_decl = std::move(parseEnumDeclaration());
+            std::get<AST_Node_enum_declarationPtr>(declaration->info) = std::move(parseEnumDeclaration());
         }
         break;
     case TokenType::TYPEDEF:
         // Parse typedef declaration
         {
-            declaration->info.typedef_decl = std::move(parseTypedefDeclaration());
+            std::get<AST_Node_typedef_declarationPtr>(declaration->info) = std::move(parseTypedefDeclaration());
         }
         break;
     case TokenType::UNION:
         // Parse union declaration
         {
-            declaration->info.union_decl = std::move(parseUnionDeclaration());
+            std::get<AST_Node_union_declarationPtr>(declaration->info) = std::move(parseUnionDeclaration());
         }
         break;
     default:
         // Assume variable or function declaration
         if (!isTypeSpecifier(token.GetType())){
             success = 0;
-            errors.emplace_back(std::string("Expected type specifier found '") + token.GetLexeme() + "' at " + std::to_string(token.GetLineNumber()) + ":" + std::to_string(token.GetColumnNumber()));
+            errors.emplace_back(token.GetLineNumber(), token.GetColumnNumber(), TokenType::IDENTIFIER, token.GetType());
+            // errors.emplace_back(std::string("Expected type specifier found '") + token.GetLexeme() + "' at " + std::to_string(token.GetLineNumber()) + ":" + std::to_string(token.GetColumnNumber()));
         }
         while (isTypeSpecifier(token.GetType()))
         {
@@ -387,7 +384,7 @@ AST_Node_declarationPtr Parser::parseDeclaration()
             declaration->decl_type = DeclType::DeclFunction;
             // reset tokens to initial pos
             reset();
-            declaration->info.function = std::move(parseFunctionDeclaration());
+            std::get<AST_Node_function_declarationPtr>(declaration->info) = std::move(parseFunctionDeclaration());
         }
         else
         {
@@ -395,7 +392,7 @@ AST_Node_declarationPtr Parser::parseDeclaration()
             declaration->decl_type = DeclType::DeclVariable;
             // reset tokens to initial pos
             reset();
-            declaration->info.variable = std::move(parseVariableDeclaration());
+            std::get<AST_Node_variable_declarationPtr>(declaration->info) = std::move(parseVariableDeclaration());
         }
         break;
     } 
@@ -422,11 +419,7 @@ AST_Node_struct_declarationPtr Parser::parseStructDeclaration()
             }
             if (isTypeSpecifier(peek().GetType()))
             {
-                auto member = parseMemberDeclaration();
-                if (member)
-                {
-                    structDecl->members.push_back(std::move(member));
-                }
+                structDecl->members.push_back(parseMemberDeclaration());
             }
         }
         expect(TokenType::CLOSE_BRACE, consume().GetType());
