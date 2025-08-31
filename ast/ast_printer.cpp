@@ -1,5 +1,5 @@
 #include "ast_printer.hpp"
-#include "ast/ast_variant.hpp"
+#include "ast_variant.hpp"
 
 #include <iostream>
 #include <string>
@@ -90,7 +90,7 @@ static void printExp(const AST_Node_exp* e, std::ostream& os, int ind) {
     }
     case ExprBinary: {
       auto* be = getPtr<AST_Node_binary_exp>(e->info);
-      os << Indent{ind} << "Binary(" << (be && be->op ? binOpStr(be->op->op) : "?") << ",\n";
+      os << Indent{ind} << "Binary(" << (be && be->op ? binOpStr(be->op->op) : "?") << ", \n";
       if (be) {
         printExp(be->left.get(),  os, ind + 2);
         printExp(be->right.get(), os, ind + 2);
