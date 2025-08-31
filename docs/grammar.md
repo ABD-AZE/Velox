@@ -12,7 +12,13 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<declaration>`
 ```ebnf
-<declaration> ::= <variable-declaration> | <function-declaration>
+<declaration> ::=   <variable-declaration> 
+                    | <function-declaration>  
+                    | <struct-declaration>  
+                    | <typedef-declaration> 
+                    | <enum-declaration> 
+                    | <union-declaration>
+                    | <class-declaration>
 ```
 **Examples:**
 - Variable declaration: `int x = 5;`
@@ -36,6 +42,40 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 **Examples:**
 - Function prototype: `int factorial(int n);`
 - Function definition: `int factorial(int n) { return n <= 1 ? 1 : n * factorial(n-1); }`
+
+### `<struct-declaration>`
+```ebnf
+<struct-declaration> ::= "struct" <identifier> "{" { <member-declaration> } "}" ";" 
+```
+
+### `enum-declaration`
+```ebnf
+<enum-declaration> ::= <enum-specifier> ";"
+```
+
+### `typedef-declaration`
+```ebnf
+<typedef-declaration> ::= "typedef" { <type-specifier> }+ <declarator> ";"
+```
+
+### `class-declaration`
+```ebnf
+<class-declaration> ::= "class" <identifier> "{" { <class-member> } "}" ";"
+
+<class-member> ::= [ "public" ":" | "private" ":" ]    (* access sections *)
+                 | <member-declaration>                (* fields *)
+                 | <method-declaration>
+
+<method-declaration> ::= { <specifier> }+ <declarator> ( <block> | ";" )
+                       | <constructor-declaration>
+
+<constructor-declaration> ::= <identifier> "(" [ <param> { "," <param> } ] ")" <block>
+```
+
+### `<member-declaration>`
+```ebnf
+<member-declaration> ::= { <type-specifier> }+ <declarator> ";"
+```
 
 ### `<declarator>`
 ```ebnf
@@ -89,7 +129,22 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<type-specifier>`
 ```ebnf
-<type-specifier> ::= "int" | "long" | "unsigned" | "signed" | "double" | "char" | "void"
+<type-specifier> ::=    "int" | "long" | "unsigned" | "signed" | "double" | "char" 
+                        | "void" 
+                        | <struct-or-union-specifier> 
+                        | <enum-specifier>
+
+<struct-or-union-specifier> ::= "struct" <identifier>
+                              | "struct" "{" { <member-declaration> } "}"
+                              | "union"  <identifier>                     
+                              | "union"  "{" { <member-declaration> } "}"
+
+<enum-specifier> ::=    "enum" [ <identifier> ] "{" <enumerator-list> "}"
+                        | "enum" <identifier>
+
+<enumerator-list> ::= <enumerator> { "," <enumerator> }
+
+<enumerator> ::= <identifier> [ "=" <const> ]
 ```
 **Examples:** `int`, `unsigned long`, `char`, `void`
 
@@ -154,7 +209,15 @@ This document defines the grammar rules for the Velox C compiler using Extended 
               | "while" "(" <exp> ")" <statement>
               | "do" <statement> "while" "(" <exp> ")" ";"
               | "for" "(" <for-init> [ <exp> ] ";" [ <exp> ] ")" <statement>
-              | ";"
+              | ";" 
+              | "switch" "(" <exp> ")" <statement>
+              | <labeled-statement>
+              | "goto" <identifier> ";"
+
+<labeled-statement> ::= <identifier> ":" <statement>
+                      | "case" <const> ":" <statement>
+                      | "default" ":" <statement>
+
 ```
 **Examples:**
 - Return: `return 42;`
@@ -209,23 +272,34 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<postfix-exp>`
 ```ebnf
-<postfix-exp> ::= <primary-exp> { "[" <exp> "]" }
+<postfix-exp> ::= <postfix-core> { <postfix-suffix> }
+
+<postfix-core> ::= <primary-exp>
+
+<postfix-suffix> ::= "[" <exp> "]"
+                   | "." <identifier>
+                   | "->" <identifier>
+                   | "(" [ <argument-list> ] ")"
+                   | "++"
+                   | "--"
 ```
 **Examples:**
 - Array access: `arr[0]`
 - Multi-dimensional: `matrix[i][j]`
+- function calls are handled by the suffix
 
 ### `<primary-exp>`
 ```ebnf
-<primary-exp> ::= <const> | <identifier> | "(" <exp> ")" | { <string> }+
-                | <identifier> "(" [ <argument-list> ] ")"
+<primary-exp> ::= <const> 
+                | <identifier>
+                | "(" <exp> ")"
+                | { <string> }+
 ```
 **Examples:**
 - Constant: `42`, `3.14`, `'a'`
 - Identifier: `variable`
 - Parenthesized: `(x + y)`
 - String: `"Hello World"`
-- Function call: `printf("Hello")`
 
 ### `<argument-list>`
 ```ebnf
