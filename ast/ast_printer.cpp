@@ -1,6 +1,6 @@
 // tools/ast_printer.cpp (enhanced)
 #include "ast_printer.hpp"
-#include "ast_variant.hpp"
+#include "ast.hpp"
 
 #include <iostream>
 #include <string>

@@ -1,5 +1,6 @@
 #include "parser.hpp"
 #include <assert.h>
+#include <iostream>
 
 int GetPrecedence(TokenType token)
 {
@@ -251,7 +252,15 @@ Parser::Parser(const std::vector<Token> &inputtokens) : tokens(inputtokens), pro
     tokens.push_back(eof); // Add EOF token at the end
     std::reverse(tokens.begin(), tokens.end());
     tokenSize = tokens.size();
-    currentIndex = tokenSize - 1; // Start from the last token (which is the first after reversing)
+    
+    // Start from the last valid index (tokens are reversed, so we start from the end)
+    if (tokenSize > 0) {
+        currentIndex = tokenSize - 1;
+    } else {
+        currentIndex = 0;
+    }
+    
+    // Parser initialized successfully
 }
 
 Token Parser::get()
@@ -302,13 +311,7 @@ bool Parser::expect(TokenType expected, TokenType actual)
     return true;
 }
 
-void Parser::parseProgram()
-{
-    while (currentIndex < tokenSize)
-    {
-        program->AddDeclaration(std::move(parseDeclaration()));
-    }
-}
+
 
 bool isTypeSpecifier(TokenType type)
 {
@@ -340,106 +343,232 @@ bool isTypeSpecifier(TokenType type)
 // move not necessary because RVO handles it
 AST_Node_declarationPtr Parser::parseDeclaration()
 {
-    auto declaration = std::make_unique<AST_Node_declaration>();
     Token token = peek();
-
-    // directly return from within switch
-    switch (token.GetType())
-    {
-    case TokenType::STRUCT:
-        {
-            std::get<AST_Node_struct_declarationPtr>(declaration->info) = std::move(parseStructDeclaration());
+    
+    // Examining token for declaration type
+    
+    // Handle specific declaration types first
+    switch (token.GetType()) {
+    case TokenType::STRUCT: {
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        declaration->decl_type = DeclType::DeclStruct;
+        declaration->info = parseStructDeclaration();
+        return declaration;
+    }
+    case TokenType::CLASS: {
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        declaration->decl_type = DeclType::DeclClass;
+        declaration->info = parseClassDeclaration();
+        return declaration;
+    }
+    case TokenType::ENUM: {
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        declaration->decl_type = DeclType::DeclEnum;
+        declaration->info = parseEnumDeclaration();
+        return declaration;
+    }
+    case TokenType::TYPEDEF: {
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        declaration->decl_type = DeclType::DeclTypedef;
+        declaration->info = parseTypedefDeclaration();
+        return declaration;
+    }
+    case TokenType::UNION: {
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        declaration->decl_type = DeclType::DeclUnion;
+        declaration->info = parseUnionDeclaration();
+        return declaration;
+    }
+    }
+    
+    // Handle type specifiers (int, char, double, void, etc.)
+    bool is_type = isTypeSpecifier(token.GetType());
+    
+    if (!is_type) {
+        // Not a type specifier, cannot parse as declaration
+        return nullptr; // Not a valid declaration
+    }
+    
+    // Parse type
+    TypeType type_enum = TypeType::TypeInt; // default
+    switch (token.GetType()) {
+        case TokenType::INT:
+            type_enum = TypeType::TypeInt;
+            break;
+        case TokenType::CHAR:
+            type_enum = TypeType::TypeChar;
+            break;
+        case TokenType::DOUBLE:
+            type_enum = TypeType::TypeDouble;
+            break;
+        case TokenType::VOID:
+            type_enum = TypeType::TypeVoid;
+            break;
+    }
+    get(); // consume type token
+    
+    // Must have identifier
+    if (peek().GetType() != TokenType::IDENTIFIER) {
+        return nullptr;
+    }
+    std::string identifier = get().GetLexeme();
+    
+    // Check if it's a function (has parentheses) or variable
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        // Function declaration
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        auto func_decl = std::make_unique<AST_Node_function_declaration>();
+        
+        auto type = std::make_unique<AST_Node_type>();
+        type->type = type_enum;
+        func_decl->fun_type = std::move(type);
+        func_decl->identifier = identifier;
+        
+        get(); // consume '('
+        // Skip parameters for now
+        int param_count = 0;
+        while (peek().GetType() != TokenType::CLOSE_PARENTHESES && 
+               peek().GetType() != TokenType::END_OF_FILE) {
+            param_count++;
+            if (param_count > 20) {
+                break;
+            }
+            get();
         }
-        break;
-    case TokenType::CLASS:
-        {
-            std::get<AST_Node_class_declarationPtr>(declaration->info) = std::move(parseClassDeclaration());
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get(); // consume ')'
         }
-        break;
-    case TokenType::ENUM:
-        {
-            std::get<AST_Node_enum_declarationPtr>(declaration->info) = std::move(parseEnumDeclaration());
+        
+        // Parse function body or semicolon
+                // Checking next token
+        if (peek().GetType() == TokenType::OPEN_BRACE) {
+            func_decl->body = parseCompoundStatement();
+        } else if (peek().GetType() == TokenType::SEMICOLON) {
+            get(); // consume ';'
+        } else {
         }
-        break;
-    case TokenType::TYPEDEF:
-        // Parse typedef declaration
-        {
-            std::get<AST_Node_typedef_declarationPtr>(declaration->info) = std::move(parseTypedefDeclaration());
+        
+        declaration->decl_type = DeclType::DeclFunction;
+        declaration->info = std::move(func_decl);
+        return declaration;
+    } else {
+        // Variable declaration
+        auto declaration = std::make_unique<AST_Node_declaration>();
+        auto var_decl = std::make_unique<AST_Node_variable_declaration>();
+        
+        auto type = std::make_unique<AST_Node_type>();
+        type->type = type_enum;
+        var_decl->var_type = std::move(type);
+        var_decl->identifier = identifier;
+        
+        // Parse initializer if present
+        if (peek().GetType() == TokenType::EQUAL) {
+            get(); // consume '='
+            auto init = std::make_unique<AST_Node_initializer>();
+            init->init_type = InitializerExp;
+            init->info = parseExpression(0);
+            var_decl->initializer = std::move(init);
         }
-        break;
-    case TokenType::UNION:
-        // Parse union declaration
-        {
-            std::get<AST_Node_union_declarationPtr>(declaration->info) = std::move(parseUnionDeclaration());
+        
+        if (peek().GetType() == TokenType::SEMICOLON) {
+            get(); // consume ';'
         }
-        break;
-    default:
-        // Assume variable or function declaration
-        if (!isTypeSpecifier(token.GetType())){
-            success = 0;
-            errors.emplace_back(token.GetLineNumber(), token.GetColumnNumber(), TokenType::IDENTIFIER, token.GetType());
-            // errors.emplace_back(std::string("Expected type specifier found '") + token.GetLexeme() + "' at " + std::to_string(token.GetLineNumber()) + ":" + std::to_string(token.GetColumnNumber()));
-        }
-        while (isTypeSpecifier(token.GetType()))
-        {
-            token = get();
-        }
-        expect(TokenType::IDENTIFIER, token.GetType());
-        if (peek().GetType() == OPEN_PARENTHESES)
-        {
-            // Function declaration
-            declaration->decl_type = DeclType::DeclFunction;
-            // reset tokens to initial pos
-            reset();
-            std::get<AST_Node_function_declarationPtr>(declaration->info) = std::move(parseFunctionDeclaration());
-        }
-        else
-        {
-            // Variable declaration
-            declaration->decl_type = DeclType::DeclVariable;
-            // reset tokens to initial pos
-            reset();
-            std::get<AST_Node_variable_declarationPtr>(declaration->info) = std::move(parseVariableDeclaration());
-        }
-        break;
-    } 
-    return declaration;
+        
+        declaration->decl_type = DeclType::DeclVariable;
+        declaration->info = std::move(var_decl);
+        return declaration;
+    }
 }
 
 AST_Node_struct_declarationPtr Parser::parseStructDeclaration()
 {
+    std::cout << "parseStructDeclaration: starting at index " << currentIndex << std::endl;
     auto structDecl = std::make_unique<AST_Node_struct_declaration>();
-    Token token = consume();
+    Token token = get();
+    std::cout << "parseStructDeclaration: consumed STRUCT token, now at index " << currentIndex << std::endl;
     expect(TokenType::STRUCT, token.GetType());
-    token = consume();
+    token = get();
+    std::cout << "parseStructDeclaration: consumed identifier token: " << token.GetLexeme() << ", now at index " << currentIndex << std::endl;
     expect(TokenType::IDENTIFIER, token.GetType());
     structDecl->tag = token.GetLexeme();
     if (peek().GetType() == TokenType::OPEN_BRACE)
     {
-        consume(); // consume {
+        std::cout << "parseStructDeclaration: found OPEN_BRACE, consuming it" << std::endl;
+        get(); // consume {
+        std::cout << "parseStructDeclaration: entering member parsing loop at index " << currentIndex << std::endl;
         while (peek().GetType() != TokenType::CLOSE_BRACE && peek().GetType() != TokenType::END_OF_FILE)
         {
-            if(!isTypeSpecifier(peek().GetType()))
-            {
-                success = 0;
-                errors.emplace_back(peek().GetLineNumber(), peek().GetColumnNumber(), TokenType::IDENTIFIER, peek().GetType());
-            }
+            std::cout << "parseStructDeclaration: processing member token: " << peek().GetLexeme() << " at index " << currentIndex << std::endl;
             if (isTypeSpecifier(peek().GetType()))
             {
+                std::cout << "parseStructDeclaration: parsing member declaration" << std::endl;
                 structDecl->members.push_back(parseMemberDeclaration());
+                std::cout << "parseStructDeclaration: finished parsing member, now at index " << currentIndex << std::endl;
+            }
+            else
+            {
+                // Skip unrecognized token to avoid infinite loop
+                std::cout << "parseStructDeclaration: skipping unrecognized token: " << peek().GetLexeme() << std::endl;
+                success = 0;
+                errors.emplace_back(peek().GetLineNumber(), peek().GetColumnNumber(), TokenType::IDENTIFIER, peek().GetType());
+                get(); // consume the problematic token
             }
         }
-        expect(TokenType::CLOSE_BRACE, consume().GetType());
-        expect(TokenType::SEMICOLON, consume().GetType());
+        expect(TokenType::CLOSE_BRACE, get().GetType());
+        expect(TokenType::SEMICOLON, get().GetType());
     }
     else{
-        expect(TokenType::SEMICOLON, consume().GetType());
+        expect(TokenType::SEMICOLON, get().GetType());
 
     }
     return structDecl;
 }
 
-
+AST_Node_member_declarationPtr Parser::parseMemberDeclaration()
+{
+    auto memberDecl = std::make_unique<AST_Node_member_declaration>();
+    
+    // Parse type (int, char, etc.)
+    if (!isTypeSpecifier(peek().GetType())) {
+        return nullptr;
+    }
+    
+    auto type = std::make_unique<AST_Node_type>();
+    switch (peek().GetType()) {
+        case TokenType::INT:
+            type->type = TypeType::TypeInt;
+            break;
+        case TokenType::CHAR:
+            type->type = TypeType::TypeChar;
+            break;
+        case TokenType::DOUBLE:
+            type->type = TypeType::TypeDouble;
+            break;
+        case TokenType::VOID:
+            type->type = TypeType::TypeVoid;
+            break;
+        default:
+            type->type = TypeType::TypeInt;
+            break;
+    }
+    get(); // consume type token
+    
+    // Parse identifier
+    if (peek().GetType() != TokenType::IDENTIFIER) {
+        return nullptr;
+    }
+    std::string identifier = get().GetLexeme();
+    
+    // Consume semicolon if present
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    memberDecl->member_type = std::move(type);
+    memberDecl->identifier = identifier;
+    
+    return memberDecl;
+}
 
 /// Pratt parsing for expressions
 
@@ -943,4 +1072,886 @@ AST_Node_expPtr Parser::parsePrimary() {
             return nullptr;
         }
     }
+}
+
+/// Parse compound statement (block)
+std::unique_ptr<AST_Node_block> Parser::parseCompoundStatement() {
+    auto block = std::make_unique<AST_Node_block>();
+    
+    if (peek().GetType() != TokenType::OPEN_BRACE) {
+        return nullptr;
+    }
+    size_t start_index = currentIndex;
+    get(); // consume '{'
+    std::cout << "parseCompoundStatement: start index " << start_index << ", after '{': " << currentIndex << std::endl;
+    
+    // Process all tokens within the braces sequentially (in reversed token order)
+    // We need to track brace depth to find the correct matching closing brace
+    int brace_depth = 1; // We've consumed the opening brace
+    while (brace_depth > 0 && peek().GetType() != TokenType::END_OF_FILE) {
+        std::cout << "parseCompoundStatement: processing token: " << peek().GetLexeme() << " at index " << currentIndex << ", depth=" << brace_depth << std::endl;
+        
+        // Track nested braces
+        if (peek().GetType() == TokenType::OPEN_BRACE) {
+            brace_depth++;
+            get(); // consume nested '{'
+            continue;
+        } else if (peek().GetType() == TokenType::CLOSE_BRACE) {
+            brace_depth--;
+            if (brace_depth == 0) {
+                break; // Found our matching closing brace
+            }
+            get(); // consume nested '}'
+            continue;
+        }
+        
+        auto block_item = std::make_unique<AST_Node_block_item>();
+        
+        // Try to parse as variable declaration statement (avoid recursion)
+        if (isTypeSpecifier(peek().GetType())) {
+            // Parse simple variable declaration directly
+            auto decl = std::make_unique<AST_Node_declaration>();
+            decl->decl_type = DeclType::DeclVariable;
+            
+            auto var_decl = std::make_unique<AST_Node_variable_declaration>();
+            
+            // Parse type
+            auto type = std::make_unique<AST_Node_type>();
+            switch (peek().GetType()) {
+                case TokenType::INT:
+                    get(); // consume 'int'
+                    type->type = TypeType::TypeInt;
+                    break;
+                case TokenType::CHAR:
+                    get(); // consume 'char'
+                    type->type = TypeType::TypeChar;
+                    break;
+                case TokenType::DOUBLE:
+                    get(); // consume 'double'
+                    type->type = TypeType::TypeDouble;
+                    break;
+                default:
+                    get(); // consume token
+                    type->type = TypeType::TypeInt; // default
+                    break;
+            }
+            var_decl->var_type = std::move(type);
+            
+            // Parse identifier
+            if (peek().GetType() == TokenType::IDENTIFIER) {
+                var_decl->identifier = get().GetLexeme();
+                
+                // Parse initializer if present
+                if (peek().GetType() == TokenType::ASSIGNMENT) {
+                    get(); // consume '='
+                    auto init = std::make_unique<AST_Node_initializer>();
+                    init->init_type = InitializerExp;
+                    init->info = parseExpression(0);
+                    var_decl->initializer = std::move(init);
+                } else {
+                }
+                
+                // Consume semicolon
+                if (peek().GetType() == TokenType::SEMICOLON) {
+                    get(); // consume ';'
+                }
+                
+                decl->info = std::move(var_decl);
+                block_item->item_type = BlockItemDeclaration;
+                block_item->info = std::move(decl);
+                block->items.push_back(std::move(block_item));
+                continue;
+            } else {
+            }
+        }
+        
+        // Parse as statement
+        auto stmt = parseStatement();
+        if (stmt) {
+            block_item->item_type = BlockItemStatement;
+            block_item->info = std::move(stmt);
+            block->items.push_back(std::move(block_item));
+            std::cout << "parseCompoundStatement: parsed statement successfully" << std::endl;
+        } else {
+            // Skip unrecognized token to avoid infinite loop
+            std::cout << "parseCompoundStatement: skipping unrecognized token: " << peek().GetLexeme() << " at index " << currentIndex << std::endl;
+            get();
+        }
+    }
+    
+    // At this point, brace_depth should be 0 and we should be at the matching closing brace
+    if (peek().GetType() == TokenType::CLOSE_BRACE && brace_depth == 0) {
+        get(); // consume the matching '}'
+        std::cout << "parseCompoundStatement: consumed matching '}', final index: " << currentIndex << std::endl;
+    } else {
+        std::cout << "parseCompoundStatement: ERROR - brace mismatch, depth=" << brace_depth << ", token: " << peek().GetLexeme() << std::endl;
+    }
+    
+    std::cout << "parseCompoundStatement: returning block with " << block->items.size() << " items" << std::endl;
+    return block;
+}
+
+/// Parse statements
+AST_Node_statementPtr Parser::parseStatement() {
+    auto stmt = std::make_unique<AST_Node_statement>();
+    
+    Token token = peek();
+    switch (token.GetType()) {
+        case TokenType::IF:
+            stmt->stmt_type = StmtType::StmtIf;
+            stmt->info = parseIfStatement();
+            break;
+        case TokenType::WHILE:
+            stmt->stmt_type = StmtType::StmtWhile;
+            stmt->info = parseWhileStatement();
+            break;
+        case TokenType::DO:
+            stmt->stmt_type = StmtType::StmtDoWhile;
+            stmt->info = parseDoWhileStatement();
+            break;
+        case TokenType::FOR:
+            stmt->stmt_type = StmtType::StmtFor;
+            stmt->info = parseForStatement();
+            break;
+        case TokenType::RETURN:
+            stmt->stmt_type = StmtType::StmtReturn;
+            stmt->info = parseReturnStatement();
+            break;
+        case TokenType::BREAK:
+            stmt->stmt_type = StmtType::StmtBreak;
+            get(); // consume 'break'
+            if (peek().GetType() == TokenType::SEMICOLON) {
+                get();
+            }
+            break;
+        case TokenType::CONTINUE:
+            stmt->stmt_type = StmtType::StmtContinue;
+            get(); // consume 'continue'
+            if (peek().GetType() == TokenType::SEMICOLON) {
+                get();
+            }
+            break;
+        case TokenType::SWITCH:
+            stmt->stmt_type = StmtType::StmtSwitch;
+            stmt->info = parseSwitchStatement();
+            break;
+        case TokenType::GOTO:
+            stmt->stmt_type = StmtType::StmtGoto;
+            get(); // consume 'goto'
+            if (peek().GetType() == TokenType::IDENTIFIER) {
+                stmt->info = get().GetLexeme(); // store label name
+            }
+            if (peek().GetType() == TokenType::SEMICOLON) {
+                get();
+            }
+            break;
+        case TokenType::OPEN_BRACE:
+            stmt->stmt_type = StmtType::StmtBlock;
+            stmt->info = parseBlock();
+            break;
+        case TokenType::SEMICOLON:
+            // Empty statement
+            stmt->stmt_type = StmtType::StmtNull;
+            get();
+            break;
+        default:
+            // Check if it's a labeled statement
+            if (token.GetType() == TokenType::IDENTIFIER) {
+                size_t saved_index = currentIndex;
+                get(); // consume identifier
+                if (peek().GetType() == TokenType::COLON) {
+                    // Labeled statement
+                    currentIndex = saved_index; // restore
+                    stmt->stmt_type = StmtType::StmtLabeled;
+                    stmt->info = parseLabeledStatement();
+                } else {
+                    // Expression statement
+                    currentIndex = saved_index; // restore
+                    stmt->stmt_type = StmtType::StmtExpression;
+                    stmt->info = parseExpressionStatement();
+                }
+            } else {
+                // Expression statement
+                stmt->stmt_type = StmtType::StmtExpression;
+                stmt->info = parseExpressionStatement();
+            }
+            break;
+    }
+    
+    return stmt;
+}
+
+/// Parse if statements
+AST_Node_if_statementPtr Parser::parseIfStatement() {
+    auto if_stmt = std::make_unique<AST_Node_if_statement>();
+    
+    // Consume 'if'
+    if (peek().GetType() == TokenType::IF) {
+        get();
+    }
+    
+    // Parse condition
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        get(); // consume '('
+        if_stmt->condition = parseExpression();
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get(); // consume ')'
+        }
+    }
+    
+    // Parse then statement
+    if_stmt->true_statement = parseStatement();
+    
+    // Parse optional else statement
+    if (peek().GetType() == TokenType::ELSE) {
+        get(); // consume 'else'
+        if_stmt->false_statement = parseStatement();
+    }
+    
+    return if_stmt;
+}
+
+/// Parse while statements
+AST_Node_while_statementPtr Parser::parseWhileStatement() {
+    auto while_stmt = std::make_unique<AST_Node_while_statement>();
+    
+    // Consume 'while'
+    if (peek().GetType() == TokenType::WHILE) {
+        get();
+    }
+    
+    // Parse condition
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        get(); // consume '('
+        while_stmt->condition = parseExpression();
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get(); // consume ')'
+        }
+    }
+    
+    // Parse body
+    while_stmt->body = parseStatement();
+    
+    return while_stmt;
+}
+
+/// Parse do-while statements
+AST_Node_do_while_statementPtr Parser::parseDoWhileStatement() {
+    auto do_while_stmt = std::make_unique<AST_Node_do_while_statement>();
+    
+    // Consume 'do'
+    if (peek().GetType() == TokenType::DO) {
+        get();
+    }
+    
+    // Parse body
+    do_while_stmt->body = parseStatement();
+    
+    // Consume 'while'
+    if (peek().GetType() == TokenType::WHILE) {
+        get();
+    }
+    
+    // Parse condition
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        get(); // consume '('
+        do_while_stmt->condition = parseExpression();
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get(); // consume ')'
+        }
+    }
+    
+    // Expect semicolon
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return do_while_stmt;
+}
+
+/// Parse for statements
+AST_Node_for_statementPtr Parser::parseForStatement() {
+    auto for_stmt = std::make_unique<AST_Node_for_statement>();
+    
+    // Consume 'for'
+    if (peek().GetType() == TokenType::FOR) {
+        get();
+    }
+    
+    // Parse for header
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        get(); // consume '('
+        
+        // Parse init
+        for_stmt->init = parseForInit();
+        
+        // Parse condition
+        if (peek().GetType() != TokenType::SEMICOLON) {
+            auto cond_stmt = std::make_unique<AST_Node_expression_statement>();
+            cond_stmt->expr = parseExpression();
+            for_stmt->condition = std::move(cond_stmt);
+        }
+        if (peek().GetType() == TokenType::SEMICOLON) {
+            get();
+        }
+        
+        // Parse increment
+        if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+            auto incr_stmt = std::make_unique<AST_Node_expression_statement>();
+            incr_stmt->expr = parseExpression();
+            for_stmt->increment = std::move(incr_stmt);
+        }
+        
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get(); // consume ')'
+        }
+    }
+    
+    // Parse body
+    for_stmt->body = parseStatement();
+    
+    return for_stmt;
+}
+
+/// Parse for init (can be declaration or expression)
+AST_Node_for_initPtr Parser::parseForInit() {
+    auto for_init = std::make_unique<AST_Node_for_init>();
+    
+    // Check if it's a declaration or expression
+    if (isTypeSpecifier(peek().GetType())) {
+        // Variable declaration
+        for_init->init_type = InitDeclaration;
+        auto var_decl = parseVariableDeclaration();
+        // Create declaration node with variable declaration
+        auto decl = std::make_unique<AST_Node_declaration>();
+        decl->decl_type = DeclVariable;
+        decl->info = std::move(var_decl);
+        for_init->info = std::move(decl);
+    } else {
+        // Expression or empty
+        for_init->init_type = InitExpression;
+        if (peek().GetType() != TokenType::SEMICOLON) {
+            auto expr_stmt = std::make_unique<AST_Node_expression_statement>();
+            expr_stmt->expr = parseExpression();
+            for_init->info = std::move(expr_stmt);
+        }
+        if (peek().GetType() == TokenType::SEMICOLON) {
+            get();
+        }
+    }
+    
+    return for_init;
+}
+
+/// Parse return statements
+AST_Node_return_statementPtr Parser::parseReturnStatement() {
+    auto return_stmt = std::make_unique<AST_Node_return_statement>();
+    
+    // Consume 'return'
+    if (peek().GetType() == TokenType::RETURN) {
+        get();
+    }
+    
+    // Parse optional return value
+    if (peek().GetType() != TokenType::SEMICOLON) {
+        return_stmt->expr = parseExpression(0);
+    }
+    
+    // Expect semicolon
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return return_stmt;
+}
+
+/// Parse expression statements
+AST_Node_expression_statementPtr Parser::parseExpressionStatement() {
+    auto expr_stmt = std::make_unique<AST_Node_expression_statement>();
+    
+    // Parse expression
+    if (peek().GetType() != TokenType::SEMICOLON) {
+        expr_stmt->expr = parseExpression();
+    }
+    
+    // Expect semicolon
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return expr_stmt;
+}
+
+/// Parse blocks
+AST_Node_blockPtr Parser::parseBlock() {
+    auto block = std::make_unique<AST_Node_block>();
+    
+    // Consume '{'
+    if (peek().GetType() == TokenType::OPEN_BRACE) {
+        get();
+    }
+    
+    // Parse block items
+    while (peek().GetType() != TokenType::CLOSE_BRACE && 
+           peek().GetType() != TokenType::END_OF_FILE) {
+        auto item = parseBlockItem();
+        if (item) {
+            block->items.push_back(std::move(item));
+        }
+    }
+    
+    // Consume '}'
+    if (peek().GetType() == TokenType::CLOSE_BRACE) {
+        get();
+    }
+    
+    return block;
+}
+
+/// Parse block items (declarations or statements)
+AST_Node_block_itemPtr Parser::parseBlockItem() {
+    auto item = std::make_unique<AST_Node_block_item>();
+    
+    // Check if it's a declaration or statement
+    if (isTypeSpecifier(peek().GetType()) || 
+        peek().GetType() == TokenType::STATIC ||
+        peek().GetType() == TokenType::EXTERN) {
+        // Declaration
+        item->item_type = BlockItemDeclaration;
+        item->info = parseDeclaration();
+    } else {
+        // Statement
+        item->item_type = BlockItemStatement;
+        item->info = parseStatement();
+    }
+    
+    return item;
+}
+
+/// Parse labeled statements
+AST_Node_labeled_statementPtr Parser::parseLabeledStatement() {
+    auto labeled_stmt = std::make_unique<AST_Node_labeled_statement>();
+    
+    // Parse label
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        labeled_stmt->label.push_back(get().GetLexeme());
+    }
+    
+    // Consume ':'
+    if (peek().GetType() == TokenType::COLON) {
+        get();
+    }
+    
+    // Parse statement
+    labeled_stmt->statement = parseStatement();
+    
+    return labeled_stmt;
+}
+
+/// Parse switch statements
+AST_Node_switch_statementPtr Parser::parseSwitchStatement() {
+    auto switch_stmt = std::make_unique<AST_Node_switch_statement>();
+    
+    // Consume 'switch'
+    if (peek().GetType() == TokenType::SWITCH) {
+        get();
+    }
+    
+    // Parse condition
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        get(); // consume '('
+        switch_stmt->selector = parseExpression();
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get(); // consume ')'
+        }
+    }
+    
+    // Parse body (should be a block with case/default labels)
+    switch_stmt->body = parseStatement();
+    
+    return switch_stmt;
+}
+
+/// Parse array size
+AST_Node_array_sizePtr Parser::parseArraySize() {
+    auto array_size = std::make_unique<AST_Node_array_size>();
+    
+    if (peek().GetType() == TokenType::CLOSE_BRACKET) {
+        // Empty brackets []
+        array_size->size_type = ArraySizeType::ArraySizeUnspecified;
+    } else {
+        // Has size expression
+        auto size_expr = parseExpression();
+        if (size_expr) {
+            if (size_expr->expr_type == ExprType::ExprConstant) {
+                // Constant size
+                array_size->size_type = ArraySizeType::ArraySizeConst;
+                if (std::holds_alternative<std::unique_ptr<AST_Node_const>>(size_expr->info)) {
+                    auto& const_node = std::get<std::unique_ptr<AST_Node_const>>(size_expr->info);
+                    array_size->info = std::move(const_node);
+                }
+            } else {
+                // Variable length array
+                array_size->size_type = ArraySizeType::ArraySizeVar;
+                array_size->info = std::move(size_expr);
+            }
+        }
+    }
+    
+    return array_size;
+}
+
+/// Parse program (top-level)
+AST_Node_programPtr Parser::parseProgram() {
+    program = std::make_unique<AST_Node_program>();
+    
+    int iteration = 0;
+    while (currentIndex < tokens.size() && peek().GetType() != TokenType::END_OF_FILE) {
+        iteration++;
+        size_t start_index = currentIndex;
+        
+        auto decl = parseDeclaration();
+        if (decl) {
+            program->declarations.push_back(std::move(decl));
+            std::cout << "Iteration " << iteration << ": parsed declaration, index " << start_index << " -> " << currentIndex << std::endl;
+        } else {
+            // Skip unrecognized token to avoid infinite loop
+            if (currentIndex >= 0) {
+                get();
+            }
+            if (currentIndex < 0) break;
+            std::cout << "Iteration " << iteration << ": skipped token, index " << start_index << " -> " << currentIndex << std::endl;
+        }
+        
+        // Safety check for infinite loop
+        if (iteration > 50) {
+            std::cout << "Breaking after 50 iterations to prevent infinite loop" << std::endl;
+            break;
+        }
+    }
+    
+    // Parsing completed
+    return std::move(program);
+}
+
+/// Parse type specifiers
+AST_Node_typePtr Parser::parseType() {
+    auto type = std::make_unique<AST_Node_type>();
+    
+    Token token = peek();
+    switch (token.GetType()) {
+        case TokenType::CHAR:
+            get();
+            type->type = TypeType::TypeChar;
+            break;
+        case TokenType::INT:
+            get();
+            type->type = TypeType::TypeInt;
+            break;
+        case TokenType::LONG:
+            get();
+            type->type = TypeType::TypeLong;
+            break;
+        case TokenType::DOUBLE:
+            get();
+            type->type = TypeType::TypeDouble;
+            break;
+        case TokenType::VOID:
+            get();
+            type->type = TypeType::TypeVoid;
+            break;
+        case TokenType::STRUCT:
+            get();
+            type->type = TypeType::TypeStructure;
+            if (peek().GetType() == TokenType::IDENTIFIER) {
+                type->info = get().GetLexeme();
+            }
+            break;
+        case TokenType::UNION:
+            get();
+            type->type = TypeType::TypeUnion;
+            if (peek().GetType() == TokenType::IDENTIFIER) {
+                type->info = get().GetLexeme();
+            }
+            break;
+        case TokenType::ENUM:
+            get();
+            type->type = TypeType::TypeEnum;
+            if (peek().GetType() == TokenType::IDENTIFIER) {
+                type->info = get().GetLexeme();
+            }
+            break;
+        case TokenType::IDENTIFIER:
+            type->type = TypeType::TypeNamedtype;
+            type->info = get().GetLexeme();
+            break;
+        default:
+            return nullptr;
+    }
+    return type;
+}
+
+/// Parse variable declarations
+AST_Node_variable_declarationPtr Parser::parseVariableDeclaration() {
+    auto var_decl = std::make_unique<AST_Node_variable_declaration>();
+    
+    var_decl->var_type = parseType();
+    if (!var_decl->var_type) {
+        return nullptr;
+    }
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        var_decl->identifier = get().GetLexeme();
+    } else {
+        return nullptr;
+    }
+    
+    if (peek().GetType() == TokenType::EQUAL) {
+        get();
+        var_decl->initializer = parseInitializer();
+    }
+    
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return var_decl;
+}
+
+/// Parse function declarations
+AST_Node_function_declarationPtr Parser::parseFunctionDeclaration() {
+    auto func_decl = std::make_unique<AST_Node_function_declaration>();
+    
+    func_decl->fun_type = parseType();
+    if (!func_decl->fun_type) {
+        return nullptr;
+    }
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        func_decl->identifier = get().GetLexeme();
+    } else {
+        return nullptr;
+    }
+    
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        get();
+        while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
+               peek().GetType() != TokenType::END_OF_FILE) {
+            if (peek().GetType() == TokenType::IDENTIFIER) {
+                func_decl->params.push_back(get().GetLexeme());
+            }
+            if (peek().GetType() == TokenType::COMMA) {
+                get();
+            } else {
+                break;
+            }
+        }
+        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
+            get();
+        }
+    }
+    
+    if (peek().GetType() == TokenType::OPEN_BRACE) {
+        func_decl->body = parseBlock();
+    } else if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return func_decl;
+}
+
+/// Parse union declarations
+AST_Node_union_declarationPtr Parser::parseUnionDeclaration() {
+    auto union_decl = std::make_unique<AST_Node_union_declaration>();
+    
+    if (peek().GetType() == TokenType::UNION) {
+        get();
+    }
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        union_decl->tag = get().GetLexeme();
+    }
+    
+    if (peek().GetType() == TokenType::OPEN_BRACE) {
+        get();
+        while (peek().GetType() != TokenType::CLOSE_BRACE &&
+               peek().GetType() != TokenType::END_OF_FILE) {
+            auto member = parseMemberDeclaration();
+            if (member) {
+                union_decl->members.push_back(std::move(member));
+            }
+        }
+        if (peek().GetType() == TokenType::CLOSE_BRACE) {
+            get();
+        }
+    }
+    
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return union_decl;
+}
+
+/// Parse enum declarations
+AST_Node_enum_declarationPtr Parser::parseEnumDeclaration() {
+    auto enum_decl = std::make_unique<AST_Node_enum_declaration>();
+    
+    if (peek().GetType() == TokenType::ENUM) {
+        get();
+    }
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        enum_decl->tag = get().GetLexeme();
+    }
+    
+    if (peek().GetType() == TokenType::OPEN_BRACE) {
+        get();
+        while (peek().GetType() != TokenType::CLOSE_BRACE &&
+               peek().GetType() != TokenType::END_OF_FILE) {
+            auto enumerator = parseEnumerator();
+            if (enumerator) {
+                enum_decl->enumerators.push_back(std::move(enumerator));
+            }
+            if (peek().GetType() == TokenType::COMMA) {
+                get();
+            } else {
+                break;
+            }
+        }
+        if (peek().GetType() == TokenType::CLOSE_BRACE) {
+            get();
+        }
+    }
+    
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return enum_decl;
+}
+
+/// Parse typedef declarations
+AST_Node_typedef_declarationPtr Parser::parseTypedefDeclaration() {
+    auto typedef_decl = std::make_unique<AST_Node_typedef_declaration>();
+    
+    if (peek().GetType() == TokenType::TYPEDEF) {
+        get();
+    }
+    
+    // For now, create a simple typedef entry
+    auto entry = std::make_unique<AST_Node_typedef_entry>();
+    entry->alias_type = parseType();
+    if (!entry->alias_type) {
+        return nullptr;
+    }
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        entry->name = get().GetLexeme();
+    } else {
+        return nullptr;
+    }
+    
+    typedef_decl->entries.push_back(std::move(entry));
+    
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return typedef_decl;
+}
+
+/// Parse class declarations
+AST_Node_class_declarationPtr Parser::parseClassDeclaration() {
+    auto class_decl = std::make_unique<AST_Node_class_declaration>();
+    
+    if (peek().GetType() == TokenType::CLASS) {
+        get();
+    }
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        class_decl->name = get().GetLexeme();
+    } else {
+        return nullptr;
+    }
+    
+    if (peek().GetType() == TokenType::OPEN_BRACE) {
+        get();
+        while (peek().GetType() != TokenType::CLOSE_BRACE &&
+               peek().GetType() != TokenType::END_OF_FILE) {
+            auto member = parseClassMember();
+            if (member) {
+                class_decl->members.push_back(std::move(member));
+            }
+        }
+        if (peek().GetType() == TokenType::CLOSE_BRACE) {
+            get();
+        }
+    }
+    
+    if (peek().GetType() == TokenType::SEMICOLON) {
+        get();
+    }
+    
+    return class_decl;
+}
+
+/// Parse initializers
+AST_Node_initializerPtr Parser::parseInitializer() {
+    auto initializer = std::make_unique<AST_Node_initializer>();
+    
+    // For now, just parse a simple expression initializer
+    auto expr = parseExpression(0);
+    if (expr) {
+        initializer->init_type = InitializerExp;
+        initializer->info = std::move(expr);
+        return initializer;
+    }
+    
+    return nullptr;
+}
+
+/// Parse enumerators
+AST_Node_enumeratorPtr Parser::parseEnumerator() {
+    auto enumerator = std::make_unique<AST_Node_enumerator>();
+    
+    if (peek().GetType() == TokenType::IDENTIFIER) {
+        enumerator->name = get().GetLexeme();
+    } else {
+        return nullptr;
+    }
+    
+    // Check for optional value assignment
+    if (peek().GetType() == TokenType::EQUAL) {
+        get();
+        // Parse constant expression for enum value
+        Token token = peek();
+        if (token.GetType() == TokenType::INT_CONSTANT) {
+            auto const_node = std::make_unique<AST_Node_const>();
+            const_node->type = ConstType::ConstInt;
+            const_node->value.intValue = std::stoi(get().GetLexeme());
+            enumerator->value = std::move(const_node);
+        }
+    }
+    
+    return enumerator;
+}
+
+/// Parse class members
+AST_Node_class_memberPtr Parser::parseClassMember() {
+    auto member = std::make_unique<AST_Node_class_member>();
+    
+    // For now, just handle field members (variable declarations)
+    auto var_decl = parseVariableDeclaration();
+    if (var_decl) {
+        auto field_member = std::make_unique<AST_Node_field_member>();
+        field_member->var = std::move(var_decl);
+        field_member->access = Public; // Default access
+        
+        member->member_type = ClassMemberField;
+        member->info = std::move(field_member);
+        return member;
+    }
+    
+    return nullptr;
 }

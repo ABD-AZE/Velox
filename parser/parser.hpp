@@ -82,7 +82,7 @@ struct ParserErrorInfo{
 class Parser {
   public:
     Parser(const std::vector<Token>& tokens);
-    void parseProgram();
+    AST_Node_programPtr parseProgram();
     AST_Node_programPtr program;
     
     // Expression parsing - public for testing
@@ -112,7 +112,7 @@ class Parser {
 
     AST_Node_typePtr parseType();
 
-    AST_Node_member_declarationPtr parseMemberDeclaration(){ return nullptr; }
+    AST_Node_member_declarationPtr parseMemberDeclaration();
     AST_Node_initializerPtr parseInitializer();
 
     // to be handled using pratt
@@ -123,6 +123,7 @@ private:
     AST_Node_for_initPtr parseForInit();
 
     AST_Node_statementPtr parseStatement();
+    std::unique_ptr<AST_Node_block> parseCompoundStatement();
 
     // Node statement
     AST_Node_expression_statementPtr parseExpressionStatement();

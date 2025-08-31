@@ -12,11 +12,11 @@ debug: build/debug
 test: $(TEST_TARGETS)
 	@echo "All test files compiled successfully"
 
-build/velox: build/obj/lexer.o build/obj/velox.o build/obj/token.o
+build/velox: build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o build/obj/ast.o build/obj/ast_printer.o
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-build/debug: build/obj/lexer.o build/obj/velox.o build/obj/token.o
+build/debug: build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o build/obj/ast.o build/obj/ast_printer.o
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -g -o $@ $^
 
@@ -33,6 +33,18 @@ build/obj/token.o: token/token.cpp
 	@mkdir -p build/obj
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+build/obj/parser.o: parser/parser.cpp
+	@mkdir -p build/obj
+	$(CXX) $(CXXFLAGS) -Ilexer -Itoken -Iast -c $< -o $@
+
+build/obj/ast.o: ast/ast.cpp
+	@mkdir -p build/obj
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+build/obj/ast_printer.o: ast/ast_printer.cpp
+	@mkdir -p build/obj
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 build/lexer_test: build/obj/lexer.o tests/lexer_test.cpp build/obj/token.o
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(GTEST_FLAGS)
@@ -43,7 +55,7 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  all    - Build the velox executable"
-	@echo "  velox  - Build the velox executable"
+	@echo "  debug  - Build debug version with -g flag"
 	@echo "  test   - Build and run Google Tests"
 	@echo "  clean  - Remove build files"
 	@echo "  help   - Show this help"
