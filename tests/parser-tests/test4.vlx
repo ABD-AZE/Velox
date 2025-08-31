@@ -1,6 +1,4 @@
-enum Color { RED, GREEN, BLUE };
 struct Point { int x; int y; };
-union Data { int i; float f; };
 int main() {
     struct Point p = {1, 2};
     union Data d; d.i = sizeof(p);

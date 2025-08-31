@@ -27,6 +27,7 @@ using AST_Node_expression_statementPtr = std::unique_ptr<AST_Node_expression_sta
 using AST_Node_return_statementPtr = std::unique_ptr<AST_Node_return_statement>;
 using AST_Node_for_statementPtr = std::unique_ptr<AST_Node_for_statement>;
 using AST_Node_while_statementPtr = std::unique_ptr<AST_Node_while_statement>;
+using AST_Node_until_statementPtr = std::unique_ptr<AST_Node_until_statement>;
 using AST_Node_do_while_statementPtr = std::unique_ptr<AST_Node_do_while_statement>;
 using AST_Node_if_statementPtr = std::unique_ptr<AST_Node_if_statement>;
 using AST_Node_labeled_statementPtr = std::unique_ptr<AST_Node_labeled_statement>;
@@ -83,10 +84,13 @@ class Parser {
   public:
     Parser(const std::vector<Token>& tokens);
     AST_Node_programPtr parseProgram();
-    AST_Node_programPtr program;
-    
-    // Expression parsing - public for testing
     AST_Node_expPtr parseExpression(int min_bp = 0);
+    
+    // Error handling and status
+    bool isSuccessful() const { return success; }
+    const std::vector<ParserErrorInfo>& getErrors() const { return errors; }
+    void printErrors() const;  
+    void PrintErrors();
 
   private:
     std::vector<Token> tokens;
@@ -103,6 +107,7 @@ class Parser {
     Token consume();
     void reset();
     bool expect(TokenType expected, TokenType actual);
+    bool expectToken(TokenType expected); // Helper: expect and consume token with error recovery
 
     AST_Node_declarationPtr parseDeclaration();
     // declaration
@@ -130,6 +135,7 @@ private:
     AST_Node_return_statementPtr parseReturnStatement();
     AST_Node_for_statementPtr parseForStatement();
     AST_Node_while_statementPtr parseWhileStatement();
+    AST_Node_until_statementPtr parseUntilStatement();
     AST_Node_do_while_statementPtr parseDoWhileStatement();
     AST_Node_if_statementPtr parseIfStatement();
     AST_Node_blockPtr parseBlock();

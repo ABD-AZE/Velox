@@ -62,6 +62,7 @@ struct AST_Node_expression_statement;
 struct AST_Node_return_statement;
 struct AST_Node_if_statement;
 struct AST_Node_while_statement;
+struct AST_Node_until_statement;
 struct AST_Node_do_while_statement;
 struct AST_Node_for_statement;
 struct AST_Node_block;
@@ -259,7 +260,7 @@ struct AST_Node_block {
 };
 
 enum StmtType {
-  StmtExpression, StmtReturn, StmtIf, StmtWhile, StmtDoWhile, StmtFor,
+  StmtExpression, StmtReturn, StmtIf, StmtWhile, StmtDoWhile, StmtFor, StmtUntil,
   StmtBreak, StmtContinue, StmtBlock, StmtNull, StmtLabeled, StmtSwitch, StmtGoto
 };
 
@@ -295,6 +296,11 @@ struct AST_Node_if_statement {
 };
 
 struct AST_Node_while_statement {
+  std::unique_ptr<AST_Node_exp> condition;
+  std::unique_ptr<AST_Node_statement> body;
+};
+
+struct AST_Node_until_statement {
   std::unique_ptr<AST_Node_exp> condition;
   std::unique_ptr<AST_Node_statement> body;
 };
@@ -459,6 +465,7 @@ struct AST_Node_statement {
     std::unique_ptr<AST_Node_return_statement>,
     std::unique_ptr<AST_Node_if_statement>,
     std::unique_ptr<AST_Node_while_statement>,
+    std::unique_ptr<AST_Node_until_statement>,
     std::unique_ptr<AST_Node_do_while_statement>,
     std::unique_ptr<AST_Node_for_statement>,
     std::unique_ptr<AST_Node_block>,

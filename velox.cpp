@@ -3,13 +3,12 @@
 #include "ast/ast_printer.hpp"
 
 int main(int argc, char *argv[]) {
-  // if (argc != 2) {
-  //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
-  //   return 1;
-  // }
+  if (argc != 2) {
+    std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
+    return 1;
+  }
 
-  // std::string source = argv[1];
-  std::string source = "test.c";
+  std::string source = argv[1];
   if (source.empty()) {
     return 1;
   }
@@ -38,6 +37,14 @@ int main(int argc, char *argv[]) {
   std::cout << "\n=== SYNTAX ANALYSIS ===" << std::endl;
   Parser parser(lexer.GetTokens());
   auto program_ast = parser.parseProgram();
+  
+  // Check for parsing errors and display them
+  if (!parser.isSuccessful()) {
+    std::cout << "Syntax analysis completed with errors:" << std::endl;
+    parser.printErrors();
+  } else {
+    std::cout << "Syntax analysis completed successfully!" << std::endl;
+  }
   
   if (!program_ast) {
     std::cerr << "Syntax analysis failed - no AST generated." << std::endl;

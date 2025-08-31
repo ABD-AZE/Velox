@@ -2,6 +2,13 @@
 #include <assert.h>
 #include <iostream>
 
+
+void Parser::PrintErrors(){
+    for(auto& error : errors){
+        std::cout << "Error at line " << error.lineNumber << ", column " << error.columnNumber << ": " << error.expectedToken << " expected, " << error.actualToken << " found" << std::endl;
+    }
+}
+
 int GetPrecedence(TokenType token)
 {
     switch (token)
@@ -245,7 +252,7 @@ std::pair<int, int> GetUnaryBindingPower(TokenType token)
     }
 }
 
-Parser::Parser(const std::vector<Token> &inputtokens) : tokens(inputtokens), program(std::make_unique<AST_Node_program>())
+Parser::Parser(const std::vector<Token> &inputtokens) : tokens(inputtokens)
 {
     Token eof;
     eof.SetType(END_OF_FILE);
@@ -306,9 +313,54 @@ bool Parser::expect(TokenType expected, TokenType actual)
 {
     if (expected != actual)
     {
-        // handle error here
+        // Set success to false to indicate parsing error
+        success = false;
+        
+        // Get current token position for error reporting
+        Token current_token = peek();
+        int line = current_token.GetLineNumber();
+        int column = current_token.GetColumnNumber();
+        
+        // Record the error for later reporting
+        errors.emplace_back(line, column, expected, actual);
+        
+        // Continue parsing as if the expected token was present (error recovery)
+        return false; // Indicates mismatch but parsing continues
     }
-    return true;
+    return true; // Token matched as expected
+}
+
+bool Parser::expectToken(TokenType expected)
+{
+    Token current = peek();
+    bool matched = expect(expected, current.GetType());
+    
+    // Always consume the token (or advance past it) for error recovery
+    // If token matched, consume it normally
+    // If token didn't match, still advance to continue parsing
+    if (currentIndex >= 0) {
+        get(); // Consume the token regardless of match for error recovery
+    }
+    
+    return matched;
+}
+
+void Parser::printErrors() const
+{
+    if (errors.empty()) {
+        std::cout << "No parsing errors found." << std::endl;
+        return;
+    }
+    
+    std::cout << "=== PARSING ERRORS ===" << std::endl;
+    for (const auto& error : errors) {
+        std::cout << "Error at line " << error.lineNumber 
+                  << ", column " << error.columnNumber 
+                  << ": Expected token type " << static_cast<int>(error.expectedToken)
+                  << ", but found token type " << static_cast<int>(error.actualToken) 
+                  << std::endl;
+    }
+    std::cout << "Total errors: " << errors.size() << std::endl;
 }
 
 
@@ -435,9 +487,7 @@ AST_Node_declarationPtr Parser::parseDeclaration()
             }
             get();
         }
-        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
-            get(); // consume ')'
-        }
+        expectToken(TokenType::CLOSE_PARENTHESES); // Required closing parenthesis with error recovery
         
         // Parse function body or semicolon
                 // Checking next token
@@ -482,33 +532,24 @@ AST_Node_declarationPtr Parser::parseDeclaration()
 
 AST_Node_struct_declarationPtr Parser::parseStructDeclaration()
 {
-    std::cout << "parseStructDeclaration: starting at index " << currentIndex << std::endl;
     auto structDecl = std::make_unique<AST_Node_struct_declaration>();
     Token token = get();
-    std::cout << "parseStructDeclaration: consumed STRUCT token, now at index " << currentIndex << std::endl;
     expect(TokenType::STRUCT, token.GetType());
     token = get();
-    std::cout << "parseStructDeclaration: consumed identifier token: " << token.GetLexeme() << ", now at index " << currentIndex << std::endl;
     expect(TokenType::IDENTIFIER, token.GetType());
     structDecl->tag = token.GetLexeme();
     if (peek().GetType() == TokenType::OPEN_BRACE)
     {
-        std::cout << "parseStructDeclaration: found OPEN_BRACE, consuming it" << std::endl;
         get(); // consume {
-        std::cout << "parseStructDeclaration: entering member parsing loop at index " << currentIndex << std::endl;
         while (peek().GetType() != TokenType::CLOSE_BRACE && peek().GetType() != TokenType::END_OF_FILE)
         {
-            std::cout << "parseStructDeclaration: processing member token: " << peek().GetLexeme() << " at index " << currentIndex << std::endl;
             if (isTypeSpecifier(peek().GetType()))
             {
-                std::cout << "parseStructDeclaration: parsing member declaration" << std::endl;
                 structDecl->members.push_back(parseMemberDeclaration());
-                std::cout << "parseStructDeclaration: finished parsing member, now at index " << currentIndex << std::endl;
             }
             else
             {
                 // Skip unrecognized token to avoid infinite loop
-                std::cout << "parseStructDeclaration: skipping unrecognized token: " << peek().GetLexeme() << std::endl;
                 success = 0;
                 errors.emplace_back(peek().GetLineNumber(), peek().GetColumnNumber(), TokenType::IDENTIFIER, peek().GetType());
                 get(); // consume the problematic token
@@ -590,8 +631,8 @@ AST_Node_expPtr Parser::parseExpression(int min_bp){
         
         auto [left_bp, right_bp] = GetBindingPower(op_token.GetType());
         
-        // If the left binding power is less than minimum, we're done
-        if (left_bp < min_bp) {
+        // If the left binding power is 0 (not an operator) or less than minimum, we're done
+        if (left_bp == 0 || left_bp < min_bp) {
             break;
         }
         
@@ -677,9 +718,13 @@ AST_Node_expPtr Parser::parseExpression(int min_bp){
             
             case TokenType::OPEN_BRACKET: {
                 // Array subscript: array[index]
+                get(); // consume '['
                 auto right = parseExpression(0);
-                expect(TokenType::CLOSE_BRACKET, peek().GetType());
-                get(); // get ']'
+                if (peek().GetType() != TokenType::CLOSE_BRACKET) {
+                    expect(TokenType::CLOSE_BRACKET, peek().GetType()); // Error recovery
+                    break; // Exit on error
+                }
+                get(); // consume ']'
                 
                 auto subscript = std::make_unique<AST_Node_subscript>();
                 subscript->array = std::move(left);
@@ -694,8 +739,12 @@ AST_Node_expPtr Parser::parseExpression(int min_bp){
             
             case TokenType::DOT: {
                 // Member access: struct.member
-                expect(TokenType::IDENTIFIER, peek().GetType());
-                Token member_token = get();
+                get(); // consume '.'
+                if (peek().GetType() != TokenType::IDENTIFIER) {
+                    expect(TokenType::IDENTIFIER, peek().GetType()); // Error recovery
+                    break; // Exit on error
+                }
+                Token member_token = get(); // Get the identifier
                 
                 auto dot = std::make_unique<AST_Node_dot>();
                 dot->structure = std::move(left);
@@ -768,6 +817,7 @@ AST_Node_expPtr Parser::parseExpression(int min_bp){
                     case TokenType::COMPOUND_OR: assignment->op = AssignOpType::OrAssign; break;
                     case TokenType::COMPOUND_LEFTSHIFT: assignment->op = AssignOpType::ShlAssign; break;
                     case TokenType::COMPOUND_RIGHTSHIFT: assignment->op = AssignOpType::ShrAssign; break;
+                    default: assignment->op = AssignOpType::Assign; break; // Default to simple assignment
                 }
                 
                 auto exp = std::make_unique<AST_Node_exp>();
@@ -1081,15 +1131,12 @@ std::unique_ptr<AST_Node_block> Parser::parseCompoundStatement() {
     if (peek().GetType() != TokenType::OPEN_BRACE) {
         return nullptr;
     }
-    size_t start_index = currentIndex;
     get(); // consume '{'
-    std::cout << "parseCompoundStatement: start index " << start_index << ", after '{': " << currentIndex << std::endl;
     
     // Process all tokens within the braces sequentially (in reversed token order)
     // We need to track brace depth to find the correct matching closing brace
     int brace_depth = 1; // We've consumed the opening brace
     while (brace_depth > 0 && peek().GetType() != TokenType::END_OF_FILE) {
-        std::cout << "parseCompoundStatement: processing token: " << peek().GetLexeme() << " at index " << currentIndex << ", depth=" << brace_depth << std::endl;
         
         // Track nested braces
         if (peek().GetType() == TokenType::OPEN_BRACE) {
@@ -1148,7 +1195,6 @@ std::unique_ptr<AST_Node_block> Parser::parseCompoundStatement() {
                     init->init_type = InitializerExp;
                     init->info = parseExpression(0);
                     var_decl->initializer = std::move(init);
-                } else {
                 }
                 
                 // Consume semicolon
@@ -1161,7 +1207,6 @@ std::unique_ptr<AST_Node_block> Parser::parseCompoundStatement() {
                 block_item->info = std::move(decl);
                 block->items.push_back(std::move(block_item));
                 continue;
-            } else {
             }
         }
         
@@ -1171,10 +1216,8 @@ std::unique_ptr<AST_Node_block> Parser::parseCompoundStatement() {
             block_item->item_type = BlockItemStatement;
             block_item->info = std::move(stmt);
             block->items.push_back(std::move(block_item));
-            std::cout << "parseCompoundStatement: parsed statement successfully" << std::endl;
         } else {
             // Skip unrecognized token to avoid infinite loop
-            std::cout << "parseCompoundStatement: skipping unrecognized token: " << peek().GetLexeme() << " at index " << currentIndex << std::endl;
             get();
         }
     }
@@ -1182,12 +1225,7 @@ std::unique_ptr<AST_Node_block> Parser::parseCompoundStatement() {
     // At this point, brace_depth should be 0 and we should be at the matching closing brace
     if (peek().GetType() == TokenType::CLOSE_BRACE && brace_depth == 0) {
         get(); // consume the matching '}'
-        std::cout << "parseCompoundStatement: consumed matching '}', final index: " << currentIndex << std::endl;
-    } else {
-        std::cout << "parseCompoundStatement: ERROR - brace mismatch, depth=" << brace_depth << ", token: " << peek().GetLexeme() << std::endl;
     }
-    
-    std::cout << "parseCompoundStatement: returning block with " << block->items.size() << " items" << std::endl;
     return block;
 }
 
@@ -1294,9 +1332,7 @@ AST_Node_if_statementPtr Parser::parseIfStatement() {
     if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
         get(); // consume '('
         if_stmt->condition = parseExpression();
-        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
-            get(); // consume ')'
-        }
+        expectToken(TokenType::CLOSE_PARENTHESES); // Required closing parenthesis with error recovery
     }
     
     // Parse then statement
@@ -1486,24 +1522,26 @@ AST_Node_expression_statementPtr Parser::parseExpressionStatement() {
 AST_Node_blockPtr Parser::parseBlock() {
     auto block = std::make_unique<AST_Node_block>();
     
-    // Consume '{'
-    if (peek().GetType() == TokenType::OPEN_BRACE) {
-        get();
-    }
+    // Consume '{' with error recovery
+    expectToken(TokenType::OPEN_BRACE);
     
     // Parse block items
     while (peek().GetType() != TokenType::CLOSE_BRACE && 
            peek().GetType() != TokenType::END_OF_FILE) {
+        size_t start_index = currentIndex;
         auto item = parseBlockItem();
         if (item) {
             block->items.push_back(std::move(item));
         }
+        
+        // Prevent infinite loop: if no progress was made, skip the current token
+        if (currentIndex == start_index) {
+            get(); // Skip unrecognized token to avoid infinite loop
+        }
     }
     
-    // Consume '}'
-    if (peek().GetType() == TokenType::CLOSE_BRACE) {
-        get();
-    }
+    // Consume '}' with error recovery
+    expectToken(TokenType::CLOSE_BRACE);
     
     return block;
 }
@@ -1603,7 +1641,7 @@ AST_Node_array_sizePtr Parser::parseArraySize() {
 
 /// Parse program (top-level)
 AST_Node_programPtr Parser::parseProgram() {
-    program = std::make_unique<AST_Node_program>();
+    auto program = std::make_unique<AST_Node_program>();
     
     int iteration = 0;
     while (currentIndex < tokens.size() && peek().GetType() != TokenType::END_OF_FILE) {
@@ -1613,25 +1651,22 @@ AST_Node_programPtr Parser::parseProgram() {
         auto decl = parseDeclaration();
         if (decl) {
             program->declarations.push_back(std::move(decl));
-            std::cout << "Iteration " << iteration << ": parsed declaration, index " << start_index << " -> " << currentIndex << std::endl;
         } else {
             // Skip unrecognized token to avoid infinite loop
             if (currentIndex >= 0) {
                 get();
             }
             if (currentIndex < 0) break;
-            std::cout << "Iteration " << iteration << ": skipped token, index " << start_index << " -> " << currentIndex << std::endl;
         }
         
         // Safety check for infinite loop
         if (iteration > 50) {
-            std::cout << "Breaking after 50 iterations to prevent infinite loop" << std::endl;
             break;
         }
     }
     
     // Parsing completed
-    return std::move(program);
+    return program;
 }
 
 /// Parse type specifiers
@@ -1711,9 +1746,7 @@ AST_Node_variable_declarationPtr Parser::parseVariableDeclaration() {
         var_decl->initializer = parseInitializer();
     }
     
-    if (peek().GetType() == TokenType::SEMICOLON) {
-        get();
-    }
+    expectToken(TokenType::SEMICOLON); // Required semicolon with error recovery
     
     return var_decl;
 }
@@ -1746,9 +1779,7 @@ AST_Node_function_declarationPtr Parser::parseFunctionDeclaration() {
                 break;
             }
         }
-        if (peek().GetType() == TokenType::CLOSE_PARENTHESES) {
-            get();
-        }
+        expectToken(TokenType::CLOSE_PARENTHESES); // Required closing parenthesis with error recovery
     }
     
     if (peek().GetType() == TokenType::OPEN_BRACE) {
