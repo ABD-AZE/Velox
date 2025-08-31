@@ -1,0 +1,6 @@
+int main() {
+    int x = 0;
+    while (x < 3) x++;
+    do { x = x + 2; } while (x < 10);
+    return x;
+}

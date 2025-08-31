@@ -1,0 +1,7 @@
+int main() {
+    int a = 5, b = 3;
+    if (a > b && b != 0)
+        if (a % b == 2) a = a + b;
+        else a = a - b;   // dangling else attaches here
+    return a * b / 2;
+}

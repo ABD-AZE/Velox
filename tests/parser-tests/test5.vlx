@@ -1,0 +1,8 @@
+class Counter {
+public: const int base = 10;
+};
+int main() {
+    Counter c;
+    int s = sizeof(c) + c.base;
+    return s;
+}
