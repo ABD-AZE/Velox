@@ -70,9 +70,9 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 ```ebnf
 <typedef-declaration> ::= "typedef" { <type-specifier> }+ <typedef-declarator-list> ";"
 
-<typename-declarator-list> ::= <typedef-declarator> { "," <typedef-declarator> }
+<typedef-declarator-list> ::= <typedef-declarator> { "," <typedef-declarator> }
 
-<typename-declarator> ::= <declarator> 
+<typedef-declarator> ::= <declarator> 
 ```
 
 ### `class-declaration`
@@ -103,8 +103,8 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<declarator>`
 ```ebnf
-<declarator> ::= <ptr-ref-seq> <direct-declarator>
-<ptr-ref-seq> ::= { "*" { <type-qualifier> } } [ "&" ]
+<declarator> ::= [ "&" ] { "*" { <type-qualifier> } } <direct-declarator>
+
 ```
 **Examples:**
 - Direct: `x`
@@ -166,12 +166,10 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 // Parser requirement: maintain a typedef-name set (or a TYPEDEF_NAME token) so <typedef-name> is distinguishable from an identifier.
 
 <struct-or-union-specifier> ::= "struct" <identifier>
-                              | "struct" "{" { <member-declaration> } "}"
-                              | "union"  <identifier>                     
-                              | "union"  "{" { <member-declaration> } "}"
+                              | "union"  <identifier>
 
 <enum-specifier> ::=    "enum" [ <identifier> ] "{" <enumerator-list> "}"
-                        | "enum" <identifier>
+                        
 
 <enumerator-list> ::= <enumerator> { "," <enumerator> }
 
@@ -212,8 +210,9 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<direct-abstract-declarator>`
 ```ebnf
-<direct-abstract-declarator> ::= "(" <abstract-declarator> ")" { "[" <const> "]" }
-                               | { "[" <const> "]" }+
+<direct-abstract-declarator> ::= "(" <abstract-declarator> ")" { "[" [ <exp> ] "]" }
+                               | { "[" [ <exp> ] "]" }+
+
 ```
 **Examples:**
 - `(*)[10]`
@@ -280,7 +279,14 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<exp>`
 ```ebnf
-<exp> ::= <cast-exp> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
+<exp> ::= <conditional-exp> 
+        | <unary-exp> <assign-op> <exp>
+
+<conditional-exp> ::= <cast-exp> 
+                    | <conditional-exp> <binop-no-assign> <cast-exp>
+                    | <exp> "?" <exp> ":" <exp>   
+
+
 ```
 **Examples:**
 - Simple: `x`
@@ -299,6 +305,8 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 ### `<unary-exp>`
 ```ebnf
 <unary-exp> ::= <unop> <cast-exp>
+              | "*" <cast-exp>      
+              | "&" <cast-exp>   
               | "sizeof" <unary-exp>
               | "sizeof" "(" <type-name> ")"
               | <postfix-exp>
@@ -380,7 +388,9 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<initializer>`
 ```ebnf
-<initializer> ::= <exp> | "{" <initializer> { "," <initializer> } [ "," ] "}"
+<initializer> ::=   <exp> 
+                    | "{" <initializer> { "," <initializer> } [ "," ] "}"
+                    | "(" [ <argument-list> ] ")"
 ```
 **Examples:**
 - Expression: `42`
@@ -391,19 +401,20 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<unop>`
 ```ebnf
-<unop> ::= "-" | "~" | "!" | "*" | "&"
+<unop> ::= "-" | "~" | "!" 
 ```
-**Examples:** `-x`, `~bits`, `!flag`, `*ptr`, `&var`
+**Examples:** `-x`, `~bits`, `!flag`, 
 
-### `<binop>`
+### `<assign-op>` and `<binop-no-assign>`
 ```ebnf
-<binop> ::= "-" | "+" | "*" | "/" | "%"
-          | "<<" | ">>"
-          | "&" | "^" | "|"
-          | "&&" | "||"
-          | "==" | "!=" | "<" | "<=" | ">" | ">="
-          | "=" | "+=" | "-=" | "*=" | "/=" | "%="
-          | "<<=" | ">>=" | "&=" | "^=" | "|="
+<assign-op> ::= "=" | "+=" | "-=" | "*=" | "/=" | "%="
+              | "<<=" | ">>=" | "&=" | "^=" | "|=" 
+
+<binop-no-assign> ::= "-" | "+" | "*" | "/" | "%" 
+                    | "<<" | ">>" | "&" | "^" | "|"
+                    | "&&" | "||"
+                    | "==" | "!=" | "<" | "<=" | ">" | ">="
+
 ```
 **Examples:**
 - Arithmetic: `a + b`, `x * y`, `n % 2`

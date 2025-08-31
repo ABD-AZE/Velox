@@ -17,7 +17,10 @@ declaration = FunDecl(function_declaration)
             | UnionDecl(union_declaration)
             | EnumDecl(enum_declaration)
             | TypedefDecl(typedef_declaration)
-            | ClassDecl(class_declaration)  
+            | ClassDecl(class_declaration)
+            | StructFwd(identifier tag)
+            | UnionFwd(identifier tag)
+            | EnumFwd(identifier tag)  
 ```
 
 ## Declarations
@@ -188,7 +191,8 @@ exp = Constant(const)
     | VaStart(exp ap, identifier last_param)           
     | VaEnd(exp ap)                                    
     | VaArg(exp ap, type target_type)
-    | Builtin(identifier name)             
+    | Builtin(identifier name)     
+    | Lambda(lambda)        
 ```
 //During codegen (or a lower pass), you may replace e.g. EnumValue("MEDIUM") with Constant(ConstInt(k)) where k is the resolved integer.
 
@@ -229,7 +233,25 @@ const = ConstInt(int) | ConstLong(int) | ConstUInt(int) | ConstULong(int)
 ## Label Support
 ```
 label =
-    UserLabel(identifier name)     // e.g., foo:
-  | CaseLabel(exp value)         // e.g., case 42:
-  | DefaultLabel                   // e.g., default:
+        UserLabel(identifier name)     
+        | CaseLabel(exp value)         
+        | DefaultLabel                   
+```
+
+### `Lambda`
+```
+lambda =
+    (lambda_capture capture,        
+    param_decl* params,            
+    type? ret_type,                
+    block body)
+
+lambda_capture = 
+    CaptureAllByValue             
+    | CaptureAllByRef             
+    | CaptureList(captured*)
+
+captured = 
+    CapByValue(identifier)        
+    | CapByRef(identifier)        
 ```
