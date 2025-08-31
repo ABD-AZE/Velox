@@ -1,3 +1,6 @@
+#include "parser.hpp"
+#include "token/token.hpp"
+
 int GetPrecedence(TokenType token) {
   switch (token) {
       // Precedence 16: Postfix operators
@@ -227,4 +230,40 @@ std::pair<int, int> GetUnaryBindingPower(TokenType token) {
       default:
           return {0, 0};
   }
+}
+
+Parser::Parser(const std::vector<Token>& inputtokens) : tokens(inputtokens), currentIndex(0), program(std::make_unique<AST_Node_program>()), tokenSize(tokens.size()+1) {
+    Token eof;
+    eof.SetType(END_OF_FILE);
+    tokens.push_back(eof); // Add EOF token at the end   
+}
+
+Token Parser::get(){
+    if(currentIndex < tokens.size()){
+        return tokens[currentIndex++];
+    }
+    return Token(); // Return a default token if out of bounds
+}
+
+Token Parser::peek(){
+    if(currentIndex < tokens.size()){
+        return tokens[currentIndex];
+    }
+    return Token(); // Return a default token if out of bounds
+}
+
+bool Parser::expect(TokenType expected, TokenType actual){
+    if(expected != actual) {
+        // handle error here
+    }
+    return true;
+}
+
+void Parser::parseProgram(){
+    while(currentIndex < tokenSize) {
+        auto declaration = parseDeclaration();
+        if (declaration) {
+            program->AddDeclaration(std::move(declaration));
+        }
+    }
 }

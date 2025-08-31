@@ -1,3 +1,5 @@
+#pragma once
+
 #include <memory>
 #include <optional>
 #include <string>
@@ -488,4 +490,7 @@ struct AST_Node_declaration {
 
 struct AST_Node_program {
   std::vector<std::unique_ptr<AST_Node_declaration>> declarations;
+  void AddDeclaration(std::unique_ptr<AST_Node_declaration> decl) {
+      declarations.push_back(std::move(decl));
+  }
 };
