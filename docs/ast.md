@@ -112,6 +112,7 @@ type = Char | SChar | UChar | Int | Long | UInt | ULong | Double | Void
      | Class(identifier name) 
      | VaList
      | Reference(type referenced)
+     | ConstT(type inner)
 
 array_size = Known(int) | Unspecified | VLA(exp)
 ```
@@ -152,6 +153,7 @@ statement = Return(exp?)
           | While(exp condition, statement body)
           | DoWhile(statement body, exp condition)
           | For(for_init init, exp? condition, exp? post, statement body)
+          | Until(exp condition, statement body)
           | Null
           | Labeled(label* labels, statement stmt)           //Allow multiple labels on one statement
           | Switch(exp selector, statement body)    

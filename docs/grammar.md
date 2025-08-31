@@ -104,12 +104,13 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 ### `<declarator>`
 ```ebnf
 <declarator> ::= <ptr-ref-seq> <direct-declarator>
-<ptr-ref-seq> ::= { "*" } [ "&" ]
+<ptr-ref-seq> ::= { "*" { <type-qualifier> } } [ "&" ]
 ```
 **Examples:**
 - Direct: `x`
 - Pointer: `*ptr`
 - Pointer to pointer: `**ptr`
+- const with pointer: `* const p`
 
 ### `<direct-declarator>`
 ```ebnf
@@ -176,13 +177,19 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 <enumerator> ::= <identifier> [ "=" <const> ]
 ```
-**Examples:** `int`, `unsigned long`, `char`, `void`
+**Examples:** `int`, `unsigned long`, `char`, `void` 
+
+### `<type-qualifier>`
+``` ebnf
+<type-qualifier> ::= "const"
+```
+**Examples:** `const`
 
 ### `<specifier>`
 ```ebnf
-<specifier> ::= <type-specifier> | "static" | "extern"
+<specifier> ::= <type-specifier> | "static" | "extern" | <type-qualifier>
 ```
-**Examples:** `static`, `extern int`, `unsigned`
+**Examples:** `static`, `extern int`, `unsigned`, `const`
 
 ### `<type-name>`
 ```ebnf
@@ -239,6 +246,7 @@ This document defines the grammar rules for the Velox C compiler using Extended 
               | "while" "(" <exp> ")" <statement>
               | "do" <statement> "while" "(" <exp> ")" ";"
               | "for" "(" <for-init> [ <exp> ] ";" [ <exp> ] ")" <statement>
+              | "until" "(" <exp> ")" <statement> 
               | ";" 
               | "switch" "(" <exp> ")" <statement>
               | <labeled-statement>
