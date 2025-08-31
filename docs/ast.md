@@ -51,9 +51,9 @@ member_declaration = (identifier member_name, type member_type)
 ```
 enum_declaration = (identifier? tag, enumerator* enumerators)
 
-enumerator = (identifier name, int? value) 
+enumerator = (identifier name, const? value) 
 ```
-//Here we can also have `const? value` in place of `int? value`. But then `value` should be restricted to integer constants (you can enforce that in the type checker).
+// then `value` should be restricted to integer constants (you can enforce that in the type checker).
 
 ### `typedef_declaration`
 ```
@@ -71,13 +71,13 @@ field_member = (variable_declaration var, access_spec access)
 
 method_member =
   (function_declaration fun,
-   access_spec access,
-   bool is_static)                  // false = instance method, true = static method
+   access_spec access)
 
 constructor_member =
-  (identifier class_name,           // must match the class name
-   identifier* params,              // parameter names
-   block? body,                     // null => declared only
+  (identifier class_name,
+   identifier* params,             // names
+   type ctor_type,                 // FunType(param_types, Void, false)
+   block? body,
    access_spec access)
 
 access_spec = Public | Private    //Access checking is semantic check not a parsing concern
@@ -97,17 +97,21 @@ initializer = SingleInit(exp)
 ### `type`
 ```
 type = Char | SChar | UChar | Int | Long | UInt | ULong | Double | Void
-     | FunType(type* params, type ret)
+     | FunType(type* params, type ret, bool is_varargs)
      | Pointer(type referenced)
-     | Array(type element, int size)
+     | Array(type element, array_size size)
      | Structure(identifier tag)
      | Union(identifier tag)
      | Enum(identifier tag)
      | NamedType(identifier name) 
      | Class(identifier name) 
-```
+     | VaList
 
+array_size = Known(int) | Unspecified | VLA(exp)
+```
 //During type checking you resolve NamedType via the symbol table to the underlying type
+
+
 
 ### `storage_class`
 ```
@@ -143,6 +147,9 @@ statement = Return(exp?)
           | DoWhile(statement body, exp condition)
           | For(for_init init, exp? condition, exp? post, statement body)
           | Null
+          | Labeled(label* labels, statement stmt)           //Allow multiple labels on one statement
+          | Switch(exp selector, statement body)    
+          | Goto(identifier target)                   
 ```
 
 ## Expressions
@@ -154,8 +161,12 @@ exp = Constant(const)
     | Var(identifier)
     | Cast(type target_type, exp)
     | Unary(unary_operator, exp)
+    | PreInc(exp)      // ++x
+    | PreDec(exp)      // --x
+    | PostInc(exp)     // x++
+    | PostDec(exp)     // x--
     | Binary(binary_operator, exp, exp)
-    | Assignment(exp, exp)
+    | Assignment(exp lhs, assign_op op, exp rhs)   // replace old 2-arg form
     | Conditional(exp condition, exp, exp)
     | FunctionCall(exp callee, exp* args)
     | Dereference(exp)
@@ -166,6 +177,9 @@ exp = Constant(const)
     | Dot(exp structure, identifier member)
     | Arrow(exp pointer, identifier member)
     | EnumValue(identifier name)  
+    | VaStart(exp ap, identifier last_param)           
+    | VaEnd(exp ap)                                    
+    | VaArg(exp ap, type target_type)
 ```
 //During codegen (or a lower pass), you may replace e.g. EnumValue("MEDIUM") with Constant(ConstInt(k)) where k is the resolved integer.
 
@@ -183,10 +197,17 @@ unary_operator = Complement | Negate | Not
 
 ### `binary_operator`
 ```
-binary_operator = Add | Subtract | Multiply | Divide | Remainder | And | Or
-                | Equal | NotEqual | LessThan | LessOrEqual
-                | GreaterThan | GreaterOrEqual
+binary_operator =   Add | Subtract | Multiply | Divide | Remainder 
+                    | BitAnd | BitOr | BitXor
+                    | ShiftLeft | ShiftRight
+                    | LogicalAnd | LogicalOr
+                    | Equal | NotEqual | LessThan | LessOrEqual | GreaterThan | GreaterOrEqual
 ```
+### `assignment_operator`
+
+assign_op = Assign | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
+          | ShlAssign | ShrAssign | AndAssign | XorAssign | OrAssign
+
 
 ## Constants
 
@@ -194,4 +215,12 @@ binary_operator = Add | Subtract | Multiply | Divide | Remainder | And | Or
 ```
 const = ConstInt(int) | ConstLong(int) | ConstUInt(int) | ConstULong(int)
       | ConstDouble(double) | ConstChar(int) | ConstUChar(int)
+```
+
+## Label Support
+```
+label =
+    UserLabel(identifier name)     // e.g., foo:
+  | CaseLabel(exp value)         // e.g., case 42:
+  | DefaultLabel                   // e.g., default:
 ```
