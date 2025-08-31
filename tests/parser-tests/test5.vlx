@@ -1,5 +1,5 @@
 class Counter {
-public: const int base = 10;
+    int base = 10;
 };
 int main() {
     Counter c;
