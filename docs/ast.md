@@ -63,7 +63,12 @@ typedef_entry = (identifier name, type alias_type)
 ```
 ### `class_declaration`
 ```
-class_declaration = (identifier name, class_member* members)
+class_declaration =
+  (identifier name,
+   base_spec* bases,           
+   class_member* members)
+
+base_spec = (identifier base_name, access_spec access)
 
 class_member = Field(field_member) | Method(method_member) | Ctor(constructor_member)
 
@@ -106,6 +111,7 @@ type = Char | SChar | UChar | Int | Long | UInt | ULong | Double | Void
      | NamedType(identifier name) 
      | Class(identifier name) 
      | VaList
+     | Reference(type referenced)
 
 array_size = Known(int) | Unspecified | VLA(exp)
 ```
@@ -180,6 +186,7 @@ exp = Constant(const)
     | VaStart(exp ap, identifier last_param)           
     | VaEnd(exp ap)                                    
     | VaArg(exp ap, type target_type)
+    | Builtin(identifier name)             
 ```
 //During codegen (or a lower pass), you may replace e.g. EnumValue("MEDIUM") with Constant(ConstInt(k)) where k is the resolved integer.
 

@@ -77,7 +77,11 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `class-declaration`
 ```ebnf
-<class-declaration> ::= "class" <identifier> "{" { <class-member> } "}" ";"
+<class-declaration> ::= "class" <identifier> [ ":" <base-spec-list> ]
+                        "{" { <class-member> } "}" ";"
+
+<base-spec-list> ::= <base-spec> { "," <base-spec> }
+<base-spec> ::= [ "public" | "private" ] <identifier> 
 
 <class-member> ::= [ "public" ":" | "private" ":" ]    
                  | <member-declaration>                
@@ -99,7 +103,8 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 
 ### `<declarator>`
 ```ebnf
-<declarator> ::= "*" <declarator> | <direct-declarator>
+<declarator> ::= <ptr-ref-seq> <direct-declarator>
+<ptr-ref-seq> ::= { "*" } [ "&" ]
 ```
 **Examples:**
 - Direct: `x`
@@ -302,7 +307,11 @@ This document defines the grammar rules for the Velox C compiler using Extended 
 ```ebnf
 <postfix-exp> ::= <postfix-core> { <postfix-suffix> }
 
-<postfix-core> ::= <primary-exp>
+<postfix-core> ::= <primary-exp> | <lib-func>
+
+<lib-func> ::= "printf" | "scanf" | "malloc" | "free"
+             | "fopen" | "fclose" | "fread" | "fwrite"
+             | "fprintf" | "fscanf"
 
 <postfix-suffix> ::= "[" <exp> "]"
                    | "." <identifier>
@@ -324,13 +333,34 @@ This document defines the grammar rules for the Velox C compiler using Extended 
                 | { <string> }+
                 | "va_start" "(" <exp> "," <identifier> ")"  
                 | "va_end"   "(" <exp> ")"                    
-                | "va_arg"   "(" <exp> "," <type-name> ")"    
+                | "va_arg"   "(" <exp> "," <type-name> ")"  
+                | <lambda-exp>  
 ```
 **Examples:**
 - Constant: `42`, `3.14`, `'a'`
 - Identifier: `variable`
 - Parenthesized: `(x + y)`
 - String: `"Hello World"`
+- Lambda: `[](int x) -> int { return x + 1; }`
+
+
+### `<lambda-exp>`
+```ebnf
+<lambda-exp> ::= "[" <capture-spec> "]"
+                 "(" [ <param> { "," <param> } ] [ "," "..." ] ")"
+                 [ "->" <type-name> ]
+                 <block>                                         
+
+<capture-spec> ::= "&"                              
+                    | "="                              
+                    | <capture-list>                   
+                    | /* empty */                      
+
+<capture-list> ::= <capture> { "," <capture> }                  
+
+<capture> ::= "&" <identifier> | <identifier>                   
+```
+**Example:** `int f = [=](int x){ return x + k; }; `
 
 ### `<argument-list>`
 ```ebnf
