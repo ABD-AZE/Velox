@@ -12,11 +12,11 @@ debug: build/debug
 test: $(TEST_TARGETS)
 	@echo "All test files compiled successfully"
 
-build/velox: build/obj/lexer.o build/obj/velox.o build/obj/token.o
+build/velox: build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o
 	@mkdir -p build
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^	
 
-build/debug: build/obj/lexer.o build/obj/velox.o build/obj/token.o
+build/debug: build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -g -o $@ $^
 
@@ -30,6 +30,10 @@ build/obj/velox.o: velox.cpp
 	$(CXX) $(CXXFLAGS) -Ilexer -c $< -o $@
 
 build/obj/token.o: token/token.cpp
+	@mkdir -p build/obj
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+build/obj/parser.o: parser/parser.cpp
 	@mkdir -p build/obj
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 

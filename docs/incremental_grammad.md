@@ -1,0 +1,14 @@
+<program> ::= <function>
+
+<function> ::= "int" <identifier> "(" "void" ")" "{" 
+<statement> "}"
+
+<statement> ::= "return" <exp> ";"
+
+<exp> ::= <int> | <unop> <exp> | "(" <exp> ")"
+
+<unop> ::= "-" | "~"
+
+<identifier> ::= ? An identifier token ?
+
+<int> ::= ? A constant token ?

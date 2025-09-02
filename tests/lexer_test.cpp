@@ -395,7 +395,7 @@ TEST_F(LexerTest, Test8_ComprehensiveCCode) {
       {TokenType::CHARACTER, "\\", 5, 60},
       {TokenType::SEMICOLON, ";", 5, 64},
       // Line 6
-      {TokenType::IDENTIFIER, "const", 6, 3},
+      {TokenType::CONST, "const", 6, 3},
       {TokenType::CHAR, "char", 6, 9},
       {TokenType::ASTERISK, "*", 6, 13},
       {TokenType::IDENTIFIER, "s", 6, 15},

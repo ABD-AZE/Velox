@@ -104,7 +104,9 @@ enum TokenType {
   FSCANF,
   MALLOC,
   FREE,
-  UNTIL
+  UNTIL,
+  CONST,
+  END_OF_FILE,
 };
 
 struct ErrorInfo {
