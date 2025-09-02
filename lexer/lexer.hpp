@@ -27,6 +27,8 @@ public:
                        std::streampos &lastAcceptedTokenPos,
                        TokenType &lastAcceptedTokenType);
 
+  std::vector<Token>& GetTokens(){return tokens;};
+
   bool success = 1;
 
 private:
