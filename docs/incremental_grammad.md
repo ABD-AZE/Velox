@@ -3,11 +3,19 @@
 <function> ::= "int" <identifier> "(" "void" ")" "{" 
 <statement> "}"
 
-<statement> ::= "return" <exp> ";"
+<block-item> ::= <statement> | <declaration>
+<declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
 
-<exp> ::= <int> | <unop> <exp> | "(" <exp> ")"
+<statement> ::= "return" <exp> ";" | <exp> ";" | ";"
+
+<exp> ::= <factor> | <exp> <binop> <exp>
+
+<factor> ::= <int> | <identifier> |<unop> <factor> | "(" <exp> ")" // unary operator handled in this rule
 
 <unop> ::= "-" | "~"
+
+<binop> ::= "-" | "+" | "*" | "/" | "%" | "&" | "|" | "^" | "<<" | ">>" | "&&" | "||"
+| "==" | "!=" | "<" | "<=" | ">" | ">="
 
 <identifier> ::= ? An identifier token ?
 

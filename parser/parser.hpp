@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include <map>
+#include <optional>
 #include <memory>
 #include <set>
 #include <iostream>
@@ -9,8 +11,8 @@
 #include "../ast/ast.hpp"
 #include "../token/token.hpp"
 
-// unary operators to be handled separately while parsing
-int GetPrecedence(TokenType token);
+extern std::map<TokenType, int> Precedence;
+
 std::pair<int, int> GetBindingPower(TokenType token);
 int GetUnaryPrecedence(TokenType token);
 std::pair<int, int> GetUnaryBindingPower(TokenType token);
@@ -59,5 +61,8 @@ private:
 private:
   ASTNodePtr parseFunctionDefinition();
   ASTNodePtr parseStatement();
-  ASTNodePtr parseExpression();
+  ASTNodePtr parseExpression(int minPrecedence);
+  ASTNodePtr parseFactor();
+  ASTNodePtr parseDeclaration();
+  ASTNodePtr parseBlockItem();
 };

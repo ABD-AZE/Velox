@@ -1,5 +1,6 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
+#include "ast/ast_printer.hpp"
 
 int main(int argc, char *argv[]) {
   bool lexflag = 0;
@@ -15,7 +16,7 @@ int main(int argc, char *argv[]) {
     if (arg == "--parse") {
       parseflag = 1;
     } else if (arg == "--lex") {
-      lexflag = 1;  
+      lexflag = 1;
     } else {
       source = arg;
     }
@@ -40,10 +41,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "Parsing failed with errors." << std::endl;
     parser.printErrors();
     return 1;
-  }
-  if (parseflag) {
-    // Print the AST or any other relevant information
-    return 0;
-  }
+  } 
+  ASTPrinter::print(ast);
   return 0;
 }
