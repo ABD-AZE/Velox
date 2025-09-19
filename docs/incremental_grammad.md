@@ -6,9 +6,9 @@
 <block-item> ::= <statement> | <declaration>
 <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
 
-<statement> ::= "return" <exp> ";" | <exp> ";" | ";"
+<statement> ::= "return" <exp> ";" | <exp> ";" | "if" "(" <exp> ")" <statement> [ "else" <statement> ] | ";" | "goto:" <identifier> | <identifier> ":" 
 
-<exp> ::= <factor> | <exp> <binop> <exp>
+<exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 
 <factor> ::= <int> | <identifier> |<unop> <factor> | "(" <exp> ")" // unary operator handled in this rule
 

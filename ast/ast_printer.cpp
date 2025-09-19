@@ -88,6 +88,46 @@ void ASTPrinter::visit(ExpressionStatement &node) {
   std::cout << ")" << std::endl;
 }
 
+void ASTPrinter::visit(IfStatement &node) {
+  printIndent();
+  std::cout << "If(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "condition=" << std::endl;
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "then=" << std::endl;
+  if (node.thenBranch) {
+    increaseIndent();
+    node.thenBranch->accept(*this);
+    decreaseIndent();
+  }
+  if (node.elseBranch.has_value() && node.elseBranch.value()) {
+    printIndent();
+    std::cout << "else=" << std::endl;
+    increaseIndent();
+    node.elseBranch.value()->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(GotoStatement &node) {
+  printIndent();
+  std::cout << "Goto(label=\"" << node.label << "\")" << std::endl;
+}
+
+void ASTPrinter::visit(LabelStatement &node) {
+  printIndent();
+  std::cout << "Label(label=\"" << node.label << "\")" << std::endl;
+}
+
 void ASTPrinter::visit(BinaryExpression &node) {
   printIndent();
   std::cout << "Binary(" << std::endl;
@@ -142,6 +182,7 @@ void ASTPrinter::visit(VariableExpression &node) {
 }
 
 void ASTPrinter::visit(AssignmentExpression &node) {
+  printIndent();
   std::cout << "Assignment(" << std::endl;
   increaseIndent();
   printIndent();
@@ -158,12 +199,21 @@ void ASTPrinter::visit(AssignmentExpression &node) {
     node.right->accept(*this);
     decreaseIndent();
   }
+  if (node.type) {
+    printIndent();
+    std::cout << "type=" << std::endl;
+    increaseIndent();
+    printIndent();
+    std::cout << TokenTypeToString(node.type) << std::endl;
+    decreaseIndent();
+  }
   decreaseIndent();
   printIndent();
   std::cout << ")" << std::endl;
 }
 
 void ASTPrinter::visit(PostfixExpression &node) {
+  printIndent();
   std::cout << "Postfix(" << std::endl;
   increaseIndent();
   printIndent();
@@ -173,6 +223,36 @@ void ASTPrinter::visit(PostfixExpression &node) {
   if (node.operand) {
     increaseIndent();
     node.operand->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(ConditionalExpression &node) {
+  printIndent();
+  std::cout << "Conditional(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "condition=" << std::endl;
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "trueExp=" << std::endl;
+  if (node.trueExpr) {
+    increaseIndent();
+    node.trueExpr->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "falseExp=" << std::endl;
+  if (node.falseExpr) {
+    increaseIndent();
+    node.falseExpr->accept(*this);
     decreaseIndent();
   }
   decreaseIndent();
@@ -207,7 +287,7 @@ void ASTPrinter::visit(DeclarationNode &node) {
   if (node.init.has_value() && node.init.value()) {
     std::cout << "," << std::endl;
     printIndent();
-    std::cout << "init=";
+    std::cout << "init="<<std::endl;
     increaseIndent();
     node.init.value()->accept(*this);
     decreaseIndent();
