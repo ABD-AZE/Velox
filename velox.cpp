@@ -1,6 +1,6 @@
+#include "ast/ast_printer.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
-#include "ast/ast_printer.hpp"
 
 int main(int argc, char *argv[]) {
   bool lexflag = 0;
@@ -36,12 +36,12 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   Parser parser(lexer.GetTokens());
-  const ASTNodePtr& ast = parser.parseProgram();
+  const ASTNodePtr &ast = parser.parseProgram();
   if (!parser.isSuccessful()) {
     std::cerr << "Parsing failed with errors." << std::endl;
     parser.printErrors();
     return 1;
-  } 
+  }
   ASTPrinter::print(ast);
   return 0;
 }

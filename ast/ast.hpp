@@ -1,10 +1,11 @@
 #pragma once
 #include "../token/token.hpp"
 #include <memory>
-#include<vector> 
-#include<string>
-#include<optional>
+#include <optional>
+#include <string>
+#include <vector>
 
+// Forward declarations
 class ASTNode;
 class ProgramNode;
 class FunctionDefinitionNode;
@@ -12,6 +13,40 @@ class StatementNode;
 class ExpressionNode;
 class BlockItemNode;
 class DeclarationNode;
+class ReturnStatement;
+class NullStatement;
+class ExpressionStatement;
+class BinaryExpression;
+class UnaryExpression;
+class ConstantExpression;
+class VariableExpression;
+class AssignmentExpression;
+class PostfixExpression;
+
+// Visitor interface to use visitor pattern
+class ASTVisitor {
+public:
+  virtual ~ASTVisitor() = default;
+
+  // Visit methods for each node type
+  virtual void visit(ProgramNode &node) = 0;
+  virtual void visit(FunctionDefinitionNode &node) = 0;
+  virtual void visit(BlockItemNode &node) = 0;
+  virtual void visit(DeclarationNode &node) = 0;
+
+  // Statement visitors
+  virtual void visit(ReturnStatement &node) = 0;
+  virtual void visit(NullStatement &node) = 0;
+  virtual void visit(ExpressionStatement &node) = 0;
+
+  // Expression visitors
+  virtual void visit(BinaryExpression &node) = 0;
+  virtual void visit(UnaryExpression &node) = 0;
+  virtual void visit(ConstantExpression &node) = 0;
+  virtual void visit(VariableExpression &node) = 0;
+  virtual void visit(AssignmentExpression &node) = 0;
+  virtual void visit(PostfixExpression &node) = 0;
+};
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
 using ProgramNodePtr = std::unique_ptr<ProgramNode>;
@@ -23,98 +58,170 @@ using DeclarationNodePtr = std::unique_ptr<DeclarationNode>;
 
 class ASTNode {
 public:
-    virtual ~ASTNode() = default;
+  virtual ~ASTNode() = default;
+  virtual void accept(ASTVisitor &visitor) = 0;
 };
 
 class ProgramNode : public ASTNode {
 public:
-    ProgramNode(std::unique_ptr<ASTNode>&& functionDefinition)
-        : functionDefinition(std::move(functionDefinition)) {}
+  ProgramNode(std::unique_ptr<ASTNode> &&functionDefinition)
+      : functionDefinition(std::move(functionDefinition)) {}
 
-    ~ProgramNode() override = default;
+  ~ProgramNode() override = default;
 
-    std::unique_ptr<ASTNode> functionDefinition;
+  // double dispatch to the correct accept method
+  void accept(ASTVisitor &visitor) override {
+    visitor.visit(*this); // single dispatch to the correct visit method
+  }
+
+  std::unique_ptr<ASTNode> functionDefinition;
 };
 
 class FunctionDefinitionNode : public ASTNode {
 public:
-    FunctionDefinitionNode() = default;
-    FunctionDefinitionNode(std::string name, std::vector<std::unique_ptr<ASTNode>>& block_items)
-        : name(std::move(name)), block_items(std::move(block_items)) {}
+  FunctionDefinitionNode() = default;
+  FunctionDefinitionNode(std::string name,
+                         std::vector<std::unique_ptr<ASTNode>> &block_items)
+      : name(std::move(name)), block_items(std::move(block_items)) {}
 
-    ~FunctionDefinitionNode() override = default;     
+  ~FunctionDefinitionNode() override = default;
 
-    std::string name; 
-    std::vector<std::unique_ptr<ASTNode>> block_items;
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::string name;
+  std::vector<std::unique_ptr<ASTNode>> block_items;
 };
 
-class StatementNode : public ASTNode{
-  public:
-    bool isreturn = false;
-    bool isnull = false;
-    StatementNode(): isreturn(false), isnull(true), expression(nullptr) {}
-    StatementNode(std::unique_ptr<ASTNode> expression)
-        : expression(std::move(expression)) {}
-    StatementNode(bool isreturn, std::unique_ptr<ASTNode> expression)
-        : isreturn(isreturn), expression(std::move(expression)) {}
-
-    ~StatementNode() override = default;
-
-    std::unique_ptr<ASTNode> expression;
+// Base Statement class
+class StatementNode : public ASTNode {
+public:
+  ~StatementNode() override = default;
+  virtual void accept(ASTVisitor &visitor) = 0;
 };
 
+// Specific Statement types
+class ReturnStatement : public StatementNode {
+public:
+  std::unique_ptr<ASTNode> expression;
+
+  ReturnStatement(std::unique_ptr<ASTNode> expr)
+      : expression(std::move(expr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class NullStatement : public StatementNode {
+public:
+  NullStatement() = default;
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ExpressionStatement : public StatementNode {
+public:
+  std::unique_ptr<ASTNode> expression;
+
+  ExpressionStatement(std::unique_ptr<ASTNode> expr)
+      : expression(std::move(expr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+// Base Expression class
 class ExpressionNode : public ASTNode {
-  public:
-    TokenType op = TokenType::WS; // WS used as default
-    ASTNodePtr left = nullptr;
-    ASTNodePtr right = nullptr;
-    int const_value = 0;
-    std::string identifier;
-    bool isconst = false;
-    bool isunary = false;
-    bool isbinary = false;
-    bool isvar = false;
-    bool isassignment = false;
+public:
+  ~ExpressionNode() override = default;
+  virtual void accept(ASTVisitor &visitor) = 0;
+};
 
-  public:
-    ExpressionNode() = default;
-    ExpressionNode(int const_value)
-        : const_value(const_value), isconst(true) {}
+// Specific Expression types
+class BinaryExpression : public ExpressionNode {
+public:
+  TokenType op;
+  std::unique_ptr<ASTNode> left;
+  std::unique_ptr<ASTNode> right;
 
-    ExpressionNode(TokenType op, std::unique_ptr<ASTNode> left, std::unique_ptr<ASTNode> right) // for binary operator
-        : op(op), left(std::move(left)), right(std::move(right)), isbinary(true) {}
+  BinaryExpression(TokenType op, std::unique_ptr<ASTNode> left,
+                   std::unique_ptr<ASTNode> right)
+      : op(op), left(std::move(left)), right(std::move(right)) {}
 
-    ExpressionNode(TokenType op, ASTNodePtr exp)  // for unary operator
-        : op(op), right(std::move(exp)), isunary(true) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
 
-    ExpressionNode(std::string identifier) // for variable
-        : identifier(std::move(identifier)), isvar(true) {}
+class UnaryExpression : public ExpressionNode {
+public:
+  TokenType op;
+  std::unique_ptr<ASTNode> operand;
 
-    // for assignment
-    ExpressionNode(ASTNodePtr left, ASTNodePtr right)
-        : left(std::move(left)), right(std::move(right)), isassignment(true) {}
+  UnaryExpression(TokenType op, std::unique_ptr<ASTNode> operand)
+      : op(op), operand(std::move(operand)) {}
 
-    ~ExpressionNode() override = default;
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class ConstantExpression : public ExpressionNode {
+public:
+  int value;
+
+  ConstantExpression(int value) : value(value) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class VariableExpression : public ExpressionNode {
+public:
+  std::string identifier;
+
+  VariableExpression(std::string identifier)
+      : identifier(std::move(identifier)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class AssignmentExpression : public ExpressionNode {
+public:
+  std::unique_ptr<ASTNode> left;
+  std::unique_ptr<ASTNode> right;
+
+  AssignmentExpression(std::unique_ptr<ASTNode> left,
+                       std::unique_ptr<ASTNode> right)
+      : left(std::move(left)), right(std::move(right)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class PostfixExpression : public ExpressionNode {
+public:
+  TokenType op; // INCREMENT_OPERATOR or DECREMENT_OPERATOR
+  std::unique_ptr<ASTNode> operand;
+
+  PostfixExpression(std::unique_ptr<ASTNode> operand, TokenType op)
+      : op(op), operand(std::move(operand)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
 class BlockItemNode : public ASTNode {
 public:
-    ASTNodePtr block_item = nullptr;
-    
-    BlockItemNode(ASTNodePtr item)
-        : block_item(std::move(item)) {}
+  ASTNodePtr block_item = nullptr;
 
-    ~BlockItemNode() override = default;
+  BlockItemNode(ASTNodePtr item) : block_item(std::move(item)) {}
+
+  ~BlockItemNode() override = default;
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
 class DeclarationNode : public ASTNode {
 public:
-    std::string name;
-    std::optional<ASTNodePtr> init; // optional initializer expression
-    DeclarationNode(std::string name, ASTNodePtr init)
-        : name(std::move(name)), init(std::move(init)) {}
-    DeclarationNode(std::string name)
-        : name(std::move(name)), init(std::nullopt) {}
+  std::string name;
+  std::optional<ASTNodePtr> init; // optional initializer expression
+  DeclarationNode(std::string name, ASTNodePtr init)
+      : name(std::move(name)), init(std::move(init)) {}
+  DeclarationNode(std::string name)
+      : name(std::move(name)), init(std::nullopt) {}
 
-    ~DeclarationNode() override = default;
+  ~DeclarationNode() override = default;
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
