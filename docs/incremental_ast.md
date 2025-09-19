@@ -6,9 +6,9 @@ declaration = Declaration(identifier name, exp? init)
 
 block_item = S(statement) | D(declaration)  
 
-statement = Return(exp)  | Expression(exp) | Null
+statement = Return(exp)  | Expression(exp) | If(exp condition, statment then, statement? else) | Null | Goto(label) | Label
 
-exp = Constant(int) | Unary(unary_operator, exp) | Binary(binary_operator, exp, exp) | Var(identifier) | Assignment(exp,exp)
+exp = Constant(int) | Unary(unary_operator, exp) | Binary(binary_operator, exp, exp) | Var(identifier) | Assignment(exp,exp) | Conditional(exp condition, exp, exp)
 
 unary_operator = Complement | Negate
 

@@ -21,6 +21,9 @@ public:
   void visit(ReturnStatement &node) override;
   void visit(NullStatement &node) override;
   void visit(ExpressionStatement &node) override;
+  void visit(IfStatement &node) override;
+  void visit(GotoStatement &node) override;
+  void visit(LabelStatement &node) override;
 
   // Expression visitors
   void visit(BinaryExpression &node) override;
@@ -29,6 +32,7 @@ public:
   void visit(VariableExpression &node) override;
   void visit(AssignmentExpression &node) override;
   void visit(PostfixExpression &node) override;
+  void visit(ConditionalExpression &node) override;
 
 private:
   int indent_ = 0;

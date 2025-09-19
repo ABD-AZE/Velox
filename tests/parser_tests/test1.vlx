@@ -1,5 +1,8 @@
-int main(void){
-  int a;
-  a = 1+2+3;
-  return 2 + 2^2*3+4;
+int main(void) {
+  goto label2;
+  return 0;
+// okay to have space or newline between label and colon
+label1:
+label2:
+  return 1;
 }
