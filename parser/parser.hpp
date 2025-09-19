@@ -1,35 +1,30 @@
 #pragma once
 
-#include <string>
-#include <vector>
-#include <map>
-#include <optional>
-#include <memory>
-#include <set>
-#include <iostream>
-#include <algorithm>
 #include "../ast/ast.hpp"
 #include "../token/token.hpp"
+#include <algorithm>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
+#include <vector>
 
 extern std::map<TokenType, int> Precedence;
 
-std::pair<int, int> GetBindingPower(TokenType token);
-int GetUnaryPrecedence(TokenType token);
-std::pair<int, int> GetUnaryBindingPower(TokenType token);
-
-struct ParserErrorInfo
-{
+struct ParserErrorInfo {
   int lineNumber;
   int columnNumber;
-  std::string expected ;
+  std::string expected;
   TokenType actualToken;
 
   ParserErrorInfo(int line, int column, TokenType actual, std::string expected)
-      : lineNumber(line), columnNumber(column), expected(expected), actualToken(actual) {}
+      : lineNumber(line), columnNumber(column), expected(expected),
+        actualToken(actual) {}
 };
 
-class Parser
-{
+class Parser {
 public:
   Parser(const std::vector<Token> &tokens);
   // Error handling and status
