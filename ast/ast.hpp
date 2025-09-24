@@ -19,6 +19,7 @@ class IfStatement;
 class GotoStatement;
 class LabelStatement;
 class ExpressionStatement;
+class CompoundStatement;
 class BinaryExpression;
 class UnaryExpression;
 class ConstantExpression;
@@ -26,6 +27,16 @@ class VariableExpression;
 class AssignmentExpression;
 class PostfixExpression;
 class ConditionalExpression;
+class BlockNode;
+
+using ASTNodePtr = std::unique_ptr<ASTNode>;
+using ProgramNodePtr = std::unique_ptr<ProgramNode>;
+using FunctionDefinitionNodePtr = std::unique_ptr<FunctionDefinitionNode>;
+using StatementNodePtr = std::unique_ptr<StatementNode>;
+using ExpressionNodePtr = std::unique_ptr<ExpressionNode>;
+using BlockItemNodePtr = std::unique_ptr<BlockItemNode>;
+using DeclarationNodePtr = std::unique_ptr<DeclarationNode>;
+using BlockNodePtr = std::unique_ptr<BlockNode>;
 
 // Visitor interface to use visitor pattern
 class ASTVisitor {
@@ -37,6 +48,7 @@ public:
   virtual void visit(FunctionDefinitionNode &node) = 0;
   virtual void visit(BlockItemNode &node) = 0;
   virtual void visit(DeclarationNode &node) = 0;
+  virtual void visit(BlockNode &node) = 0;
 
   // Statement visitors
   virtual void visit(ReturnStatement &node) = 0;
@@ -45,6 +57,7 @@ public:
   virtual void visit(IfStatement &node) = 0;
   virtual void visit(GotoStatement &node) = 0;
   virtual void visit(LabelStatement &node) = 0;
+  virtual void visit(CompoundStatement &node) = 0;
 
   // Expression visitors
   virtual void visit(BinaryExpression &node) = 0;
@@ -56,14 +69,6 @@ public:
   virtual void visit(ConditionalExpression &node) = 0;
 };
 
-using ASTNodePtr = std::unique_ptr<ASTNode>;
-using ProgramNodePtr = std::unique_ptr<ProgramNode>;
-using FunctionDefinitionNodePtr = std::unique_ptr<FunctionDefinitionNode>;
-using StatementNodePtr = std::unique_ptr<StatementNode>;
-using ExpressionNodePtr = std::unique_ptr<ExpressionNode>;
-using BlockItemNodePtr = std::unique_ptr<BlockItemNode>;
-using DeclarationNodePtr = std::unique_ptr<DeclarationNode>;
-
 class ASTNode {
 public:
   virtual ~ASTNode() = default;
@@ -72,7 +77,7 @@ public:
 
 class ProgramNode : public ASTNode {
 public:
-  ProgramNode(std::unique_ptr<ASTNode> &&functionDefinition)
+  ProgramNode(ASTNodePtr &&functionDefinition)
       : functionDefinition(std::move(functionDefinition)) {}
 
   ~ProgramNode() override = default;
@@ -82,22 +87,23 @@ public:
     visitor.visit(*this); // single dispatch to the correct visit method
   }
 
-  std::unique_ptr<ASTNode> functionDefinition;
+  ASTNodePtr functionDefinition;
 };
 
 class FunctionDefinitionNode : public ASTNode {
 public:
+  std::string name;
+  ASTNodePtr body;
+
   FunctionDefinitionNode() = default;
   FunctionDefinitionNode(std::string name,
-                         std::vector<std::unique_ptr<ASTNode>> &block_items)
-      : name(std::move(name)), block_items(std::move(block_items)) {}
+                         ASTNodePtr body)
+      : name(std::move(name)), body(std::move(body)) {}
 
   ~FunctionDefinitionNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 
-  std::string name;
-  std::vector<std::unique_ptr<ASTNode>> block_items;
 };
 
 // Base Statement class
@@ -110,9 +116,9 @@ public:
 // Specific Statement types
 class ReturnStatement : public StatementNode {
 public:
-  std::unique_ptr<ASTNode> expression;
+  ASTNodePtr expression;
 
-  ReturnStatement(std::unique_ptr<ASTNode> expr)
+  ReturnStatement(ASTNodePtr expr)
       : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -127,9 +133,9 @@ public:
 
 class ExpressionStatement : public StatementNode {
 public:
-  std::unique_ptr<ASTNode> expression;
+  ASTNodePtr expression;
 
-  ExpressionStatement(std::unique_ptr<ASTNode> expr)
+  ExpressionStatement(ASTNodePtr expr)
       : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -137,11 +143,11 @@ public:
 
 class IfStatement : public StatementNode {
 public:
-  std::unique_ptr<ASTNode> condition;
-  std::unique_ptr<ASTNode> thenBranch;
-  std::optional<std::unique_ptr<ASTNode>> elseBranch; 
-  IfStatement(std::unique_ptr<ASTNode> cond, std::unique_ptr<ASTNode> thenBr,
-              std::optional<std::unique_ptr<ASTNode>> elseBr = std::nullopt)
+  ASTNodePtr condition;
+  ASTNodePtr thenBranch;
+  std::optional<ASTNodePtr> elseBranch; 
+  IfStatement(ASTNodePtr cond, ASTNodePtr thenBr,
+              std::optional<ASTNodePtr> elseBr = std::nullopt)
       : condition(std::move(cond)), thenBranch(std::move(thenBr)),
         elseBranch(std::move(elseBr)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -161,6 +167,16 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };  
 
+class CompoundStatement : public StatementNode {
+public:
+  ASTNodePtr block;
+
+  CompoundStatement(ASTNodePtr block)
+      : block(std::move(block)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
 // Base Expression class
 class ExpressionNode : public ASTNode {
 public:
@@ -172,11 +188,11 @@ public:
 class BinaryExpression : public ExpressionNode {
 public:
   TokenType op;
-  std::unique_ptr<ASTNode> left;
-  std::unique_ptr<ASTNode> right;
+  ASTNodePtr left;
+  ASTNodePtr right;
 
-  BinaryExpression(TokenType op, std::unique_ptr<ASTNode> left,
-                   std::unique_ptr<ASTNode> right)
+  BinaryExpression(TokenType op, ASTNodePtr left,
+                   ASTNodePtr right)
       : op(op), left(std::move(left)), right(std::move(right)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -185,9 +201,9 @@ public:
 class UnaryExpression : public ExpressionNode {
 public:
   TokenType op;
-  std::unique_ptr<ASTNode> operand;
+  ASTNodePtr operand;
 
-  UnaryExpression(TokenType op, std::unique_ptr<ASTNode> operand)
+  UnaryExpression(TokenType op, ASTNodePtr operand)
       : op(op), operand(std::move(operand)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -214,12 +230,12 @@ public:
 
 class AssignmentExpression : public ExpressionNode {
 public:
-  std::unique_ptr<ASTNode> left;
-  std::unique_ptr<ASTNode> right;
+  ASTNodePtr left;
+  ASTNodePtr right;
   TokenType type; // Type of assignment (e.g., compound_sum , compound_difference or simple assignment)
 
-  AssignmentExpression(std::unique_ptr<ASTNode> left,
-                       std::unique_ptr<ASTNode> right,
+  AssignmentExpression(ASTNodePtr left,
+                       ASTNodePtr right,
                        TokenType type)
       : left(std::move(left)), right(std::move(right)), type(type) {}
 
@@ -229,9 +245,9 @@ public:
 class PostfixExpression : public ExpressionNode {
 public:
   TokenType op; // INCREMENT_OPERATOR or DECREMENT_OPERATOR
-  std::unique_ptr<ASTNode> operand;
+  ASTNodePtr operand;
 
-  PostfixExpression(std::unique_ptr<ASTNode> operand, TokenType op)
+  PostfixExpression(ASTNodePtr operand, TokenType op)
       : op(op), operand(std::move(operand)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -239,12 +255,12 @@ public:
 
 class ConditionalExpression : public ExpressionNode {
 public:
-  std::unique_ptr<ASTNode> condition;
-  std::unique_ptr<ASTNode> trueExpr;
-  std::unique_ptr<ASTNode> falseExpr; 
-  ConditionalExpression(std::unique_ptr<ASTNode> cond,
-                        std::unique_ptr<ASTNode> trueE,
-                        std::unique_ptr<ASTNode> falseE)
+  ASTNodePtr condition;
+  ASTNodePtr trueExpr;
+  ASTNodePtr falseExpr; 
+  ConditionalExpression(ASTNodePtr cond,
+                        ASTNodePtr trueE,
+                        ASTNodePtr falseE)
       : condition(std::move(cond)), trueExpr(std::move(trueE)),
         falseExpr(std::move(falseE)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -271,6 +287,18 @@ public:
       : name(std::move(name)), init(std::nullopt) {}
 
   ~DeclarationNode() override = default;
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class BlockNode : public ASTNode {
+public:
+  std::vector<ASTNodePtr> block_items;
+
+  BlockNode(std::vector<ASTNodePtr> items)
+      : block_items(std::move(items)) {}
+
+  ~BlockNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };

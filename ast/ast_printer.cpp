@@ -41,19 +41,12 @@ void ASTPrinter::visit(FunctionDefinitionNode &node) {
   printIndent();
   std::cout << "name=\"" << node.name << "\"," << std::endl;
 
-  // Print function body (block items)
-  printIndent();
-  std::cout << "body=[" << std::endl;
-  increaseIndent();
-  for (const auto &blockItem : node.block_items) {
-    if (blockItem) {
-      blockItem->accept(*this);
-    }
+  // Print function body
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
   }
-  decreaseIndent();
-  printIndent();
-  std::cout << "]" << std::endl;
-  decreaseIndent();
 
   printIndent();
   std::cout << ")" << std::endl;
@@ -126,6 +119,18 @@ void ASTPrinter::visit(GotoStatement &node) {
 void ASTPrinter::visit(LabelStatement &node) {
   printIndent();
   std::cout << "Label(label=\"" << node.label << "\")" << std::endl;
+}
+
+void ASTPrinter::visit(CompoundStatement &node) {
+  printIndent();
+  std::cout << "CompoundStatement(" << std::endl;
+  if (node.block) {
+    increaseIndent();
+    node.block->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << ")" << std::endl;
 }
 
 void ASTPrinter::visit(BinaryExpression &node) {
@@ -293,6 +298,23 @@ void ASTPrinter::visit(DeclarationNode &node) {
     decreaseIndent();
   } else {
     std::cout << std::endl;
+  }
+  decreaseIndent();
+
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(BlockNode &node) {
+  printIndent();
+  std::cout << "Block(" << std::endl;
+
+  // Print block items
+  increaseIndent();
+  for (const auto &item : node.block_items) {
+    if (item) {
+      item->accept(*this);
+    }
   }
   decreaseIndent();
 

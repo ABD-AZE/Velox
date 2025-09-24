@@ -60,4 +60,5 @@ private:
   ASTNodePtr parseFactor();
   ASTNodePtr parseDeclaration();
   ASTNodePtr parseBlockItem();
+  ASTNodePtr parseBlock();
 };

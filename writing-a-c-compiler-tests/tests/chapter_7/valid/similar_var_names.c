@@ -1,6 +1,6 @@
-#ifdef SUPPRESS_WARNINGS
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #pragma GCC diagnostic ignored "-Wunused-variable"
+// #endif
 /* Test that naming scheme does not result in conflicting variable names after
  * alpha conversion */
 
