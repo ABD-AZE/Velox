@@ -115,13 +115,7 @@ ASTNodePtr Parser::parseFunctionDefinition()
   expect(consume().GetType(), TokenType::OPEN_PARENTHESES);
   expect(consume().GetType(), TokenType::VOID);
   expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-  expect(consume().GetType(), TokenType::OPEN_BRACE);
-  while (peek().GetType() != TokenType::CLOSE_BRACE &&
-         peek().GetType() != TokenType::END_OF_FILE)
-  {
-    functionDefNode->block_items.push_back(parseBlockItem());
-  }
-  expect(consume().GetType(), TokenType::CLOSE_BRACE);
+  functionDefNode->body = parseBlock();
   return functionDefNode;
 }
 
@@ -191,6 +185,11 @@ ASTNodePtr Parser::parseStatement()
       statementNode = std::make_unique<ExpressionStatement>(parseExpression(0));
       expect(consume().GetType(), TokenType::SEMICOLON);
     }
+    break;
+  }
+  case TokenType::OPEN_BRACE:
+  {
+    statementNode = std::make_unique<CompoundStatement>(parseBlock());
     break;
   }
   // Default case: treat as an expression statement
@@ -384,7 +383,7 @@ ASTNodePtr Parser::parseDeclaration()
 
 ASTNodePtr Parser::parseBlockItem()
 {
-  BlockItemNodePtr blockItemNode;
+  ASTNodePtr blockItemNode;
   if (peek().GetType() == TokenType::INT)
   {
     // Parse declaration
@@ -396,4 +395,19 @@ ASTNodePtr Parser::parseBlockItem()
     blockItemNode = std::make_unique<BlockItemNode>(parseStatement());
   }
   return blockItemNode;
+}
+
+ASTNodePtr Parser::parseBlock()
+{
+  ASTNodePtr blockNode;
+  expect(consume().GetType(), TokenType::OPEN_BRACE);
+  std::vector<ASTNodePtr> items;
+  while (peek().GetType() != TokenType::CLOSE_BRACE &&
+         peek().GetType() != TokenType::END_OF_FILE)
+  {
+    items.push_back(parseBlockItem());
+  }
+  expect(consume().GetType(), TokenType::CLOSE_BRACE);
+  blockNode = std::make_unique<BlockNode>(std::move(items));
+  return blockNode;
 }

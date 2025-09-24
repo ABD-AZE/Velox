@@ -1,12 +1,13 @@
 <program> ::= <function>
 
-<function> ::= "int" <identifier> "(" "void" ")" "{" 
-<statement> "}"
+<function> ::= "int" <identifier> "(" "void" ")" <block>
+
+<block> ::= "{" { <block-item> } "}"
 
 <block-item> ::= <statement> | <declaration>
 <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
 
-<statement> ::= "return" <exp> ";" | <exp> ";" | "if" "(" <exp> ")" <statement> [ "else" <statement> ] | ";" | "goto:" <identifier> | <identifier> ":" 
+<statement> ::= "return" <exp> ";" | <exp> ";" | "if" "(" <exp> ")" <statement> [ "else" <statement> ] | <block> | ";" | "goto:" <identifier> | <identifier> ":" 
 
 <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 

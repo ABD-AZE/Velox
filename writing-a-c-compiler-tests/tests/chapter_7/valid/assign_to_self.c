@@ -1,6 +1,6 @@
-#ifdef SUPPRESS_WARNINGS
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #pragma GCC diagnostic ignored "-Wunused-variable"
+// #endif
 int main(void) {
   int a = 3;
   {

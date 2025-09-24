@@ -16,6 +16,7 @@ public:
   void visit(FunctionDefinitionNode &node) override;
   void visit(BlockItemNode &node) override;
   void visit(DeclarationNode &node) override;
+  void visit(BlockNode &node) override;
 
   // Statement visitors
   void visit(ReturnStatement &node) override;
@@ -24,6 +25,7 @@ public:
   void visit(IfStatement &node) override;
   void visit(GotoStatement &node) override;
   void visit(LabelStatement &node) override;
+  void visit(CompoundStatement &node) override;
 
   // Expression visitors
   void visit(BinaryExpression &node) override;
