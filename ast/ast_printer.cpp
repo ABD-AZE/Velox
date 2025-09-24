@@ -21,10 +21,12 @@ void ASTPrinter::visit(ProgramNode &node) {
   printIndent();
   std::cout << "Program(" << std::endl;
 
-  // Print the function definition
-  if (node.functionDefinition) {
+  // Print the function declarations
+  if (node.Declarations.size() > 0) {
     increaseIndent();
-    node.functionDefinition->accept(*this);
+    for (const auto &funcDecl : node.Declarations) {
+      funcDecl->accept(*this);
+    }
     decreaseIndent();
   }
 
@@ -282,25 +284,11 @@ void ASTPrinter::visit(BlockItemNode &node) {
 void ASTPrinter::visit(DeclarationNode &node) {
   printIndent();
   std::cout << "Declaration(" << std::endl;
-
-  // Print variable name
-  increaseIndent();
-  printIndent();
-  std::cout << "name=\"" << node.name << "\"";
-
-  // Print initializer if present
-  if (node.init.has_value() && node.init.value()) {
-    std::cout << "," << std::endl;
-    printIndent();
-    std::cout << "init="<<std::endl;
+  if (node.declaration) {
     increaseIndent();
-    node.init.value()->accept(*this);
+    node.declaration->accept(*this);
     decreaseIndent();
-  } else {
-    std::cout << std::endl;
   }
-  decreaseIndent();
-
   printIndent();
   std::cout << ")" << std::endl;
 }
@@ -318,6 +306,234 @@ void ASTPrinter::visit(BlockNode &node) {
   }
   decreaseIndent();
 
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(InitDecl &node) {
+  printIndent();
+  std::cout << "InitDecl(" << std::endl;
+  if (node.init) {
+    increaseIndent();
+    node.init->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(InitExp &node) {
+  printIndent();
+  std::cout << "InitExp(" << std::endl;
+  if (node.init) {
+    increaseIndent();
+    node.init.value()->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(ForInit &node) {
+  printIndent();
+  std::cout << "ForInit(" << std::endl;
+  if (node.init) {
+    increaseIndent();
+    node.init->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(BreakNode &node) {
+  printIndent();
+  std::cout << "Break(label=\"" << node.label << "\")" << std::endl;
+}
+
+void ASTPrinter::visit(ContinueNode &node) {
+  printIndent();
+  std::cout << "Continue(label=\"" << node.label << "\")" << std::endl;
+}
+
+void ASTPrinter::visit(WhileNode &node) {
+  printIndent();
+  std::cout << "While(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "condition=" << std::endl;
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "body=" << std::endl;
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(DoWhileNode &node) {
+  printIndent();
+  std::cout << "DoWhile(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "body=" << std::endl;
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "condition=" << std::endl;
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(ForNode &node) {
+  printIndent();
+  std::cout << "For(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "init=" << std::endl;
+  if (node.init) {
+    increaseIndent();
+    node.init->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "condition=" << std::endl;
+  if (node.condition) {
+    increaseIndent();
+    node.condition.value()->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "post=" << std::endl;
+  if (node.post) {
+    increaseIndent();
+    node.post.value()->accept(*this);
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "body=" << std::endl;
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(FunDeclNode &node) {
+  printIndent();
+  std::cout << "FunDecl(" << std::endl;
+
+  // Print function name
+  increaseIndent();
+  printIndent();
+  std::cout << "name=\"" << node.name << "\"," <<"type=\""<<TokenTypeToString(node.type) <<"\"" << std::endl;
+
+  // Print parameters and storage class specifier if present
+  if(node.storage_class.has_value()) {
+    printIndent();
+    std::cout << "storage_class=" << TokenTypeToString(node.storage_class.value()) << "," << std::endl;
+  }
+  printIndent();
+  std::cout << "parameters=[" << std::endl;
+  if (node.params.size() > 0) {
+    increaseIndent();
+    for (const auto &param : node.params) {
+      printIndent();
+      std::cout << "\"" << param << "\"," << std::endl;
+    }
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "]," << std::endl;
+  
+  // Print body if present
+  if (node.body) {
+    printIndent();
+    std::cout << "body=" << std::endl;
+    increaseIndent();
+    node.body.value()->accept(*this);
+    decreaseIndent();
+  } else {
+    printIndent();
+    std::cout << "body=null" << std::endl;
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(VarDeclNode &node) {
+  printIndent();
+  std::cout << "VarDecl(" << std::endl;
+
+  // Print variable name
+  increaseIndent();
+  printIndent();
+  std::cout << "name=\"" << node.name << "\""<<","<<"type=\"" << TokenTypeToString(node.type) << "\","<<std::endl;
+  if (node.storage_class.has_value()) {
+    printIndent();
+    std::cout << "storage_class=" << TokenTypeToString(node.storage_class.value()) <<"," <<std::endl;
+  }
+  // Print initializer and storage class specifier if present
+  if (node.init.has_value()) {
+    printIndent();
+    std::cout << "init="<<std::endl;
+    increaseIndent();
+    node.init.value()->accept(*this);
+    decreaseIndent();
+  } else {
+    std::cout << std::endl;
+  }
+  
+  decreaseIndent();
+
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(FunctionCallNode &node) {
+  printIndent();
+  std::cout << "FunctionCall(" << std::endl;
+
+  // Print function name
+  increaseIndent();
+  printIndent();
+  std::cout << "name=\"" << node.name << "\"," << std::endl;
+
+  // Print arguments
+  printIndent();
+  std::cout << "arguments=[" << std::endl;
+  if (node.args.size() > 0) {
+    increaseIndent();
+    for (const auto &arg : node.args) {
+      arg->accept(*this);
+    }
+    decreaseIndent();
+  }
+  printIndent();
+  std::cout << "]" << std::endl;
+
+  decreaseIndent();
   printIndent();
   std::cout << ")" << std::endl;
 }

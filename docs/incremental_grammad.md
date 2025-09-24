@@ -7,7 +7,22 @@
 <block-item> ::= <statement> | <declaration>
 <declaration> ::= "int" <identifier> [ "=" <exp> ] ";"
 
-<statement> ::= "return" <exp> ";" | <exp> ";" | "if" "(" <exp> ")" <statement> [ "else" <statement> ] | <block> | ";" | "goto:" <identifier> | <identifier> ":" 
+<for-init> ::= <declaration> | [ <exp> ] ";"
+
+
+
+<statement> ::= "return" <exp> ";" 
+| <exp> ";" 
+| "if" "(" <exp> ")" <statement> [ "else" <statement> ] 
+| <block> 
+| ";" 
+| "goto:" <identifier> 
+| <identifier> ":" 
+| "break" ";"
+| "continue" ";"
+| "while" "(" <exp> ")" <statement>
+| "do" <statement> "while" "(" <exp> ")" ";"
+| "for" "(" <for-init> [ <exp> ] ";" [ <exp> ] ")" <statement>
 
 <exp> ::= <factor> | <exp> <binop> <exp> | <exp> "?" <exp> ":" <exp>
 

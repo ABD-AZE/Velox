@@ -48,17 +48,21 @@ private:
   Token peek();
   /// pops from the vector
   Token consume();
-  void reset();
   bool expect(TokenType actual, TokenType expected);
   /// gives the last token which got looked up using peek(), get() or consume()
   Token currentToken;
 
 private:
-  ASTNodePtr parseFunctionDefinition();
+  ASTNodePtr parseFunctionDeclaration();
   ASTNodePtr parseStatement();
   ASTNodePtr parseExpression(int minPrecedence);
   ASTNodePtr parseFactor();
   ASTNodePtr parseDeclaration();
   ASTNodePtr parseBlockItem();
   ASTNodePtr parseBlock();
+  ASTNodePtr parseDoWhile();
+  ASTNodePtr parseWhile();
+  ASTNodePtr parseFor();
+  ASTNodePtr parseVariableDeclaration();
+  std::pair<TokenType, std::optional<TokenType>> parseSpecifierList(std::vector<TokenType> specifier_list); // returns {type, storage_class}
 };

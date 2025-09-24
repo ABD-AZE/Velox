@@ -17,6 +17,9 @@ public:
   void visit(BlockItemNode &node) override;
   void visit(DeclarationNode &node) override;
   void visit(BlockNode &node) override;
+  void visit(FunDeclNode &node) override;
+  void visit(VarDeclNode &node) override;
+  void visit(FunctionCallNode &node) override;
 
   // Statement visitors
   void visit(ReturnStatement &node) override;
@@ -35,6 +38,16 @@ public:
   void visit(AssignmentExpression &node) override;
   void visit(PostfixExpression &node) override;
   void visit(ConditionalExpression &node) override;
+  
+  // loop
+  void visit(ForInit &node) override;
+  void visit(InitDecl &node) override;
+  void visit(InitExp &node) override;
+  void visit(BreakNode &node) override;
+  void visit(ContinueNode &node) override;
+  void visit(WhileNode &node) override;
+  void visit(DoWhileNode &node) override;
+  void visit(ForNode &node) override;
 
 private:
   int indent_ = 0;
