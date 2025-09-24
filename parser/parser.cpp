@@ -11,6 +11,15 @@ Token Parser::consume()
   return Token(); // return a default token if out of bounds
 }
 
+Token Parser::get(){
+  if (currentIndex < tokenSize)
+  {
+    currentToken = tokens[currentIndex--];
+    return currentToken;
+  }
+  return Token(); // return a default token if out of bounds
+}
+
 Token Parser::peek()
 {
   if (currentIndex < tokenSize)
@@ -37,8 +46,13 @@ void Parser::printErrors() const
 {
   for (const auto &error : errors)
   {
+    if(error.actualToken == TokenType::WS){
+      std::cerr << "Error at line " << error.lineNumber << ", column "
+                << error.columnNumber << " " << error.expected << std::endl;
+      continue;
+    }
     std::cerr << "Error at line " << error.lineNumber << ", column "
-              << error.columnNumber << error.expected << ", but got "
+              << error.columnNumber << " " << error.expected << ", but got "
               << TokenTypeToString(error.actualToken) << std::endl;
   }
 }
@@ -92,8 +106,12 @@ Parser::Parser(const std::vector<Token> &tokens)
 
 const ASTNodePtr &Parser::parseProgram()
 {
+  std::vector<ASTNodePtr> declarations; // contains both declarations and definitions
+  while(peek().GetType() != TokenType::END_OF_FILE){
+    declarations.push_back(parseDeclaration());
+  }
   ProgramNodePtr programNode =
-      std::make_unique<ProgramNode>(parseFunctionDefinition());
+      std::make_unique<ProgramNode>(std::move(declarations));
   ast = std::move(programNode);
   if (tokens.size() > 1)
   {
@@ -105,18 +123,96 @@ const ASTNodePtr &Parser::parseProgram()
   return ast;
 }
 
-ASTNodePtr Parser::parseFunctionDefinition()
+// parses both function declarations and definitions
+ASTNodePtr Parser::parseFunctionDeclaration()
 {
-  FunctionDefinitionNodePtr functionDefNode =
-      std::make_unique<FunctionDefinitionNode>();
-  expect(consume().GetType(), TokenType::INT);
+  FunDeclNodePtr functionDeclNode =
+      std::make_unique<FunDeclNode>();
+
+  std::vector<TokenType> specifier_list;
+  if(peek().GetType() != TokenType::INT && peek().GetType() != TokenType::STATIC && peek().GetType() != TokenType::EXTERN)
+  {
+    success = 0;
+    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
+                                     currentToken.GetColumnNumber(),
+                                     peek().GetType(),
+                                     "expected variable declaration"));
+    while(peek().GetType() != TokenType::IDENTIFIER && peek().GetType() != TokenType::SEMICOLON && peek().GetType() != TokenType::END_OF_FILE){
+      consume();
+    }
+  }
+  while(peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN || peek().GetType() == TokenType::INT)
+  {
+    consume();
+    specifier_list.push_back(currentToken.GetType());
+  }
+  auto [type, storage_class] = parseSpecifierList(specifier_list);
+  functionDeclNode->type = type;
+  functionDeclNode->storage_class = storage_class;
   expect(consume().GetType(), TokenType::IDENTIFIER);
-  functionDefNode->name = currentToken.GetLexeme();
+  functionDeclNode->name = currentToken.GetLexeme();
   expect(consume().GetType(), TokenType::OPEN_PARENTHESES);
-  expect(consume().GetType(), TokenType::VOID);
+  // param list
+  if(peek().GetType()==TokenType::VOID){
+      consume(); // consume 'void'
+  }
+  else{
+    while(peek().GetType() != TokenType::END_OF_FILE){
+      expect(consume().GetType(), TokenType::INT);
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      functionDeclNode->params.push_back(currentToken.GetLexeme());
+      if(peek().GetType() == TokenType::COMMA){
+        consume(); // consume ','
+        continue; // parse next parameter
+      } else{
+        break; // end of parameter list
+      }
+    }
+  }
   expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-  functionDefNode->body = parseBlock();
-  return functionDefNode;
+  if (peek().GetType() == TokenType::SEMICOLON)
+  {
+    consume(); // consume ';'
+    return functionDeclNode; // function declaration without body
+  }
+  // function definition with body
+  functionDeclNode->body = parseBlock();
+  return functionDeclNode;
+}
+
+ASTNodePtr Parser::parseVariableDeclaration()
+{
+  VarDeclNodePtr varDeclNode =
+      std::make_unique<VarDeclNode>();
+  std::vector<TokenType> specifier_list;
+  if(peek().GetType() != TokenType::INT && peek().GetType() != TokenType::STATIC && peek().GetType() != TokenType::EXTERN)
+  {
+    success = 0;
+    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
+                                     currentToken.GetColumnNumber(),
+                                     peek().GetType(),
+                                     "expected variable declaration"));
+    while(peek().GetType() != TokenType::IDENTIFIER && peek().GetType() != TokenType::SEMICOLON && peek().GetType() != TokenType::END_OF_FILE){
+      consume();
+    }
+  }
+  while(peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN || peek().GetType() == TokenType::INT)
+  {
+    consume();
+    specifier_list.push_back(currentToken.GetType());
+  }
+  expect(consume().GetType(), TokenType::IDENTIFIER);
+  auto [type, storage_class] = parseSpecifierList(specifier_list);
+  varDeclNode->type = type;
+  varDeclNode->storage_class = storage_class;
+  varDeclNode->name = currentToken.GetLexeme();
+  if (peek().GetType() == TokenType::ASSIGNMENT)
+  {
+    consume(); // consume '='
+    varDeclNode->init = parseExpression(0);
+  }
+  expect(consume().GetType(), TokenType::SEMICOLON);
+  return varDeclNode;  
 }
 
 ASTNodePtr Parser::parseStatement()
@@ -192,6 +288,35 @@ ASTNodePtr Parser::parseStatement()
     statementNode = std::make_unique<CompoundStatement>(parseBlock());
     break;
   }
+  case TokenType::BREAK:
+  {
+    expect(consume().GetType(), TokenType::BREAK);
+    expect(consume().GetType(), TokenType::SEMICOLON);
+    statementNode = std::make_unique<BreakNode>();
+    break;
+  }
+  case TokenType::CONTINUE:
+  {
+    expect(consume().GetType(), TokenType::CONTINUE);
+    expect(consume().GetType(), TokenType::SEMICOLON);
+    statementNode = std::make_unique<ContinueNode>();
+    break;
+  }
+  case TokenType::DO:
+  {
+    statementNode = parseDoWhile();
+    break;
+  }
+  case TokenType::WHILE:
+  {
+    statementNode = parseWhile();
+    break;
+  }
+  case TokenType::FOR:
+  {
+    statementNode = parseFor();
+    break;
+  }
   // Default case: treat as an expression statement
   // expression
   default:
@@ -247,9 +372,31 @@ ASTNodePtr Parser::parseFactor()
     expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
     break;
   case TokenType::IDENTIFIER:
-    consume();
-    factorNode = std::make_unique<VariableExpression>(currentToken.GetLexeme());
+  {
+    std::string identifier = consume().GetLexeme();
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES){
+      // function call
+      consume(); // consume '('
+      std::vector<ASTNodePtr> args;
+      if(peek().GetType() != TokenType::CLOSE_PARENTHESES){
+        while(true){
+          ASTNodePtr arg = parseExpression(0);
+          args.push_back(std::move(arg));
+          if(peek().GetType() == TokenType::COMMA){
+            consume(); // consume ','
+            continue; // parse next argument
+          } else{
+            break; // end of argument list
+          }
+        }
+      }
+      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+      factorNode = std::make_unique<FunctionCallNode>(identifier, std::move(args));
+    } else{
+      factorNode = std::make_unique<VariableExpression>(identifier);
+    }
     break;
+  }
   case TokenType::INCREMENT_OPERATOR:
   case TokenType::DECREMENT_OPERATOR:
     consume();
@@ -358,33 +505,42 @@ ASTNodePtr Parser::parseExpression(int minPrecedence)
   return left;
 }
 
+// intermediate declaration node not required in ast
 ASTNodePtr Parser::parseDeclaration()
 {
-  expect(consume().GetType(), TokenType::INT);
-  expect(consume().GetType(), TokenType::IDENTIFIER);
-  std::string varName = currentToken.GetLexeme();
-  ASTNodePtr init = nullptr;
-  if (peek().GetType() == TokenType::ASSIGNMENT)
+  int index = currentIndex;
+  if (peek().GetType() != TokenType::INT && peek().GetType() != TokenType::STATIC && peek().GetType() != TokenType::EXTERN)
   {
-    consume(); // consume '='
-    init = parseExpression(0);
+    success = 0;
+    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
+                                     currentToken.GetColumnNumber(),
+                                     peek().GetType(),
+                                     "expected variable declaration"));
+    while(peek().GetType() != TokenType::IDENTIFIER && peek().GetType() != TokenType::SEMICOLON && peek().GetType() != TokenType::END_OF_FILE){
+      get();
+    }
   }
-  expect(consume().GetType(), TokenType::SEMICOLON);
-
-  if (init)
+  while(peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN || peek().GetType() == TokenType::INT)
   {
-    return std::make_unique<DeclarationNode>(varName, std::move(init));
+    get();
   }
-  else
+  expect(get().GetType(), TokenType::IDENTIFIER);
+  TokenType type = peek().GetType();
+  currentIndex = index; // reset currentIndex to reparse
+  switch (type)
   {
-    return std::make_unique<DeclarationNode>(varName);
+  case TokenType::OPEN_PARENTHESES:
+    return parseFunctionDeclaration();
+    break; // function declaration
+  default:
+    return parseVariableDeclaration();
   }
 }
 
 ASTNodePtr Parser::parseBlockItem()
 {
   ASTNodePtr blockItemNode;
-  if (peek().GetType() == TokenType::INT)
+  if (peek().GetType() == TokenType::INT || peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN)
   {
     // Parse declaration
     blockItemNode = std::make_unique<BlockItemNode>(parseDeclaration());
@@ -410,4 +566,82 @@ ASTNodePtr Parser::parseBlock()
   expect(consume().GetType(), TokenType::CLOSE_BRACE);
   blockNode = std::make_unique<BlockNode>(std::move(items));
   return blockNode;
+}
+
+ASTNodePtr Parser::parseDoWhile(){
+  expect(consume().GetType(), TokenType::DO);
+  ASTNodePtr body = parseStatement();
+  expect(consume().GetType(), TokenType::WHILE);
+  expect(consume().GetType(), TokenType::OPEN_PARENTHESES);
+  ASTNodePtr condition = parseExpression(0);
+  expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+  expect(consume().GetType(), TokenType::SEMICOLON);
+  return std::make_unique<DoWhileNode>(std::move(condition), std::move(body));
+}
+
+ASTNodePtr Parser::parseWhile(){
+  expect(consume().GetType(), TokenType::WHILE);
+  expect(consume().GetType(), TokenType::OPEN_PARENTHESES);
+  ASTNodePtr condition = parseExpression(0);
+  expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+  ASTNodePtr body = parseStatement();
+  return std::make_unique<WhileNode>(std::move(condition), std::move(body));
+}
+
+ASTNodePtr Parser::parseFor(){
+  expect(consume().GetType(), TokenType::FOR);
+  expect(consume().GetType(), TokenType::OPEN_PARENTHESES);
+  ASTNodePtr init = nullptr;
+  if (peek().GetType() != TokenType::SEMICOLON) {
+    // could be declaration or expression
+    if (peek().GetType() == TokenType::INT || peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN) {
+      // semicolon included in parseVariableDeclaration
+      init = parseVariableDeclaration();
+    } else {
+      init = parseExpression(0);
+      expect(consume().GetType(), TokenType::SEMICOLON);
+    }
+  } else {
+    consume(); // consume the semicolon
+  }
+  std::optional<ASTNodePtr> condition = std::nullopt;
+  if (peek().GetType() != TokenType::SEMICOLON) {
+    condition = parseExpression(0);
+  }
+  expect(consume().GetType(), TokenType::SEMICOLON);
+  std::optional<ASTNodePtr> post = std::nullopt;
+  if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+    post = parseExpression(0);
+  }
+  expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+  ASTNodePtr body = parseStatement();
+  return std::make_unique<ForNode>(std::move(init), std::move(condition), std::move(post), std::move(body));
+}
+
+std::pair<TokenType, std::optional<TokenType>> Parser::parseSpecifierList(std::vector<TokenType> specifier_list){
+  std::vector<TokenType> storage_classes,type;
+  for (auto specifier : specifier_list) {
+    if (specifier == TokenType::STATIC || specifier == TokenType::EXTERN) {
+      storage_classes.push_back(specifier);
+    } else{
+      type.push_back(specifier);
+    }
+  }
+  if(type.size() != 1){
+    success = 0;
+    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(), currentToken.GetColumnNumber() ,TokenType::WS, "multiple or no type specifiers"));
+    // error
+    return {TokenType::END_OF_FILE, TokenType::END_OF_FILE};
+  }
+  if (storage_classes.size() > 1) {
+    success = 0;
+    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(), currentToken.GetColumnNumber() ,TokenType::WS, "multiple storage class specifiers"));
+    // error
+    return {TokenType::END_OF_FILE, TokenType::END_OF_FILE};
+  }
+  std::optional<TokenType> storage_class = std::nullopt;
+  if (!storage_classes.empty()) {
+      storage_class = storage_classes.back();
+  }
+  return {type.front(), storage_class};
 }

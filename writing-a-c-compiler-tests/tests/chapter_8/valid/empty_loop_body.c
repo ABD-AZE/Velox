@@ -1,8 +1,8 @@
-#ifdef SUPPRESS_WARNINGS
-#ifndef __clang__
-#pragma GCC diagnostic ignored "-Wempty-body"
-#endif
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #ifndef __clang__
+// #pragma GCC diagnostic ignored "-Wempty-body"
+// #endif
+// #endif
 
 int main(void) {
   int i = 2147483642;

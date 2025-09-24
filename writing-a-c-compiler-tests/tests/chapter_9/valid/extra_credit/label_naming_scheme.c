@@ -1,6 +1,6 @@
-#ifdef SUPPRESS_WARNINGS
-#pragma GCC diagnostic ignored "-Wunused-label"
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #pragma GCC diagnostic ignored "-Wunused-label"
+// #endif
 
 // We need to transform labels to avoid conflicts between identical labels
 // in different functions. This test case tries to catch a few
