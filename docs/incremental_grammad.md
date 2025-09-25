@@ -36,3 +36,14 @@
 <identifier> ::= ? An identifier token ?
 
 <int> ::= ? A constant token ?
+
+
+
+Reminders:
+parse_constant(token):
+v = integer value of token
+if v > 2^63 - 1:
+fail("Constant is too large to represent as an int or long")
+if token is an int token and v <= 2^31 - 1:
+return ConstInt(v)
+return ConstLong(v)

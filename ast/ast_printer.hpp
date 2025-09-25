@@ -1,5 +1,6 @@
 #pragma once
 #include "ast.hpp"
+#include "../utils/token_classifier.hpp"
 #include <iostream>
 #include <string>
 
@@ -11,6 +12,9 @@ public:
   // Constructor for visitor instance
   ASTPrinter(int indent = 0) : indent_(indent) {}
 
+
+  // enum classes
+  void visit(Type &node) override;
   // Visitor pattern methods
   void visit(ProgramNode &node) override;
   void visit(FunctionDefinitionNode &node) override;
@@ -38,6 +42,7 @@ public:
   void visit(AssignmentExpression &node) override;
   void visit(PostfixExpression &node) override;
   void visit(ConditionalExpression &node) override;
+  void visit(CastExpression &node) override;
   
   // loop
   void visit(ForInit &node) override;

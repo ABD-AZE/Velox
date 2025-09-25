@@ -1,10 +1,16 @@
 program = Program(function_definition)
 
-function_definition = Function(identifier name, block body)
+declaration = FunDecl(function_declaration) | VarDecl(variable_declaration)
+
+variable_declaration = (identifier name, exp? init,type var_type, storage_class?)
+
+function_declaration = (identifier name, identifier* params, block? body,type fun_type, storage_class?)
+
+type = Int | Long | FunType(type* params, type ret)
+
+storage_class = Static | Extern
 
 block = Block(block_item*)
-
-declaration = Declaration(identifier name, exp? init)
 
 for_init = InitDecl(declaration) | InitExp(exp?)
 
@@ -19,13 +25,20 @@ statement = Return(exp)
 | While(exp condition, statement body, identifier label)
 | DoWhile(statement body, exp condition, identifier label)
 | For(for_init init, exp? condition, exp? post, statement body, identifier label)
-| Switch()
 | Null 
 | Goto(label) 
 | Label
-| Switch(case* , )
 
-exp = Constant(int) | Unary(unary_operator, exp) | Binary(binary_operator, exp, exp) | Var(identifier) | Assignment(exp,exp) | Conditional(exp condition, exp, exp)
+exp = Constant(const) 
+| Unary(unary_operator, exp) 
+| Binary(binary_operator, exp, exp) 
+| Var(identifier) 
+| Assignment(exp,exp) 
+| Conditional(exp condition, exp, exp)
+| FunctionCall(identifier, exp* args)
+| Cast(type target_type, exp)
+
+const = ConstInt(int) | ConstLong(int)
 
 unary_operator = Complement | Negate
 
