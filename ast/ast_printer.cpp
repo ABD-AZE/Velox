@@ -180,7 +180,11 @@ void ASTPrinter::visit(UnaryExpression &node) {
 
 void ASTPrinter::visit(ConstantExpression &node) {
   printIndent();
-  std::cout << "Constant(" << node.value << ")" << std::endl;
+  std::cout << "Constant(";
+  std::visit([](const auto& value) {
+    std::cout << value;
+  }, node.value);
+  std::cout << ")" << std::endl;
 }
 
 void ASTPrinter::visit(VariableExpression &node) {
@@ -446,7 +450,11 @@ void ASTPrinter::visit(FunDeclNode &node) {
   // Print function name
   increaseIndent();
   printIndent();
-  std::cout << "name=\"" << node.name << "\"," <<"type=\""<<TokenTypeToString(node.type) <<"\"" << std::endl;
+  std::cout << "name=\"" << node.name << "\"," <<"type="<< std::endl;
+  printIndent();
+  increaseIndent();
+  node.type.accept(*this);
+  decreaseIndent();
 
   // Print parameters and storage class specifier if present
   if(node.storage_class.has_value()) {
@@ -489,7 +497,12 @@ void ASTPrinter::visit(VarDeclNode &node) {
   // Print variable name
   increaseIndent();
   printIndent();
-  std::cout << "name=\"" << node.name << "\""<<","<<"type=\"" << TokenTypeToString(node.type) << "\","<<std::endl;
+  std::cout << "name=\"" << node.name << "\"," <<"type="<< std::endl;
+  printIndent();
+  increaseIndent();
+  node.type.accept(*this);
+  decreaseIndent();
+
   if (node.storage_class.has_value()) {
     printIndent();
     std::cout << "storage_class=" << TokenTypeToString(node.storage_class.value()) <<"," <<std::endl;
@@ -533,6 +546,38 @@ void ASTPrinter::visit(FunctionCallNode &node) {
   printIndent();
   std::cout << "]" << std::endl;
 
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(Type &node) {
+  printIndent();
+  std::cout << "Type(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "kind=" << TokenTypeToString(TypeKindToTokenType(node.kind)) << std::endl;
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(CastExpression &node) {
+  printIndent();
+  std::cout << "Cast(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "targetType=" << std::endl;
+  increaseIndent();
+  node.targetType.accept(*this);
+  decreaseIndent();
+  printIndent();
+  std::cout << "expression=" << std::endl;
+  if (node.expression) {
+    increaseIndent();
+    node.expression->accept(*this);
+    decreaseIndent();
+  }
   decreaseIndent();
   printIndent();
   std::cout << ")" << std::endl;

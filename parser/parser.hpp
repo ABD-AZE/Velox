@@ -2,6 +2,7 @@
 
 #include "../ast/ast.hpp"
 #include "../token/token.hpp"
+#include "../utils/token_classifier.hpp"
 #include <algorithm>
 #include <iostream>
 #include <map>
@@ -65,4 +66,5 @@ private:
   ASTNodePtr parseFor();
   ASTNodePtr parseVariableDeclaration();
   std::pair<TokenType, std::optional<TokenType>> parseSpecifierList(std::vector<TokenType> specifier_list); // returns {type, storage_class}
+  TokenType parseTypeSpecifierList(std::vector<TokenType> list);
 };

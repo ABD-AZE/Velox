@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <variant>
 
 // Forward declarations
 class ASTNode;
@@ -27,6 +28,7 @@ class VariableExpression;
 class AssignmentExpression;
 class PostfixExpression;
 class ConditionalExpression;
+class CastExpression;
 class BlockNode;
 class ForInit;
 class InitDecl;
@@ -39,6 +41,7 @@ class ForNode;
 class FunDeclNode;
 class VarDeclNode;
 class FunctionCallNode;
+class Type;
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
 using ProgramNodePtr = std::unique_ptr<ProgramNode>;
@@ -57,6 +60,9 @@ class ASTVisitor
 public:
   virtual ~ASTVisitor() = default;
 
+
+  // enum classes
+  virtual void visit(Type &node) = 0;
   // Visit methods for each node type
   virtual void visit(ProgramNode &node) = 0;
   virtual void visit(FunctionDefinitionNode &node) = 0;
@@ -84,6 +90,7 @@ public:
   virtual void visit(AssignmentExpression &node) = 0;
   virtual void visit(PostfixExpression &node) = 0;
   virtual void visit(ConditionalExpression &node) = 0;
+  virtual void visit(CastExpression &node) = 0;
 
   // loop
   virtual void visit(ForInit &node) = 0;
@@ -98,12 +105,57 @@ public:
 
 enum class StorageClass { STATIC, EXTERN };
 
+struct FunType {
+  std::vector<struct Type> params;
+  std::unique_ptr<struct Type> ret;
+};
+
+enum class TypeKind {
+  INT,
+  LONG,
+  FUNC,
+  ERROR
+};
+
 class ASTNode
 {
 public:
   virtual ~ASTNode() = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
+
+class Type: public ASTNode {
+  public:
+  TypeKind kind;
+  std::variant<std::monostate, FunType> data;
+  // default constructor for int type
+  Type() : kind(TypeKind::INT), data(std::move(std::monostate{})) {}
+  // constructor for specific type
+  Type(TypeKind k, std::variant<std::monostate, FunType> d) : kind(k), data(std::move(d)) {}
+  // move constructor
+  Type(Type&& other) noexcept : kind(other.kind), data(std::move(other.data)) {}
+  // move assignment
+  Type& operator=(Type&& other) noexcept {
+    if (this != &other) {
+      kind = other.kind;
+      data = std::move(other.data);
+    }
+    return *this;
+  }
+
+  static Type Int() { return Type{TypeKind::INT, std::monostate{}}; }
+  static Type Long() { return Type{TypeKind::LONG, std::monostate{}}; }
+  static Type Function(std::vector<Type> params, Type ret) {
+    FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
+    return Type{TypeKind::FUNC, std::move(ftype)};
+  }
+  static Type Error() { return Type{TypeKind::ERROR, std::monostate{}}; }
+
+  void accept(ASTVisitor &visitor) override {
+    visitor.visit(*this);
+  }
+};
+
 
 class ProgramNode : public ASTNode
 {
@@ -255,9 +307,9 @@ public:
 class ConstantExpression : public ExpressionNode
 {
 public:
-  int value;
+  std::variant<int, long> value;
 
-  ConstantExpression(int value) : value(value) {}
+  ConstantExpression(std::variant<int, long> value) : value(value) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -314,6 +366,18 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
+class CastExpression : public ExpressionNode
+{ 
+public:
+  Type targetType;
+  ASTNodePtr expression;
+
+  CastExpression(Type targetType, ASTNodePtr expr)
+      : targetType(std::move(targetType)), expression(std::move(expr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
 class BlockItemNode : public ASTNode
 {
 public:
@@ -344,7 +408,7 @@ public:
   std::string name;
   std::vector<std::string> params;
   std::optional<ASTNodePtr> body; // block
-  TokenType type; // type specifier
+  Type type; // type specifier
   std::optional<TokenType> storage_class; // storage
   FunDeclNode() = default;
   FunDeclNode(std::string name, std::vector<std::string> params, ASTNodePtr body)
@@ -361,7 +425,7 @@ class VarDeclNode : public ASTNode
 public:
   std::string name;
   std::optional<ASTNodePtr> init; // optional initializer expression
-  TokenType type; // type specifier
+  Type type; // type specifier
   std::optional<TokenType> storage_class; // storage
   VarDeclNode() = default;
   VarDeclNode(std::string name, ASTNodePtr init)
