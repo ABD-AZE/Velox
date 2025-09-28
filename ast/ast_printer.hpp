@@ -3,6 +3,7 @@
 #include "../utils/token_classifier.hpp"
 #include <iostream>
 #include <string>
+#include <typeinfo>
 
 class ASTPrinter : public ASTVisitor {
 public:

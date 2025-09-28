@@ -1,5 +1,4 @@
 #include "ast_printer.hpp"
-#include <iostream>
 
 void ASTPrinter::print(const ASTNodePtr &node, int indent) {
   if (!node) {
@@ -180,10 +179,13 @@ void ASTPrinter::visit(UnaryExpression &node) {
 
 void ASTPrinter::visit(ConstantExpression &node) {
   printIndent();
-  std::cout << "Constant(";
+  std::cout << "Constant(\n";
+  increaseIndent();
+  printIndent();
   std::visit([](const auto& value) {
-    std::cout << value;
+    std::cout << "value: " << value << ", "<< "type: "<< typeid(value).name();
   }, node.value);
+  decreaseIndent();
   std::cout << ")" << std::endl;
 }
 

@@ -65,6 +65,6 @@ private:
   ASTNodePtr parseWhile();
   ASTNodePtr parseFor();
   ASTNodePtr parseVariableDeclaration();
-  std::pair<TokenType, std::optional<TokenType>> parseSpecifierList(std::vector<TokenType> specifier_list); // returns {type, storage_class}
-  TokenType parseTypeSpecifierList(std::vector<TokenType> list);
+  std::pair<std::vector<TokenType>, std::optional<TokenType>> parseSpecifierList(std::vector<TokenType> specifier_list); // returns {vector<type>, storage_class}
+  Type parseTypeSpecifierList(std::vector<TokenType> list);
 };
