@@ -2,13 +2,13 @@
  * implicitly-converted value at program startup
  */
 
-#ifdef SUPPRESS_WARNINGS
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wconstant-conversion"
-#else
-#pragma GCC diagnostic ignored "-Woverflow"
-#endif
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #ifdef __clang__
+// #pragma clang diagnostic ignored "-Wconstant-conversion"
+// #else
+// #pragma GCC diagnostic ignored "-Woverflow"
+// #endif
+// #endif
 
 // this is 2^60 + 2^31 + 12
 // should be truncated to 2^31 + 12 (which is 2147483660)
