@@ -133,7 +133,7 @@ ASTNodePtr Parser::parseFunctionDeclaration()
       std::make_unique<FunDeclNode>();
 
   std::vector<TokenType> specifier_list;
-  if (peek().GetType() != TokenType::UNSIGNED && peek().GetType() != TokenType::SIGNED && peek().GetType() != TokenType::LONG && peek().GetType() != TokenType::INT && peek().GetType() != TokenType::STATIC && peek().GetType() != TokenType::EXTERN)
+  if (!isSpecifier(peek().GetType()))
   {
     success = 0;
     errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
@@ -145,7 +145,7 @@ ASTNodePtr Parser::parseFunctionDeclaration()
       consume();
     }
   }
-  while (peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN || peek().GetType() == TokenType::INT || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::SIGNED)
+  while (isSpecifier(peek().GetType()))
   {
     consume();
     specifier_list.push_back(currentToken.GetType());
@@ -168,7 +168,7 @@ ASTNodePtr Parser::parseFunctionDeclaration()
     {
       // use parse type specifier list here
       std::vector<TokenType> type_list;
-      while (peek().GetType() == TokenType::INT || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::SIGNED)
+      while (isSpecifier(peek().GetType()))
       {
         type_list.push_back(consume().GetType());
       }
@@ -203,7 +203,7 @@ ASTNodePtr Parser::parseVariableDeclaration()
   VarDeclNodePtr varDeclNode =
       std::make_unique<VarDeclNode>();
   std::vector<TokenType> specifier_list;
-  if (peek().GetType() != TokenType::LONG && peek().GetType() != TokenType::INT && peek().GetType() != TokenType::UNSIGNED && peek().GetType() != TokenType::SIGNED && peek().GetType() != TokenType::STATIC && peek().GetType() != TokenType::EXTERN)
+  if (!isSpecifier(peek().GetType()))
   {
     success = 0;
     errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
@@ -215,16 +215,16 @@ ASTNodePtr Parser::parseVariableDeclaration()
       consume();
     }
   }
-  while (peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN || peek().GetType() == TokenType::INT || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::SIGNED || peek().GetType() == TokenType::UNSIGNED)
+  while (isSpecifier(peek().GetType()))
   {
     consume();
     specifier_list.push_back(currentToken.GetType());
   }
   expect(consume().GetType(), TokenType::IDENTIFIER);
+  varDeclNode->name = currentToken.GetLexeme();
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   varDeclNode->type = std::move(parseTypeSpecifierList(type_list));
   varDeclNode->storage_class = storage_class;
-  varDeclNode->name = currentToken.GetLexeme();
   if (peek().GetType() == TokenType::ASSIGNMENT)
   {
     consume(); // consume '='
@@ -426,7 +426,7 @@ ASTNodePtr Parser::parseFactor()
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-          currentToken.GetType(), "long integer constant"));
+          currentToken.GetType(), "unsigned int constant"));
     }
     break;
   case TokenType::ULONG_CONSTANT:
@@ -443,7 +443,24 @@ ASTNodePtr Parser::parseFactor()
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-          currentToken.GetType(), "long integer constant"));
+          currentToken.GetType(), "unsigned long integer constant"));
+    }
+    break;
+  case TokenType::FLOAT_CONSTANT:
+    consume();
+    try{
+      std::string lexeme = currentToken.GetLexeme();
+      double value = 0;
+      if(!lexeme.empty()){
+        value = std::stod(lexeme);
+      }
+      factorNode = std::make_unique<ConstantExpression>(value);
+    } catch(const std::exception &e){
+      factorNode = std::make_unique<ConstantExpression>((unsigned int)0);
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          currentToken.GetType(), "double constant"));
     }
     break;
   case TokenType::HYPHEN:
@@ -459,11 +476,11 @@ ASTNodePtr Parser::parseFactor()
   case TokenType::OPEN_PARENTHESES:
     // cast expression or parenthesized expression
     consume();
-    if (peek().GetType() == TokenType::INT || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::SIGNED)
+    if (isTypeSpecifier(peek().GetType()))
     {
       // cast expression
       std::vector<TokenType> type_list;
-      while (peek().GetType() == TokenType::INT || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::SIGNED)
+      while (isTypeSpecifier(peek().GetType()))
         type_list.push_back(consume().GetType());
       Type targetType = parseTypeSpecifierList(type_list);
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
@@ -623,7 +640,7 @@ ASTNodePtr Parser::parseExpression(int minPrecedence)
 ASTNodePtr Parser::parseDeclaration()
 {
   int index = currentIndex;
-  if (peek().GetType() != TokenType::SIGNED && peek().GetType() != TokenType::UNSIGNED && peek().GetType() != TokenType::LONG && peek().GetType() != TokenType::INT && peek().GetType() != TokenType::STATIC && peek().GetType() != TokenType::EXTERN)
+  if (!isSpecifier(peek().GetType()))
   {
     success = 0;
     errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
@@ -635,7 +652,7 @@ ASTNodePtr Parser::parseDeclaration()
       get();
     }
   }
-  while (peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN || peek().GetType() == TokenType::INT || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::SIGNED)
+  while (isSpecifier(peek().GetType()))
   {
     get();
   }
@@ -655,7 +672,7 @@ ASTNodePtr Parser::parseDeclaration()
 ASTNodePtr Parser::parseBlockItem()
 {
   ASTNodePtr blockItemNode;
-  if (peek().GetType() == TokenType::SIGNED || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::INT || peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN)
+  if (isSpecifier(peek().GetType()))
   {
     // Parse declaration
     blockItemNode = std::make_unique<BlockItemNode>(parseDeclaration());
@@ -713,7 +730,7 @@ ASTNodePtr Parser::parseFor()
   if (peek().GetType() != TokenType::SEMICOLON)
   {
     // could be declaration or expression
-    if (peek().GetType() == TokenType::LONG || peek().GetType() == TokenType::INT || peek().GetType() == TokenType::SIGNED || peek().GetType() == TokenType::UNSIGNED || peek().GetType() == TokenType::STATIC || peek().GetType() == TokenType::EXTERN)
+    if (isSpecifier(peek().GetType()))
     {
       // semicolon included in parseVariableDeclaration
       init = parseVariableDeclaration();
@@ -749,7 +766,7 @@ std::pair<std::vector<TokenType>, std::optional<TokenType>> Parser::parseSpecifi
   std::vector<TokenType> storage_classes, type;
   for (auto specifier : specifier_list)
   {
-    if (specifier == TokenType::STATIC || specifier == TokenType::EXTERN)
+    if (isStorageSpecifier(specifier))
     {
       storage_classes.push_back(specifier);
     }
@@ -793,7 +810,8 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list)
       return Type::Long();
     case TokenType::UNSIGNED:
       return Type::UInt();
-
+    case TokenType::DOUBLE:
+      return Type::Double();
     default:
       success = 0;
       errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(), currentToken.GetColumnNumber(), TokenType::WS, "invalid type specifier"));

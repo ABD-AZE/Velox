@@ -115,6 +115,7 @@ enum class TypeKind {
   LONG,
   UINT,
   ULONG,
+  DOUBLE,
   FUNC,
   ERROR
 };
@@ -149,6 +150,7 @@ class Type: public ASTNode {
   static Type Long() { return Type{TypeKind::LONG, std::monostate{}}; }
   static Type UInt() { return Type{TypeKind::UINT, std::monostate{}}; }
   static Type ULong() { return Type{TypeKind::ULONG, std::monostate{}}; }
+  static Type Double() {return Type{TypeKind::DOUBLE, std::monostate{}};}
   static Type Function(std::vector<Type> params, Type ret) {
     FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
     return Type{TypeKind::FUNC, std::move(ftype)};
@@ -311,9 +313,9 @@ public:
 class ConstantExpression : public ExpressionNode
 {
 public:
-  std::variant<int, long,unsigned long, unsigned int> value;
+  std::variant<int, long,unsigned long, unsigned int, double> value;
 
-  ConstantExpression(std::variant<int, long,unsigned long, unsigned int> value) : value(value) {}
+  ConstantExpression(std::variant<int, long,unsigned long, unsigned int,double> value) : value(value) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };

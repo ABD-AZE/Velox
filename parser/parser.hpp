@@ -3,6 +3,7 @@
 #include "../ast/ast.hpp"
 #include "../token/token.hpp"
 #include "../utils/token_classifier.hpp"
+#include "../utils/type_utils.hpp"
 #include <algorithm>
 #include <iostream>
 #include <map>
