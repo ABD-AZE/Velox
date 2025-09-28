@@ -5,11 +5,11 @@
 int main(int argc, char *argv[]) {
   bool lexflag = 0;
   bool parseflag = 0;
-  if (argc < 2) {
-    std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
-    return 1;
-  }
-  std::string source;
+  // if (argc < 2) {
+  //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
+  //   return 1;
+  // }
+  std::string source = "tests/parser_tests/test1.vlx";
   // set the flags based on --parse and --lex options
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
