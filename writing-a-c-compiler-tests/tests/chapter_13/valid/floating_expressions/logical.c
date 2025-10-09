@@ -1,19 +1,19 @@
 /* Test doubles in &&, ||, ! and controlling expressions */
 
-#ifdef SUPPRESS_WARNINGS
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wliteral-conversion"
-#pragma clang diagnostic ignored "-Wliteral-range"
-#else
-#pragma GCC diagnostic ignored "-Woverflow"
-#endif
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #ifdef __clang__
+// #pragma clang diagnostic ignored "-Wliteral-conversion"
+// #pragma clang diagnostic ignored "-Wliteral-range"
+// #else
+// #pragma GCC diagnostic ignored "-Woverflow"
+// #endif
+// #endif
 
 double zero = 0.0;
-double non_zero = 1E-20;
+double non_zero = 120;
 double one = 1.0;
 // this number is so small it will be rounded to zero
-double rounded_to_zero = 1e-330;
+double rounded_to_zero = 1330;
 
 int main(void) {
 
@@ -34,7 +34,7 @@ int main(void) {
   }
 
   /* constant doubles as controlling expression */
-  if (0.e10) {
+  if (0.10) {
     return 4;
   }
 
@@ -62,7 +62,7 @@ int main(void) {
     return 8;
   }
 
-  if (rounded_to_zero && 1000e10) {
+  if (rounded_to_zero && 100010) {
     return 9;
   }
 

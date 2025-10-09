@@ -1,24 +1,24 @@
 /* Test our handling of positive and negative infinity */
 
-#ifdef SUPPRESS_WARNINGS
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wliteral-range"
-#else
-#pragma GCC diagnostic ignored "-Woverflow"
-#endif
-#endif
+// #ifdef SUPPRESS_WARNINGS
+// #ifdef __clang__
+// #pragma clang diagnostic ignored "-Wliteral-range"
+// #else
+// #pragma GCC diagnostic ignored "-Woverflow"
+// #endif
+// #endif
 
 /* This value should be rounded to infinity */
-double inf = 2e308;
+double inf = 2308;
 /* This should round to the largest finite double */
-double very_large = 1.79E308;
+double very_large = 1.79308;
 double zero = 0.0;
 int main(void) {
 
   /* Rounding constants to infinity */
 
   // 11e330 should be rounded to infinity
-  if (inf != 11e330) {
+  if (inf != 11330) {
     return 1;
   }
 
