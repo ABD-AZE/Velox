@@ -29,6 +29,8 @@ class AssignmentExpression;
 class PostfixExpression;
 class ConditionalExpression;
 class CastExpression;
+class DereferenceExpression;
+class AddressOfExpression;
 class BlockNode;
 class ForInit;
 class InitDecl;
@@ -91,6 +93,8 @@ public:
   virtual void visit(PostfixExpression &node) = 0;
   virtual void visit(ConditionalExpression &node) = 0;
   virtual void visit(CastExpression &node) = 0;
+  virtual void visit(DereferenceExpression &node) = 0;
+  virtual void visit(AddressOfExpression &node) = 0;
 
   // loop
   virtual void visit(ForInit &node) = 0;
@@ -110,6 +114,10 @@ struct FunType {
   std::unique_ptr<struct Type> ret;
 };
 
+struct PointerType {
+  std::unique_ptr<struct Type> base;
+};
+
 enum class TypeKind {
   INT,
   LONG,
@@ -117,6 +125,7 @@ enum class TypeKind {
   ULONG,
   DOUBLE,
   FUNC,
+  POINTER,
   ERROR
 };
 
@@ -130,11 +139,11 @@ public:
 class Type: public ASTNode {
   public:
   TypeKind kind;
-  std::variant<std::monostate, FunType> data;
+  std::variant<std::monostate, FunType, PointerType> data;
   // default constructor for int type
   Type() : kind(TypeKind::INT), data(std::move(std::monostate{})) {}
-  // constructor for specific type
-  Type(TypeKind k, std::variant<std::monostate, FunType> d) : kind(k), data(std::move(d)) {}
+  // constructor for other types
+  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d) : kind(k), data(std::move(d)) {}
   // move constructor
   Type(Type&& other) noexcept : kind(other.kind), data(std::move(other.data)) {}
   // move assignment
@@ -154,6 +163,10 @@ class Type: public ASTNode {
   static Type Function(std::vector<Type> params, Type ret) {
     FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
     return Type{TypeKind::FUNC, std::move(ftype)};
+  }
+  static Type Pointer(std::unique_ptr<Type> base) {
+    PointerType ptype{std::move(base)};
+    return Type{TypeKind::POINTER, std::move(ptype)};
   }
   static Type Error() { return Type{TypeKind::ERROR, std::monostate{}}; }
 
@@ -380,6 +393,28 @@ public:
 
   CastExpression(Type targetType, ASTNodePtr expr)
       : targetType(std::move(targetType)), expression(std::move(expr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class DereferenceExpression : public ExpressionNode
+{
+public:
+  ASTNodePtr pointerExpr;
+
+  DereferenceExpression(ASTNodePtr ptrExpr)
+      : pointerExpr(std::move(ptrExpr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class AddressOfExpression : public ExpressionNode
+{
+public:
+  ASTNodePtr variableExpr;
+
+  AddressOfExpression(ASTNodePtr varExpr)
+      : variableExpr(std::move(varExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };

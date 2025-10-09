@@ -273,6 +273,38 @@ void ASTPrinter::visit(ConditionalExpression &node) {
   std::cout << ")" << std::endl;
 }
 
+void ASTPrinter::visit(DereferenceExpression &node) {
+  printIndent();
+  std::cout << "Dereference(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "pointerExpr=" << std::endl;
+  if (node.pointerExpr) {
+    increaseIndent();
+    node.pointerExpr->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(AddressOfExpression &node) {
+  printIndent();
+  std::cout << "AddressOf(" << std::endl;
+  increaseIndent();
+  printIndent();
+  std::cout << "variableExpr=" << std::endl;
+  if (node.variableExpr) {
+    increaseIndent();
+    node.variableExpr->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
 void ASTPrinter::visit(BlockItemNode &node) {
   printIndent();
   std::cout << "BlockItem(" << std::endl;
@@ -558,7 +590,7 @@ void ASTPrinter::visit(Type &node) {
   std::cout << "Type(" << std::endl;
   increaseIndent();
   printIndent();
-  std::cout << "kind=" << TokenTypeToString(TypeKindToTokenType(node.kind)) << std::endl;
+  std::cout << "kind=" << TypeKindToString(node.kind) << std::endl;
   decreaseIndent();
   printIndent();
   std::cout << ")" << std::endl;
