@@ -1,1 +1,1 @@
-double d = 1e20;
+double d = 120;

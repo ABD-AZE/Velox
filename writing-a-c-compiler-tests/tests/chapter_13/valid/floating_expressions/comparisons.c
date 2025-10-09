@@ -1,5 +1,5 @@
-double fifty_fiveE5 = 55e5;
-double fifty_fourE4 = 54e4;
+double fifty_fiveE5 = 555;
+double fifty_fourE4 = 544;
 double tiny = .00004;
 double four = 4.;
 double point_one = 0.1;
