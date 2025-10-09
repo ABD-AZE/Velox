@@ -44,6 +44,8 @@ public:
   void visit(PostfixExpression &node) override;
   void visit(ConditionalExpression &node) override;
   void visit(CastExpression &node) override;
+  void visit(DereferenceExpression &node) override;
+  void visit(AddressOfExpression &node) override;
   
   // loop
   void visit(ForInit &node) override;

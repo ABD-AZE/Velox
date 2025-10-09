@@ -35,3 +35,24 @@ constexpr TokenType TypeKindToTokenType(TypeKind k) {
   }
 }
 
+constexpr std::string TypeKindToString(TypeKind k) {
+  switch(k) {
+    case TypeKind::INT:   
+      return "int";
+    case TypeKind::LONG:
+      return "long"; 
+    case TypeKind::UINT:
+      return "unsigned int";
+    case TypeKind::ULONG:
+      return "unsigned long";
+    case TypeKind::DOUBLE:
+      return "double";
+    case TypeKind::FUNC:
+      return "function";
+    case TypeKind::POINTER:
+      return "pointer";
+    default:
+      return "error"; // using ws as error token
+  }
+}
+
