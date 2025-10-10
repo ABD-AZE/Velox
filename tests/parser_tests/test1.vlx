@@ -1,8 +1,5 @@
-double get_max(double a, double b, double c, double d, double e, double f,
-               double g, double h, double i, double j, double k);
-
-int main(void) {
-  extern double result = get_max(100.3, 200.1, 0.01, 1.000045, 55.555, -4., 6543.2,
-                          9.9, 8.8, 7.6, 10.3 * 11.5);
-  return result == 10.3 * 11.5;
+int test_logic(void) {
+  int a = 1;
+  int b = 0;
+  return a || b && 10;
 }
