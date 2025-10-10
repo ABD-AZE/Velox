@@ -1,0 +1,16 @@
+function main() {
+    tmp.1 = 0 == 0
+    jump_if_zero tmp.1 label.0
+    tmp.2 = 2 + 1
+    tmp.3 = tmp.2 > 1
+    tmp.4 = 3 == tmp.3
+    jump_if_zero tmp.4 label.0
+    tmp.0 = 1
+    jump label.1
+    label.0:
+    tmp.0 = 0
+    label.1:
+    tmp.5 = tmp.0 + 1
+    return tmp.5
+}
+

@@ -466,6 +466,8 @@ ASTNodePtr Parser::parseFactor()
   case TokenType::HYPHEN:
   case TokenType::TILDE:
   case TokenType::NOT:
+  case TokenType::ASTERISK:
+  case TokenType::AAND:
     consume();
     {
       TokenType op = currentToken.GetType();
