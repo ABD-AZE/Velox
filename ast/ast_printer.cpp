@@ -182,9 +182,12 @@ void ASTPrinter::visit(ConstantExpression &node) {
   std::cout << "Constant(\n";
   increaseIndent();
   printIndent();
-  std::visit([](const auto& value) {
-    std::cout << "value: " << value << ", "<< "type: "<< typeid(value).name();
-  }, node.value);
+  std::visit(
+      [](const auto &value) {
+        std::cout << "value: " << value << ", "
+                  << "type: " << typeid(value).name();
+      },
+      node.value);
   decreaseIndent();
   std::cout << ")" << std::endl;
 }
@@ -484,22 +487,25 @@ void ASTPrinter::visit(FunDeclNode &node) {
   // Print function name
   increaseIndent();
   printIndent();
-  std::cout << "name=\"" << node.name << "\"," <<"type="<< std::endl;
+  std::cout << "name=\"" << node.name << "\","
+            << "type=" << std::endl;
   printIndent();
   increaseIndent();
   node.type.accept(*this);
   decreaseIndent();
 
   // Print parameters and storage class specifier if present
-  if(node.storage_class.has_value()) {
+  if (node.storage_class.has_value()) {
     printIndent();
-    std::cout << "storage_class=" << TokenTypeToString(node.storage_class.value()) << "," << std::endl;
+    std::cout << "storage_class="
+              << TokenTypeToString(node.storage_class.value()) << ","
+              << std::endl;
   }
   printIndent();
   std::cout << "parameters=[" << std::endl;
-  if (node.params.size() > 0) {
+  if (node.param_names.size() > 0) {
     increaseIndent();
-    for (const auto &param : node.params) {
+    for (const auto &param : node.param_names) {
       printIndent();
       std::cout << "\"" << param << "\"," << std::endl;
     }
@@ -507,7 +513,7 @@ void ASTPrinter::visit(FunDeclNode &node) {
   }
   printIndent();
   std::cout << "]," << std::endl;
-  
+
   // Print body if present
   if (node.body) {
     printIndent();
@@ -531,7 +537,8 @@ void ASTPrinter::visit(VarDeclNode &node) {
   // Print variable name
   increaseIndent();
   printIndent();
-  std::cout << "name=\"" << node.name << "\"," <<"type="<< std::endl;
+  std::cout << "name=\"" << node.name << "\","
+            << "type=" << std::endl;
   printIndent();
   increaseIndent();
   node.type.accept(*this);
@@ -539,19 +546,21 @@ void ASTPrinter::visit(VarDeclNode &node) {
 
   if (node.storage_class.has_value()) {
     printIndent();
-    std::cout << "storage_class=" << TokenTypeToString(node.storage_class.value()) <<"," <<std::endl;
+    std::cout << "storage_class="
+              << TokenTypeToString(node.storage_class.value()) << ","
+              << std::endl;
   }
   // Print initializer and storage class specifier if present
   if (node.init.has_value()) {
     printIndent();
-    std::cout << "init="<<std::endl;
+    std::cout << "init=" << std::endl;
     increaseIndent();
     node.init.value()->accept(*this);
     decreaseIndent();
   } else {
     std::cout << std::endl;
   }
-  
+
   decreaseIndent();
 
   printIndent();
@@ -615,4 +624,108 @@ void ASTPrinter::visit(CastExpression &node) {
   decreaseIndent();
   printIndent();
   std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(Ident &node) {
+  printIndent();
+  std::cout << "Identifier(\"" << node.identifier << "\")" << std::endl;
+}
+
+void ASTPrinter::visit(DeclaratorNode &node) {
+  (void)node; // suppress unused parameter warning
+  printIndent();
+  std::cout << "DeclaratorNode()" << std::endl;
+}
+
+void ASTPrinter::visit(PointerDeclarator &node) {
+  printIndent();
+  std::cout << "PointerDeclarator(" << std::endl;
+
+  increaseIndent();
+  if (node.declarator) {
+    node.declarator->accept(*this);
+  }
+  decreaseIndent();
+
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(FunDeclarator &node) {
+  printIndent();
+  std::cout << "FunDeclarator(" << std::endl;
+
+  increaseIndent();
+
+  printIndent();
+  std::cout << "params=[" << std::endl;
+  increaseIndent();
+  for (auto &param : node.params) {
+    param.accept(*this);
+  }
+  decreaseIndent();
+  printIndent();
+  std::cout << "]," << std::endl;
+
+  printIndent();
+  std::cout << "declarator=" << std::endl;
+  if (node.declarator) {
+    increaseIndent();
+    node.declarator->accept(*this);
+    decreaseIndent();
+  }
+
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(paraminfo &node) {
+  printIndent();
+  std::cout << "Parameter(" << std::endl;
+
+  increaseIndent();
+  printIndent();
+  std::cout << "type=" << std::endl;
+  increaseIndent();
+  node.type.accept(*this);
+  decreaseIndent();
+  std::cout << "," << std::endl;
+
+  printIndent();
+  std::cout << "declarator=" << std::endl;
+  if (node.declarator) {
+    increaseIndent();
+    node.declarator->accept(*this);
+    decreaseIndent();
+  } else {
+    increaseIndent();
+    printIndent();
+    std::cout << "null" << std::endl;
+    decreaseIndent();
+  }
+
+  decreaseIndent();
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(AbstractPointer &node) {
+  printIndent();
+  std::cout << "AbstractPointer(" << std::endl;
+
+  increaseIndent();
+  if (node.base) {
+    node.base->accept(*this);
+  }
+  decreaseIndent();
+
+  printIndent();
+  std::cout << ")" << std::endl;
+}
+
+void ASTPrinter::visit(AbstractBase &node) {
+  (void)node; // suppress unused parameter warning
+  printIndent();
+  std::cout << "AbstractBase()" << std::endl;
 }
