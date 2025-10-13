@@ -18,4 +18,4 @@ jobs:
 
       - name: Check formatting
         run: |
-          find . -regex '.*\.\(cpp\|cc\|c\|h\|hpp\|hh\)' -exec clang-format --dry-run --Werror {} +
+          find . -path "./writing-a-c-compiler-tests" -prune -o -regex '.*\.\(cpp\|cc\|c\|h\|hpp\|hh\)' -print0 | xargs -0 clang-format --dry-run --Werror

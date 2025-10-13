@@ -60,12 +60,28 @@ private:
   ASTNodePtr parseExpression(int minPrecedence);
   ASTNodePtr parseFactor();
   ASTNodePtr parseDeclaration();
+  ASTNodePtr parseDeclarator();
+  ASTNodePtr parseAbstractDeclarator();
   ASTNodePtr parseBlockItem();
   ASTNodePtr parseBlock();
   ASTNodePtr parseDoWhile();
   ASTNodePtr parseWhile();
   ASTNodePtr parseFor();
   ASTNodePtr parseVariableDeclaration();
-  std::pair<std::vector<TokenType>, std::optional<TokenType>> parseSpecifierList(std::vector<TokenType> specifier_list); // returns {vector<type>, storage_class}
+  /* returns {name, type, param names}
+  name: Identifier
+  Type: type of the declarator
+  param names: for function declarators, list of parameter names. For
+  non-function declarators, empty vector
+  */
+  std::tuple<std::string, Type, std::vector<std::string>>
+  processDeclarator(ASTNodePtr declaratorNode, Type baseType);
+  Type processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
+                                 Type baseType);
+  std::vector<paraminfo> parseParams();
+  std::pair<std::vector<TokenType>, std::optional<TokenType>>
+  parseSpecifierList(
+      std::vector<TokenType>
+          specifier_list); // returns {vector<type>, storage_class}
   Type parseTypeSpecifierList(std::vector<TokenType> list);
 };

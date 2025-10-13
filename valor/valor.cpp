@@ -3,12 +3,10 @@
 #include <sstream>
 
 // IRInstructionNode implementation
-std::string IRInstructionNode::toString() const
-{
+std::string IRInstructionNode::toString() const {
   std::stringstream ss;
 
-  switch (opType)
-  {
+  switch (opType) {
   case IROpType::RETURN:
     ss << "return " << (src1 ? src1->toString() : "");
     break;
@@ -16,58 +14,76 @@ std::string IRInstructionNode::toString() const
     ss << dst->toString() << " = " << src1->toString();
     break;
   case IROpType::ADD:
-    ss << dst->toString() << " = " << src1->toString() << " + " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " + "
+       << src2->toString();
     break;
   case IROpType::SUBTRACT:
-    ss << dst->toString() << " = " << src1->toString() << " - " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " - "
+       << src2->toString();
     break;
   case IROpType::MULTIPLY:
-    ss << dst->toString() << " = " << src1->toString() << " * " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " * "
+       << src2->toString();
     break;
   case IROpType::DIVIDE:
-    ss << dst->toString() << " = " << src1->toString() << " / " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " / "
+       << src2->toString();
     break;
   case IROpType::REMAINDER:
-    ss << dst->toString() << " = " << src1->toString() << " % " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " % "
+       << src2->toString();
     break;
   case IROpType::AND:
-    ss << dst->toString() << " = " << src1->toString() << " & " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " & "
+       << src2->toString();
     break;
   case IROpType::OR:
-    ss << dst->toString() << " = " << src1->toString() << " | " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " | "
+       << src2->toString();
     break;
   case IROpType::XOR:
-    ss << dst->toString() << " = " << src1->toString() << " ^ " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " ^ "
+       << src2->toString();
     break;
   case IROpType::LEFT_SHIFT:
-    ss << dst->toString() << " = " << src1->toString() << " << " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " << "
+       << src2->toString();
     break;
   case IROpType::RIGHT_SHIFT:
-    ss << dst->toString() << " = " << src1->toString() << " >> " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " >> "
+       << src2->toString();
     break;
   case IROpType::EQUAL:
-    ss << dst->toString() << " = " << src1->toString() << " == " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString()
+       << " == " << src2->toString();
     break;
   case IROpType::NOT_EQUAL:
-    ss << dst->toString() << " = " << src1->toString() << " != " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString()
+       << " != " << src2->toString();
     break;
   case IROpType::LESS_THAN:
-    ss << dst->toString() << " = " << src1->toString() << " < " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " < "
+       << src2->toString();
     break;
   case IROpType::LESS_EQUAL:
-    ss << dst->toString() << " = " << src1->toString() << " <= " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString()
+       << " <= " << src2->toString();
     break;
   case IROpType::GREATER_THAN:
-    ss << dst->toString() << " = " << src1->toString() << " > " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " > "
+       << src2->toString();
     break;
   case IROpType::GREATER_EQUAL:
-    ss << dst->toString() << " = " << src1->toString() << " >= " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString()
+       << " >= " << src2->toString();
     break;
   case IROpType::LOGICAL_AND:
-    ss << dst->toString() << " = " << src1->toString() << " && " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " && "
+       << src2->toString();
     break;
   case IROpType::LOGICAL_OR:
-    ss << dst->toString() << " = " << src1->toString() << " || " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " || "
+       << src2->toString();
     break;
   case IROpType::NOT:
     ss << dst->toString() << " = !" << src1->toString();
@@ -99,12 +115,10 @@ std::string IRInstructionNode::toString() const
 }
 
 // IRFunctionNode implementation
-std::string IRFunctionNode::toString() const
-{
+std::string IRFunctionNode::toString() const {
   std::stringstream ss;
   ss << "function " << identifier << "() {\n";
-  for (const auto &instruction : instructions)
-  {
+  for (const auto &instruction : instructions) {
     ss << "    " << instruction->toString() << "\n";
   }
   ss << "}\n";
@@ -112,19 +126,16 @@ std::string IRFunctionNode::toString() const
 }
 
 // IRProgramNode implementation
-std::string IRProgramNode::toString() const
-{
+std::string IRProgramNode::toString() const {
   std::stringstream ss;
-  for (const auto &function : functions)
-  {
+  for (const auto &function : functions) {
     ss << function->toString() << "\n";
   }
   return ss.str();
 }
 
 // IRGenerator implementation
-IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast)
-{
+IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
   program = std::make_unique<IRProgramNode>();
   tempCounter = 0;
   labelCounter = 0;
@@ -135,97 +146,126 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast)
 }
 
 // Stub implementations for other visitor methods
-void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
-void IRGenerator::visit(DeclarationNode &node) { /* Handle declarations if needed */ }
-void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */ }
-void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
-void IRGenerator::visit(IfStatement &node) { /* TODO: Implement control flow */ }
-void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
-void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
-void IRGenerator::visit(CompoundStatement &node) { /* Handle compound statements */ }
-void IRGenerator::visit(PostfixExpression &node) { /* TODO: Implement postfix */ }
-void IRGenerator::visit(ConditionalExpression &node) { /* TODO: Implement ternary */ }
-void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */ }
-void IRGenerator::visit(DereferenceExpression &node) { /* TODO: Implement dereference */ }
-void IRGenerator::visit(AddressOfExpression &node) { /* TODO: Implement address-of */ }
-void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
-void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
-void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
-void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */ }
-void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */ }
-void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */ }
-void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */ }
-void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */ }
+void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */
+}
+void IRGenerator::visit(
+    DeclarationNode &node) { /* Handle declarations if needed */
+}
+void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */
+}
+void IRGenerator::visit(NullStatement &node) { /* Nothing to do */
+}
+void IRGenerator::visit(IfStatement &node) { /* TODO: Implement control flow */
+}
+void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */
+}
+void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */
+}
+void IRGenerator::visit(
+    CompoundStatement &node) { /* Handle compound statements */
+}
+void IRGenerator::visit(PostfixExpression &node) { /* TODO: Implement postfix */
+}
+void IRGenerator::visit(
+    ConditionalExpression &node) { /* TODO: Implement ternary */
+}
+void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */
+}
+void IRGenerator::visit(
+    DereferenceExpression &node) { /* TODO: Implement dereference */
+}
+void IRGenerator::visit(
+    AddressOfExpression &node) { /* TODO: Implement address-of */
+}
+void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */
+}
+void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */
+}
+void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */
+}
+void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */
+}
+void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */
+}
+void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */
+}
+void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */
+}
+void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */
+}
+void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
+}
+void IRGenerator::visit(
+    DeclaratorNode &node) { /* Not needed for basic IR generation */
+}
+void IRGenerator::visit(
+    PointerDeclarator &node) { /* Not needed for basic IRgeneration */
+}
+void IRGenerator::visit(
+    FunDeclarator &node) { /* Not needed for basic IR generation */
+}
+void IRGenerator::visit(
+    paraminfo &node) { /* Not needed for basic IR generation */
+}
+void IRGenerator::visit(AbstractPointer &node) {}
+void IRGenerator::visit(AbstractBase &node) {}
 
-void IRGenerator::visit(ProgramNode &node)
-{
+void IRGenerator::visit(ProgramNode &node) {
   // Process all declarations in the program
-  for (const auto &declaration : node.Declarations)
-  {
+  for (const auto &declaration : node.Declarations) {
     declaration->accept(*this);
   }
 }
 
-void IRGenerator::visit(FunctionDefinitionNode &node)
-{
+void IRGenerator::visit(FunctionDefinitionNode &node) {
   // not used
 }
 
-void IRGenerator::visit(VarDeclNode &node)
-{
+void IRGenerator::visit(VarDeclNode &node) {
   IRValuePtr var = IRValueNode::makeVariable(node.name);
   // If there's an initializer, generate IR for it
-  if (node.init)
-  {
+  if (node.init) {
     (*node.init)->accept(*this);
     IRValuePtr initValue = std::make_shared<IRValueNode>(*currentValue);
     // Create copy instruction to assign initializer value to variable
-    auto copyInst = IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
-    if (currentFunction)
-    {
+    auto copyInst =
+        IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
+    if (currentFunction) {
       currentFunction->addInstruction(std::move(copyInst));
     }
   }
 }
 
-void IRGenerator::visit(FunDeclNode &node)
-{
+void IRGenerator::visit(FunDeclNode &node) {
   std::shared_ptr<IRFunctionNode> func = std::make_shared<IRFunctionNode>();
   func->identifier = node.name;
   currentFunction = func;
   // Generate IR for function body
-  if (node.body)
-  {
+  if (node.body) {
     (*node.body)->accept(*this);
   }
   program->addFunction(std::move(func));
   currentFunction = nullptr;
 }
 
-void IRGenerator::visit(BlockNode &node)
-{
+void IRGenerator::visit(BlockNode &node) {
   // Process all block items
-  for (const auto &item : node.block_items)
-  {
+  for (const auto &item : node.block_items) {
     item->accept(*this);
   }
 }
 
-void IRGenerator::visit(BlockItemNode &node)
-{
+void IRGenerator::visit(BlockItemNode &node) {
   // Delegate to the contained statement or declaration
-  if (node.block_item)
-  {
+  if (node.block_item) {
     node.block_item->accept(*this);
   }
 }
 
-void IRGenerator::visit(ReturnStatement &node)
-{
+void IRGenerator::visit(ReturnStatement &node) {
   IRValuePtr returnValue = nullptr;
 
-  if (node.expression)
-  {
+  if (node.expression) {
     // Generate IR for the return expression
     node.expression->accept(*this);
     if (currentValue)
@@ -237,32 +277,27 @@ void IRGenerator::visit(ReturnStatement &node)
   currentFunction->addInstruction(std::move(returnInst));
 }
 
-void IRGenerator::visit(ExpressionStatement &node)
-{
-  if (node.expression)
-  {
+void IRGenerator::visit(ExpressionStatement &node) {
+  if (node.expression) {
     node.expression->accept(*this);
     // Result is in currentValue but we don't need to do anything with it
   }
 }
 
-void IRGenerator::visit(ConstantExpression &node)
-{
+void IRGenerator::visit(ConstantExpression &node) {
   // Create a constant value
   // Extract the value from the variant
-  int intValue = std::visit([](auto &&arg) -> int
-                            { return static_cast<int>(arg); }, node.value);
+  int intValue = std::visit(
+      [](auto &&arg) -> int { return static_cast<int>(arg); }, node.value);
   currentValue = IRValueNode::makeConstant(intValue);
 }
 
-void IRGenerator::visit(VariableExpression &node)
-{
+void IRGenerator::visit(VariableExpression &node) {
   // Create a variable reference
   currentValue = IRValueNode::makeVariable(node.identifier);
 }
 
-void IRGenerator::visit(UnaryExpression &node)
-{
+void IRGenerator::visit(UnaryExpression &node) {
   // Generate IR for operand
   node.operand->accept(*this);
   IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
@@ -280,11 +315,9 @@ void IRGenerator::visit(UnaryExpression &node)
   currentValue = std::move(result);
 }
 
-void IRGenerator::visit(BinaryExpression &node)
-{
+void IRGenerator::visit(BinaryExpression &node) {
   // Handle short-circuiting operators specially
-  if (node.op == TokenType::LAND)
-  {
+  if (node.op == TokenType::LAND) {
     // Implement && operator with short-circuiting
     // e1 && e2 pattern:
     // <instructions for e1>
@@ -316,11 +349,13 @@ void IRGenerator::visit(BinaryExpression &node)
     IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
 
     // Jump to false_label if right operand is zero
-    auto jumpIfZero2 = IRInstructionNode::makeJumpIfZero(rightValue, falseLabel);
+    auto jumpIfZero2 =
+        IRInstructionNode::makeJumpIfZero(rightValue, falseLabel);
     currentFunction->addInstruction(std::move(jumpIfZero2));
 
     // Both operands are true, set result to 1
-    auto setTrue = IRInstructionNode::makeCopy(IRValueNode::makeConstant(1), std::make_shared<IRValueNode>(*result));
+    auto setTrue = IRInstructionNode::makeCopy(
+        IRValueNode::makeConstant(1), std::make_shared<IRValueNode>(*result));
     currentFunction->addInstruction(std::move(setTrue));
 
     // Jump over the false case
@@ -331,7 +366,8 @@ void IRGenerator::visit(BinaryExpression &node)
     auto falseLabelInst = IRInstructionNode::makeLabel(falseLabel);
     currentFunction->addInstruction(std::move(falseLabelInst));
 
-    auto setFalse = IRInstructionNode::makeCopy(IRValueNode::makeConstant(0), std::make_shared<IRValueNode>(*result));
+    auto setFalse = IRInstructionNode::makeCopy(
+        IRValueNode::makeConstant(0), std::make_shared<IRValueNode>(*result));
     currentFunction->addInstruction(std::move(setFalse));
 
     // End label
@@ -342,8 +378,7 @@ void IRGenerator::visit(BinaryExpression &node)
     return;
   }
 
-  if (node.op == TokenType::LOR)
-  {
+  if (node.op == TokenType::LOR) {
     // Implement || operator with short-circuiting
     // e1 || e2 pattern:
     // <instructions for e1>
@@ -367,7 +402,8 @@ void IRGenerator::visit(BinaryExpression &node)
     IRValuePtr leftValue = std::make_shared<IRValueNode>(*currentValue);
 
     // Jump to true_label if left operand is non-zero
-    auto jumpIfNotZero1 = IRInstructionNode::makeJumpIfNotZero(leftValue, trueLabel);
+    auto jumpIfNotZero1 =
+        IRInstructionNode::makeJumpIfNotZero(leftValue, trueLabel);
     currentFunction->addInstruction(std::move(jumpIfNotZero1));
 
     // Generate IR for right operand
@@ -375,11 +411,13 @@ void IRGenerator::visit(BinaryExpression &node)
     IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
 
     // Jump to true_label if right operand is non-zero
-    auto jumpIfNotZero2 = IRInstructionNode::makeJumpIfNotZero(rightValue, trueLabel);
+    auto jumpIfNotZero2 =
+        IRInstructionNode::makeJumpIfNotZero(rightValue, trueLabel);
     currentFunction->addInstruction(std::move(jumpIfNotZero2));
 
     // Both operands are false, set result to 0
-    auto setFalse = IRInstructionNode::makeCopy(IRValueNode::makeConstant(0), std::make_shared<IRValueNode>(*result));
+    auto setFalse = IRInstructionNode::makeCopy(
+        IRValueNode::makeConstant(0), std::make_shared<IRValueNode>(*result));
     currentFunction->addInstruction(std::move(setFalse));
 
     // Jump over the true case
@@ -390,7 +428,8 @@ void IRGenerator::visit(BinaryExpression &node)
     auto trueLabelInst = IRInstructionNode::makeLabel(trueLabel);
     currentFunction->addInstruction(std::move(trueLabelInst));
 
-    auto setTrue = IRInstructionNode::makeCopy(IRValueNode::makeConstant(1), std::make_shared<IRValueNode>(*result));
+    auto setTrue = IRInstructionNode::makeCopy(
+        IRValueNode::makeConstant(1), std::make_shared<IRValueNode>(*result));
     currentFunction->addInstruction(std::move(setTrue));
 
     // End label
@@ -417,14 +456,14 @@ void IRGenerator::visit(BinaryExpression &node)
   IROpType irOp = tokenTypeToBinaryIR(node.op);
 
   // Create binary instruction
-  auto inst = IRInstructionNode::makeBinary(irOp, result, std::move(leftValue), std::move(rightValue));
+  auto inst = IRInstructionNode::makeBinary(irOp, result, std::move(leftValue),
+                                            std::move(rightValue));
   currentFunction->addInstruction(std::move(inst));
 
   currentValue = std::move(result);
 }
 
-void IRGenerator::visit(AssignmentExpression &node)
-{
+void IRGenerator::visit(AssignmentExpression &node) {
   // Generate IR for right side (value being assigned)
   node.right->accept(*this);
   IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
@@ -441,10 +480,8 @@ void IRGenerator::visit(AssignmentExpression &node)
   currentValue = std::move(rightValue);
 }
 
-IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType)
-{
-  switch (tokenType)
-  {
+IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
+  switch (tokenType) {
   case TokenType::PLUS:
     return IROpType::ADD;
   case TokenType::HYPHEN:
@@ -488,10 +525,8 @@ IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType)
   }
 }
 
-IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType)
-{
-  switch (tokenType)
-  {
+IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType) {
+  switch (tokenType) {
   case TokenType::HYPHEN:
     return IROpType::NEGATE;
   case TokenType::TILDE:
@@ -503,13 +538,11 @@ IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType)
   }
 }
 
-IRValuePtr IRGenerator::createTemporary()
-{
+IRValuePtr IRGenerator::createTemporary() {
   return IRValueNode::makeTemporary(generateTempName());
 }
 
 // Valor class implementation
-IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast)
-{
+IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
   return generator.generateIR(ast);
 }

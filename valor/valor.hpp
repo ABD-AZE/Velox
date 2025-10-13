@@ -1,9 +1,9 @@
 #pragma once
-#include "../token/token.hpp"
-#include "../parser/parser.hpp"
 #include "../ast/ast.hpp"
-#include <string>
+#include "../parser/parser.hpp"
+#include "../token/token.hpp"
 #include <memory>
+#include <string>
 #include <vector>
 
 // Forward declarations
@@ -18,16 +18,10 @@ using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
 
 // IR Value types
-enum class IRValueType
-{
-  CONSTANT,
-  VARIABLE,
-  TEMPORARY
-};
+enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY };
 
 // IR Instruction types
-enum class IROpType
-{
+enum class IROpType {
   // Unary operations
   COMPLEMENT,
   NEGATE,
@@ -62,42 +56,36 @@ enum class IROpType
   LABEL
 };
 
-class IRValueNode
-{
+class IRValueNode {
 public:
   IRValueType type;
   int intValue = 0;
   std::string name;
 
   // Constructors
-  static IRValuePtr makeConstant(int value)
-  {
+  static IRValuePtr makeConstant(int value) {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
     val->intValue = value;
     return val;
   }
 
-  static IRValuePtr makeVariable(const std::string &varName)
-  {
+  static IRValuePtr makeVariable(const std::string &varName) {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::VARIABLE;
     val->name = varName;
     return val;
   }
 
-  static IRValuePtr makeTemporary(const std::string &tempName)
-  {
+  static IRValuePtr makeTemporary(const std::string &tempName) {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::TEMPORARY;
     val->name = tempName;
     return val;
   }
 
-  std::string toString() const
-  {
-    switch (type)
-    {
+  std::string toString() const {
+    switch (type) {
     case IRValueType::CONSTANT:
       return std::to_string(intValue);
     case IRValueType::VARIABLE:
@@ -108,8 +96,7 @@ public:
   }
 };
 
-class IRInstructionNode
-{
+class IRInstructionNode {
 public:
   IROpType opType;
   IRValuePtr dst;    // Destination (can be null for some operations)
@@ -118,8 +105,8 @@ public:
   std::string label; // For labels and jumps
 
   // Factory methods for different instruction types
-  static IRInstructionPtr makeUnary(IROpType op, IRValuePtr dst, IRValuePtr src)
-  {
+  static IRInstructionPtr makeUnary(IROpType op, IRValuePtr dst,
+                                    IRValuePtr src) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = op;
     inst->dst = std::move(dst);
@@ -127,8 +114,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeBinary(IROpType op, IRValuePtr dst, IRValuePtr src1, IRValuePtr src2)
-  {
+  static IRInstructionPtr makeBinary(IROpType op, IRValuePtr dst,
+                                     IRValuePtr src1, IRValuePtr src2) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = op;
     inst->dst = std::move(dst);
@@ -137,24 +124,21 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeReturn(IRValuePtr value)
-  {
+  static IRInstructionPtr makeReturn(IRValuePtr value) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::RETURN;
     inst->src1 = std::move(value);
     return inst;
   }
 
-  static IRInstructionPtr makeLabel(const std::string &labelName)
-  {
+  static IRInstructionPtr makeLabel(const std::string &labelName) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::LABEL;
     inst->label = labelName;
     return inst;
   }
 
-  static IRInstructionPtr makeCopy(IRValuePtr src, IRValuePtr dst)
-  {
+  static IRInstructionPtr makeCopy(IRValuePtr src, IRValuePtr dst) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::COPY;
     inst->src1 = std::move(src);
@@ -162,16 +146,15 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeJump(const std::string &target)
-  {
+  static IRInstructionPtr makeJump(const std::string &target) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP;
     inst->label = target;
     return inst;
   }
 
-  static IRInstructionPtr makeJumpIfZero(IRValuePtr condition, const std::string &target)
-  {
+  static IRInstructionPtr makeJumpIfZero(IRValuePtr condition,
+                                         const std::string &target) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP_IF_ZERO;
     inst->src1 = std::move(condition);
@@ -179,8 +162,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeJumpIfNotZero(IRValuePtr condition, const std::string &target)
-  {
+  static IRInstructionPtr makeJumpIfNotZero(IRValuePtr condition,
+                                            const std::string &target) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP_IF_NOT_ZERO;
     inst->src1 = std::move(condition);
@@ -191,28 +174,24 @@ public:
   std::string toString() const;
 };
 
-class IRFunctionNode
-{
+class IRFunctionNode {
 public:
   std::string identifier;
   std::vector<std::string> parameters;
   std::vector<IRInstructionPtr> instructions;
 
-  void addInstruction(IRInstructionPtr instruction)
-  {
+  void addInstruction(IRInstructionPtr instruction) {
     instructions.push_back(std::move(instruction));
   }
 
   std::string toString() const;
 };
 
-class IRProgramNode
-{
+class IRProgramNode {
 public:
   std::vector<IRFunctionPtr> functions;
 
-  void addFunction(IRFunctionPtr function)
-  {
+  void addFunction(IRFunctionPtr function) {
     functions.push_back(std::move(function));
   }
 
@@ -220,8 +199,7 @@ public:
 };
 
 // IR Generator using visitor pattern
-class IRGenerator : public ASTVisitor
-{
+class IRGenerator : public ASTVisitor {
 public:
   IRGenerator() : tempCounter(0), labelCounter(0) {}
 
@@ -237,6 +215,13 @@ public:
   void visit(FunDeclNode &node) override;
   void visit(VarDeclNode &node) override;
   void visit(FunctionCallNode &node) override;
+  void visit(Ident &node) override;
+  void visit(DeclaratorNode &node) override;
+  void visit(PointerDeclarator &node) override;
+  void visit(FunDeclarator &node) override;
+  void visit(paraminfo &node) override;
+  void visit(AbstractPointer &node) override;
+  void visit(AbstractBase &node) override;
 
   // Statement visitors
   void visit(ReturnStatement &node) override;
@@ -278,13 +263,11 @@ private:
   int labelCounter;
 
   // Helper methods
-  std::string generateTempName()
-  {
+  std::string generateTempName() {
     return "tmp." + std::to_string(tempCounter++);
   }
 
-  std::string generateLabelName()
-  {
+  std::string generateLabelName() {
     return "label." + std::to_string(labelCounter++);
   }
 
@@ -293,8 +276,7 @@ private:
   IRValuePtr createTemporary();
 };
 
-class Valor
-{
+class Valor {
 public:
   Valor() = default;
   ~Valor() = default;

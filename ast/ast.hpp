@@ -3,8 +3,8 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 #include <variant>
+#include <vector>
 
 // Forward declarations
 class ASTNode;
@@ -44,6 +44,17 @@ class FunDeclNode;
 class VarDeclNode;
 class FunctionCallNode;
 class Type;
+class DeclaratorNode;
+class Ident;
+class PointerDeclarator;
+class FunDeclarator;
+class AbstractDeclarator;
+class AbstractPointer;
+class AbstractBase;
+class paraminfo;
+enum class TypeKind;
+class FunType;
+class PointerType;
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
 using ProgramNodePtr = std::unique_ptr<ProgramNode>;
@@ -55,13 +66,14 @@ using DeclarationNodePtr = std::unique_ptr<DeclarationNode>;
 using BlockNodePtr = std::unique_ptr<BlockNode>;
 using VarDeclNodePtr = std::unique_ptr<VarDeclNode>;
 using FunDeclNodePtr = std::unique_ptr<FunDeclNode>;
-
+using DeclaratorNodePtr = std::unique_ptr<DeclaratorNode>;
+using AbstractDeclaratorPtr = std::unique_ptr<AbstractDeclarator>;
+using AbstractPointerPtr = std::unique_ptr<AbstractPointer>;
+using AbstractBasePtr = std::unique_ptr<AbstractBase>;
 // Visitor interface to use visitor pattern
-class ASTVisitor
-{
+class ASTVisitor {
 public:
   virtual ~ASTVisitor() = default;
-
 
   // enum classes
   virtual void visit(Type &node) = 0;
@@ -70,10 +82,17 @@ public:
   virtual void visit(FunctionDefinitionNode &node) = 0;
   virtual void visit(BlockItemNode &node) = 0;
   virtual void visit(DeclarationNode &node) = 0;
+  virtual void visit(Ident &node) = 0;
+  virtual void visit(DeclaratorNode &node) = 0;
+  virtual void visit(PointerDeclarator &node) = 0;
+  virtual void visit(FunDeclarator &node) = 0;
   virtual void visit(BlockNode &node) = 0;
   virtual void visit(FunDeclNode &node) = 0;
   virtual void visit(VarDeclNode &node) = 0;
   virtual void visit(FunctionCallNode &node) = 0;
+  virtual void visit(AbstractPointer &node) = 0;
+  virtual void visit(AbstractBase &node) = 0;
+  virtual void visit(paraminfo &node) = 0;
 
   // Statement visitors
   virtual void visit(ReturnStatement &node) = 0;
@@ -107,48 +126,68 @@ public:
   virtual void visit(ForNode &node) = 0;
 };
 
-enum class StorageClass { STATIC, EXTERN };
-
-struct FunType {
-  std::vector<struct Type> params;
-  std::unique_ptr<struct Type> ret;
-};
-
-struct PointerType {
-  std::unique_ptr<struct Type> base;
-};
-
-enum class TypeKind {
-  INT,
-  LONG,
-  UINT,
-  ULONG,
-  DOUBLE,
-  FUNC,
-  POINTER,
-  ERROR
-};
-
-class ASTNode
-{
+class ASTNode {
 public:
   virtual ~ASTNode() = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
 
-class Type: public ASTNode {
-  public:
+enum class StorageClass { STATIC, EXTERN };
+
+struct FunType {
+  std::vector<Type> params;
+  std::unique_ptr<Type> ret;
+  FunType(std::vector<Type> params, std::unique_ptr<Type> ret)
+      : params(std::move(params)), ret(std::move(ret)) {}
+};
+
+struct PointerType {
+  std::unique_ptr<Type> base;
+  PointerType(std::unique_ptr<Type> base) : base(std::move(base)) {}
+};
+
+enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ERROR };
+
+class Type : public ASTNode {
+public:
+  std::string identifier;
   TypeKind kind;
   std::variant<std::monostate, FunType, PointerType> data;
   // default constructor for int type
   Type() : kind(TypeKind::INT), data(std::move(std::monostate{})) {}
   // constructor for other types
-  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d) : kind(k), data(std::move(d)) {}
+  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d,
+       std::string id = "")
+      : identifier(id), kind(k), data(std::move(d)) {}
+  // copy constructor
+  Type(const Type &other) : identifier(other.identifier), kind(other.kind) {
+    switch (other.kind) {
+    case TypeKind::FUNC: {
+      const auto &funType = std::get<FunType>(other.data);
+      std::vector<Type> params_copy = funType.params;
+      auto ret_copy = std::make_unique<Type>(*funType.ret);
+      data = FunType{std::move(params_copy), std::move(ret_copy)};
+      break;
+    }
+    case TypeKind::POINTER: {
+      const auto &ptrType = std::get<PointerType>(other.data);
+      auto base_copy = std::make_unique<Type>(*ptrType.base);
+      data = PointerType{std::move(base_copy)};
+      break;
+    }
+    default:
+      data = std::monostate{};
+      break;
+    }
+  }
   // move constructor
-  Type(Type&& other) noexcept : kind(other.kind), data(std::move(other.data)) {}
+  Type(Type &&other) noexcept
+      : identifier(std::move(other.identifier)), kind(other.kind),
+        data(std::move(other.data)) {}
   // move assignment
-  Type& operator=(Type&& other) noexcept {
+  Type &operator=(Type &&other) noexcept {
     if (this != &other) {
+      identifier = std::move(other.identifier);
       kind = other.kind;
       data = std::move(other.data);
     }
@@ -159,7 +198,7 @@ class Type: public ASTNode {
   static Type Long() { return Type{TypeKind::LONG, std::monostate{}}; }
   static Type UInt() { return Type{TypeKind::UINT, std::monostate{}}; }
   static Type ULong() { return Type{TypeKind::ULONG, std::monostate{}}; }
-  static Type Double() {return Type{TypeKind::DOUBLE, std::monostate{}};}
+  static Type Double() { return Type{TypeKind::DOUBLE, std::monostate{}}; }
   static Type Function(std::vector<Type> params, Type ret) {
     FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
     return Type{TypeKind::FUNC, std::move(ftype)};
@@ -170,14 +209,10 @@ class Type: public ASTNode {
   }
   static Type Error() { return Type{TypeKind::ERROR, std::monostate{}}; }
 
-  void accept(ASTVisitor &visitor) override {
-    visitor.visit(*this);
-  }
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-
-class ProgramNode : public ASTNode
-{
+class ProgramNode : public ASTNode {
 public:
   ProgramNode(std::vector<ASTNodePtr> &&Declarations)
       : Declarations(std::move(Declarations)) {}
@@ -185,23 +220,20 @@ public:
   ~ProgramNode() override = default;
 
   // double dispatch to the correct accept method
-  void accept(ASTVisitor &visitor) override
-  {
+  void accept(ASTVisitor &visitor) override {
     visitor.visit(*this); // single dispatch to the correct visit method
   }
 
   std::vector<ASTNodePtr> Declarations;
 };
 
-class FunctionDefinitionNode : public ASTNode
-{
+class FunctionDefinitionNode : public ASTNode {
 public:
   std::string name;
   ASTNodePtr body;
 
   FunctionDefinitionNode() = default;
-  FunctionDefinitionNode(std::string name,
-                         ASTNodePtr body)
+  FunctionDefinitionNode(std::string name, ASTNodePtr body)
       : name(std::move(name)), body(std::move(body)) {}
 
   ~FunctionDefinitionNode() override = default;
@@ -210,46 +242,39 @@ public:
 };
 
 // Base Statement class
-class StatementNode : public ASTNode
-{
+class StatementNode : public ASTNode {
 public:
   ~StatementNode() override = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
 
 // Specific Statement types
-class ReturnStatement : public StatementNode
-{
+class ReturnStatement : public StatementNode {
 public:
   ASTNodePtr expression;
 
-  ReturnStatement(ASTNodePtr expr)
-      : expression(std::move(expr)) {}
+  ReturnStatement(ASTNodePtr expr) : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class NullStatement : public StatementNode
-{
+class NullStatement : public StatementNode {
 public:
   NullStatement() = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class ExpressionStatement : public StatementNode
-{
+class ExpressionStatement : public StatementNode {
 public:
   ASTNodePtr expression;
 
-  ExpressionStatement(ASTNodePtr expr)
-      : expression(std::move(expr)) {}
+  ExpressionStatement(ASTNodePtr expr) : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class IfStatement : public StatementNode
-{
+class IfStatement : public StatementNode {
 public:
   ASTNodePtr condition;
   ASTNodePtr thenBranch;
@@ -261,58 +286,50 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class GotoStatement : public StatementNode
-{
+class GotoStatement : public StatementNode {
 public:
   std::string label;
   GotoStatement(std::string label) : label(std::move(label)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class LabelStatement : public StatementNode
-{
+class LabelStatement : public StatementNode {
 public:
   std::string label;
   LabelStatement(std::string label) : label(std::move(label)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class CompoundStatement : public StatementNode
-{
+class CompoundStatement : public StatementNode {
 public:
   ASTNodePtr block;
 
-  CompoundStatement(ASTNodePtr block)
-      : block(std::move(block)) {}
+  CompoundStatement(ASTNodePtr block) : block(std::move(block)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
 // Base Expression class
-class ExpressionNode : public ASTNode
-{
+class ExpressionNode : public ASTNode {
 public:
   ~ExpressionNode() override = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
 
 // Specific Expression types
-class BinaryExpression : public ExpressionNode
-{
+class BinaryExpression : public ExpressionNode {
 public:
   TokenType op;
   ASTNodePtr left;
   ASTNodePtr right;
 
-  BinaryExpression(TokenType op, ASTNodePtr left,
-                   ASTNodePtr right)
+  BinaryExpression(TokenType op, ASTNodePtr left, ASTNodePtr right)
       : op(op), left(std::move(left)), right(std::move(right)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class UnaryExpression : public ExpressionNode
-{
+class UnaryExpression : public ExpressionNode {
 public:
   TokenType op;
   ASTNodePtr operand;
@@ -323,18 +340,18 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class ConstantExpression : public ExpressionNode
-{
+class ConstantExpression : public ExpressionNode {
 public:
-  std::variant<int, long,unsigned long, unsigned int, double> value;
+  std::variant<int, long, unsigned long, unsigned int, double> value;
 
-  ConstantExpression(std::variant<int, long,unsigned long, unsigned int,double> value) : value(value) {}
+  ConstantExpression(
+      std::variant<int, long, unsigned long, unsigned int, double> value)
+      : value(value) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class VariableExpression : public ExpressionNode
-{
+class VariableExpression : public ExpressionNode {
 public:
   std::string identifier;
 
@@ -344,23 +361,20 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class AssignmentExpression : public ExpressionNode
-{
+class AssignmentExpression : public ExpressionNode {
 public:
   ASTNodePtr left;
   ASTNodePtr right;
-  TokenType type; // Type of assignment (e.g., compound_sum , compound_difference or simple assignment)
+  TokenType type; // Type of assignment (e.g., compound_sum ,
+                  // compound_difference or simple assignment)
 
-  AssignmentExpression(ASTNodePtr left,
-                       ASTNodePtr right,
-                       TokenType type)
+  AssignmentExpression(ASTNodePtr left, ASTNodePtr right, TokenType type)
       : left(std::move(left)), right(std::move(right)), type(type) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class PostfixExpression : public ExpressionNode
-{
+class PostfixExpression : public ExpressionNode {
 public:
   TokenType op; // INCREMENT_OPERATOR or DECREMENT_OPERATOR
   ASTNodePtr operand;
@@ -371,22 +385,18 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class ConditionalExpression : public ExpressionNode
-{
+class ConditionalExpression : public ExpressionNode {
 public:
   ASTNodePtr condition;
   ASTNodePtr trueExpr;
   ASTNodePtr falseExpr;
-  ConditionalExpression(ASTNodePtr cond,
-                        ASTNodePtr trueE,
-                        ASTNodePtr falseE)
+  ConditionalExpression(ASTNodePtr cond, ASTNodePtr trueE, ASTNodePtr falseE)
       : condition(std::move(cond)), trueExpr(std::move(trueE)),
         falseExpr(std::move(falseE)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class CastExpression : public ExpressionNode
-{ 
+class CastExpression : public ExpressionNode {
 public:
   Type targetType;
   ASTNodePtr expression;
@@ -397,30 +407,25 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class DereferenceExpression : public ExpressionNode
-{
+class DereferenceExpression : public ExpressionNode {
 public:
   ASTNodePtr pointerExpr;
 
-  DereferenceExpression(ASTNodePtr ptrExpr)
-      : pointerExpr(std::move(ptrExpr)) {}
+  DereferenceExpression(ASTNodePtr ptrExpr) : pointerExpr(std::move(ptrExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class AddressOfExpression : public ExpressionNode
-{
+class AddressOfExpression : public ExpressionNode {
 public:
   ASTNodePtr variableExpr;
 
-  AddressOfExpression(ASTNodePtr varExpr)
-      : variableExpr(std::move(varExpr)) {}
+  AddressOfExpression(ASTNodePtr varExpr) : variableExpr(std::move(varExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class BlockItemNode : public ASTNode
-{
+class BlockItemNode : public ASTNode {
 public:
   ASTNodePtr block_item = nullptr;
 
@@ -431,8 +436,7 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class DeclarationNode : public ASTNode
-{
+class DeclarationNode : public ASTNode {
 public:
   ASTNodePtr declaration = nullptr; // var_decl or fun_decl
   DeclarationNode() = default;
@@ -443,56 +447,119 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class FunDeclNode : public ASTNode
-{
+class DeclaratorNode : public ASTNode {
+public:
+  virtual ~DeclaratorNode() = default;
+  DeclaratorNode(DeclaratorNode &&other) = default;
+  DeclaratorNode() = default;
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class Ident : public DeclaratorNode {
+public:
+  std::string identifier;
+
+  Ident(std::string identifier) : identifier(std::move(identifier)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class PointerDeclarator : public DeclaratorNode {
+public:
+  ASTNodePtr declarator;
+
+  PointerDeclarator(ASTNodePtr declarator)
+      : declarator(std::move(declarator)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class FunDeclarator : public DeclaratorNode {
+public:
+  std::vector<paraminfo> params;
+  ASTNodePtr declarator;
+
+  FunDeclarator(std::vector<paraminfo> params, ASTNodePtr declarator)
+      : params(std::move(params)), declarator(std::move(declarator)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class AbstractDeclarator : public ASTNode {
+public:
+  virtual ~AbstractDeclarator() = default;
+};
+
+class AbstractBase : public AbstractDeclarator {
+public:
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class AbstractPointer : public AbstractDeclarator {
+public:
+  ASTNodePtr base; // AbstractDeclarator type
+  AbstractPointer(ASTNodePtr base) : base(std::move(base)) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class paraminfo : public ASTNode {
+public:
+  Type type; // parameter type
+  ASTNodePtr declarator;
+  paraminfo(Type type, ASTNodePtr declarator)
+      : type(std::move(type)), declarator(std::move(declarator)) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
+class FunDeclNode : public ASTNode {
 public:
   std::string name;
-  std::vector<std::string> params;
-  std::optional<ASTNodePtr> body; // block
-  Type type; // type specifier
-  std::optional<TokenType> storage_class; // storage
+  std::vector<std::string> param_names;
+  std::optional<ASTNodePtr> body;         // block
+  Type type;                              // return type
+  std::optional<TokenType> storage_class; // storage class
   FunDeclNode() = default;
-  FunDeclNode(std::string name, std::vector<std::string> params, ASTNodePtr body)
-      : name(std::move(name)), params(std::move(params)), body(std::move(body)) {}
-  FunDeclNode(std::string name, std::vector<std::string> params)
-      : name(std::move(name)), params(std::move(params)), body(std::nullopt) {}
+  FunDeclNode(std::string name, std::vector<std::string> param_names,
+              ASTNodePtr body)
+      : name(std::move(name)), param_names(std::move(param_names)),
+        body(std::move(body)) {}
+  FunDeclNode(std::string name, std::vector<std::string> param_names)
+      : name(std::move(name)), param_names(std::move(param_names)),
+        body(std::nullopt) {}
   ~FunDeclNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class VarDeclNode : public ASTNode
-{
+class VarDeclNode : public ASTNode {
 public:
   std::string name;
-  std::optional<ASTNodePtr> init; // optional initializer expression
-  Type type; // type specifier
+  std::optional<ASTNodePtr> init;         // optional initializer expression
+  Type type;                              // type specifier
   std::optional<TokenType> storage_class; // storage
   VarDeclNode() = default;
   VarDeclNode(std::string name, ASTNodePtr init)
       : name(std::move(name)), init(std::move(init)) {}
-  VarDeclNode(std::string name)
-      : name(std::move(name)), init(std::nullopt) {}
+  VarDeclNode(std::string name) : name(std::move(name)), init(std::nullopt) {}
+  VarDeclNode(std::string name, Type type)
+      : name(std::move(name)), type(std::move(type)) {}
   ~VarDeclNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class BlockNode : public ASTNode
-{
+class BlockNode : public ASTNode {
 public:
   std::vector<ASTNodePtr> block_items;
 
-  BlockNode(std::vector<ASTNodePtr> items)
-      : block_items(std::move(items)) {}
+  BlockNode(std::vector<ASTNodePtr> items) : block_items(std::move(items)) {}
 
   ~BlockNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class ForInit : public ASTNode
-{
+class ForInit : public ASTNode {
 public:
   ASTNodePtr init;
   ForInit() = default;
@@ -503,8 +570,7 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class InitDecl : public ForInit
-{
+class InitDecl : public ForInit {
 public:
   ASTNodePtr init; // var_decl
   InitDecl(ASTNodePtr init) : init(std::move(init)) {}
@@ -514,8 +580,7 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class InitExp : public ForInit
-{
+class InitExp : public ForInit {
 public:
   std::optional<ASTNodePtr> init;
   InitExp(std::optional<ASTNodePtr> init) : init(std::move(init)) {}
@@ -523,8 +588,7 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class BreakNode : public StatementNode
-{
+class BreakNode : public StatementNode {
 public:
   std::string label;
   BreakNode() = default;
@@ -533,8 +597,7 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class ContinueNode : public StatementNode
-{
+class ContinueNode : public StatementNode {
 public:
   std::string label;
   ContinueNode() = default;
@@ -543,50 +606,51 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class WhileNode : public StatementNode
-{
+class WhileNode : public StatementNode {
 public:
   ASTNodePtr condition; // exp
   ASTNodePtr body;      // statement
   std::string label;    // identifier
   WhileNode(ASTNodePtr condition, ASTNodePtr body, std::string label = "")
-      : condition(std::move(condition)), body(std::move(body)), label(std::move(label)) {}
+      : condition(std::move(condition)), body(std::move(body)),
+        label(std::move(label)) {}
 
   WhileNode() = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class DoWhileNode : public StatementNode
-{
+class DoWhileNode : public StatementNode {
 public:
   ASTNodePtr condition; // exp
   ASTNodePtr body;      // statement
   std::string label;    // identifier
   DoWhileNode(ASTNodePtr condition, ASTNodePtr body, std::string label = "")
-      : condition(std::move(condition)), body(std::move(body)), label(std::move(label)) {}
+      : condition(std::move(condition)), body(std::move(body)),
+        label(std::move(label)) {}
 
   DoWhileNode() = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class ForNode : public StatementNode
-{
+class ForNode : public StatementNode {
 public:
   ASTNodePtr init;                     // for_init
   std::optional<ASTNodePtr> condition; // exp
   std::optional<ASTNodePtr> post;      // exp
   ASTNodePtr body;                     // s tatement
   std::string label;
-  ForNode(ASTNodePtr init, std::optional<ASTNodePtr> condition, std::optional<ASTNodePtr> post, ASTNodePtr body, std::string label = "")
-      : init(std::move(init)), condition(std::move(condition)), post(std::move(post)), body(std::move(body)), label(std::move(label)) {}
+  ForNode(ASTNodePtr init, std::optional<ASTNodePtr> condition,
+          std::optional<ASTNodePtr> post, ASTNodePtr body,
+          std::string label = "")
+      : init(std::move(init)), condition(std::move(condition)),
+        post(std::move(post)), body(std::move(body)), label(std::move(label)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
-class FunctionCallNode : public ExpressionNode
-{
+class FunctionCallNode : public ExpressionNode {
 public:
   std::string name;
   std::vector<ASTNodePtr> args;
