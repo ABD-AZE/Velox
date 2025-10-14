@@ -4,6 +4,7 @@
 #include "../token/token.hpp"
 #include "../utils/token_classifier.hpp"
 #include "../utils/type_utils.hpp"
+#include "../utils/termcolor.hpp"
 #include <algorithm>
 #include <iostream>
 #include <map>

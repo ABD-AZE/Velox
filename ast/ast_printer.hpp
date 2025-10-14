@@ -1,5 +1,6 @@
 #pragma once
 #include "../utils/token_classifier.hpp"
+#include "../utils/termcolor.hpp"
 #include "ast.hpp"
 #include <iostream>
 #include <string>

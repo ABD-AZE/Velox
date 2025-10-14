@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include <format>
 
 Token Parser::consume() {
   if (currentIndex < tokenSize) {
@@ -36,15 +37,30 @@ bool Parser::expect(TokenType actual, TokenType expected) {
 }
 
 void Parser::printErrors() const {
+  using namespace termcolor;
+
+  if (errors.empty()) {
+    std::cout << green << "[ok] No syntax errors.\n" << reset;
+    return;
+  }
+
+  std::cout << bold << red << "[errors] Syntax errors found: " << errors.size()
+            << "\n" << reset;
+
   for (const auto &error : errors) {
     if (error.actualToken == TokenType::WS) {
-      std::cerr << "Error at line " << error.lineNumber << ", column "
-                << error.columnNumber << " " << error.expected << std::endl;
+      std::cout << red
+                << "  " << error.lineNumber << ":" << error.columnNumber
+                << ": expected " << error.expected << ", found whitespace\n"
+                << reset;
       continue;
     }
-    std::cerr << "Error at line " << error.lineNumber << ", column "
-              << error.columnNumber << " " << error.expected << ", but got "
-              << TokenTypeToString(error.actualToken) << std::endl;
+
+    std::cout << red
+              << "  " << error.lineNumber << ":" << error.columnNumber
+              << ": expected " << error.expected << ", but got "
+              << TokenTypeToString(error.actualToken) << "\n"
+              << reset;
   }
 }
 
