@@ -37,6 +37,7 @@ bool Parser::expect(TokenType actual, TokenType expected) {
 }
 
 void Parser::printErrors() const {
+<<<<<<< Updated upstream
   using namespace termcolor;
 
   if (errors.empty()) {
@@ -45,19 +46,24 @@ void Parser::printErrors() const {
   }
 
   std::cout << bold << red << "[errors] Syntax errors found: " << errors.size()
-            << "\n" << reset;
+            << "\n"
+            << reset;
 
   for (const auto &error : errors) {
     if (error.actualToken == TokenType::WS) {
-      std::cout << red
-                << "  " << error.lineNumber << ":" << error.columnNumber
+      std::cout << red << "  " << error.lineNumber << ":" << error.columnNumber
                 << ": expected " << error.expected << ", found whitespace\n"
                 << reset;
+=======
+  for (const auto &error : errors) {
+    if (error.actualToken == TokenType::WS) {
+      std::cerr << "Error at line " << error.lineNumber << ", column "
+                << error.columnNumber << " " << error.expected << std::endl;
+>>>>>>> Stashed changes
       continue;
     }
 
-    std::cout << red
-              << "  " << error.lineNumber << ":" << error.columnNumber
+    std::cout << red << "  " << error.lineNumber << ":" << error.columnNumber
               << ": expected " << error.expected << ", but got "
               << TokenTypeToString(error.actualToken) << "\n"
               << reset;
