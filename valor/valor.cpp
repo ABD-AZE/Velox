@@ -146,67 +146,44 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
 }
 
 // Stub implementations for other visitor methods
-void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */
-}
+void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    DeclarationNode &node) { /* Handle declarations if needed */
-}
-void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */
-}
-void IRGenerator::visit(NullStatement &node) { /* Nothing to do */
-}
+    DeclarationNode &node) { /* Handle declarations if needed */ }
+void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */ }
+void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
 void IRGenerator::visit(IfStatement &node) { /* TODO: Implement control flow */
 }
-void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */
-}
-void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */
-}
+void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
+void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
 void IRGenerator::visit(
-    CompoundStatement &node) { /* Handle compound statements */
-}
+    CompoundStatement &node) { /* Handle compound statements */ }
 void IRGenerator::visit(PostfixExpression &node) { /* TODO: Implement postfix */
 }
 void IRGenerator::visit(
-    ConditionalExpression &node) { /* TODO: Implement ternary */
-}
-void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */
-}
+    ConditionalExpression &node) { /* TODO: Implement ternary */ }
+void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */ }
 void IRGenerator::visit(
-    DereferenceExpression &node) { /* TODO: Implement dereference */
-}
+    DereferenceExpression &node) { /* TODO: Implement dereference */ }
 void IRGenerator::visit(
-    AddressOfExpression &node) { /* TODO: Implement address-of */
-}
-void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */
-}
-void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */
-}
-void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */
-}
-void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */
-}
-void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */
-}
-void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */
-}
-void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */
-}
-void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */
-}
+    AddressOfExpression &node) { /* TODO: Implement address-of */ }
+void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
+void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
+void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
+void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */ }
+void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */ }
+void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */ }
+void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */ }
+void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
 }
 void IRGenerator::visit(
-    DeclaratorNode &node) { /* Not needed for basic IR generation */
-}
+    DeclaratorNode &node) { /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    PointerDeclarator &node) { /* Not needed for basic IRgeneration */
-}
+    PointerDeclarator &node) { /* Not needed for basic IRgeneration */ }
 void IRGenerator::visit(
-    FunDeclarator &node) { /* Not needed for basic IR generation */
-}
+    FunDeclarator &node) { /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    paraminfo &node) { /* Not needed for basic IR generation */
-}
+    paraminfo &node) { /* Not needed for basic IR generation */ }
 void IRGenerator::visit(AbstractPointer &node) {}
 void IRGenerator::visit(AbstractBase &node) {}
 

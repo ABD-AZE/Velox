@@ -7,11 +7,11 @@ int main(int argc, char *argv[]) {
   bool lexflag = 0;
   bool parseflag = 0;
   bool irflag = 0;
-  // if (argc < 2) {
-  //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
-  //   return 1;
-  // }
-  std::string source = "tests/parser_tests/test1.vlx";
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
+    return 1;
+  }
+  std::string source = "";
   // set the flags based on --parse and --lex options
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -28,6 +28,22 @@ int main(int argc, char *argv[]) {
   if (source.empty()) {
     return 1;
   }
+  // preprocess the source file to handle includes
+  std::ifstream file(source);
+  if (!file.is_open()) {
+    std::cerr << "Could not open source file: " << source << std::endl;
+    return 1;
+  }
+  // running gcc -E -P INPUT_FILE -o PREPROCESSED_FILE
+  std::string preprocessedFile =
+      source.substr(0, source.find_last_of('.')) + ".i";
+  std::string command = "gcc -E -P " + source + " -o " + preprocessedFile;
+  int ret = system(command.c_str());
+  if (ret != 0) {
+    std::cerr << "Preprocessing failed." << std::endl;
+    return 1;
+  }
+  source = preprocessedFile;
   Lexer lexer(source);
   lexer.GenerateTokens();
   if (!lexer.success) {

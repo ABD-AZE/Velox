@@ -45,19 +45,18 @@ void Parser::printErrors() const {
   }
 
   std::cout << bold << red << "[errors] Syntax errors found: " << errors.size()
-            << "\n" << reset;
+            << "\n"
+            << reset;
 
   for (const auto &error : errors) {
     if (error.actualToken == TokenType::WS) {
-      std::cout << red
-                << "  " << error.lineNumber << ":" << error.columnNumber
+      std::cout << red << "  " << error.lineNumber << ":" << error.columnNumber
                 << ": expected " << error.expected << ", found whitespace\n"
                 << reset;
       continue;
     }
 
-    std::cout << red
-              << "  " << error.lineNumber << ":" << error.columnNumber
+    std::cout << red << "  " << error.lineNumber << ":" << error.columnNumber
               << ": expected " << error.expected << ", but got "
               << TokenTypeToString(error.actualToken) << "\n"
               << reset;
