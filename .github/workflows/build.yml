@@ -1,0 +1,41 @@
+name: Velox Build Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Clean previous builds
+        run: make clean || true # Don't fail if clean target doesn't exist
+
+      - name: Build project
+        run: make
+
+      - name: Verify build artifacts
+        run: |
+          # Check that build/velox exists and is executable
+          if [ -x build/velox ]; then
+            echo "Found executable: build/velox"
+          elif [ -f build/velox ]; then
+            echo "Found file build/velox but it's not executable; setting executable bit"
+            chmod +x build/velox
+          else
+            echo "Error: build/velox not found"
+            ls -la
+            exit 1
+          fi
+          # Show what was built
+          ls -la  # Show what was built

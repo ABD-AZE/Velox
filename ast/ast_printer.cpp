@@ -4,60 +4,61 @@
 #include <typeinfo>
 #include <variant>
 
-
 using namespace termcolor;
 
 // ---------- tiny pretty-print helpers ----------
 namespace {
-  inline void indent_spaces(int indent) {
-    for (int i = 0; i < indent; ++i) std::cout << "  ";
-  }
+inline void indent_spaces(int indent) {
+  for (int i = 0; i < indent; ++i)
+    std::cout << "  ";
+}
 
-  inline void print_open(const char* name, int indent) {
-    indent_spaces(indent);
-    std::cout << bold << cyan << name << reset << "(" << std::endl;
-  }
+inline void print_open(const char *name, int indent) {
+  indent_spaces(indent);
+  std::cout << bold << cyan << name << reset << "(" << std::endl;
+}
 
-  inline void print_close(int indent) {
-    indent_spaces(indent);
-    std::cout << ")" << std::endl;
-  }
+inline void print_close(int indent) {
+  indent_spaces(indent);
+  std::cout << ")" << std::endl;
+}
 
-  inline void print_label(const char* key, int indent) {
-    indent_spaces(indent);
-    std::cout << blue << key << reset << "=" << std::endl;
-  }
+inline void print_label(const char *key, int indent) {
+  indent_spaces(indent);
+  std::cout << blue << key << reset << "=" << std::endl;
+}
 
-  template <class T>
-  inline void print_kv(const char* key, const T& value, int indent) {
-    indent_spaces(indent);
-    std::cout << blue << key << reset << "=" << value << std::endl;
-  }
+template <class T>
+inline void print_kv(const char *key, const T &value, int indent) {
+  indent_spaces(indent);
+  std::cout << blue << key << reset << "=" << value << std::endl;
+}
 
-  inline void print_string_kv(const char* key, const std::string& value, int indent) {
-    indent_spaces(indent);
-    std::cout << blue << key << reset << "="
-              << yellow << "\"" << value << "\"" << reset << std::endl;
-  }
+inline void print_string_kv(const char *key, const std::string &value,
+                            int indent) {
+  indent_spaces(indent);
+  std::cout << blue << key << reset << "=" << yellow << "\"" << value << "\""
+            << reset << std::endl;
+}
 
-  inline void print_simple_named(const char* name, const std::string& value, int indent) {
-    indent_spaces(indent);
-    std::cout << bold << cyan << name << reset
-              << "(" << yellow << value << reset << ")" << std::endl;
-  }
+inline void print_simple_named(const char *name, const std::string &value,
+                               int indent) {
+  indent_spaces(indent);
+  std::cout << bold << cyan << name << reset << "(" << yellow << value << reset
+            << ")" << std::endl;
+}
 } // namespace
 
 // ---------- ASTPrinter methods ----------
 
 void ASTPrinter::print(const ASTNodePtr &node, int indent) {
-  if (!node) return;
+  if (!node)
+    return;
   ASTPrinter printer(indent);
   node->accept(printer);
 }
 
-void ASTPrinter::printIndent() {
-  indent_spaces(indent_);
-}
+void ASTPrinter::printIndent() { indent_spaces(indent_); }
 
 void ASTPrinter::visit(ProgramNode &node) {
   print_open("Program", indent_);
@@ -119,14 +120,24 @@ void ASTPrinter::visit(IfStatement &node) {
   increaseIndent();
 
   print_label("condition", indent_);
-  if (node.condition) { increaseIndent(); node.condition->accept(*this); decreaseIndent(); }
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("then", indent_);
-  if (node.thenBranch) { increaseIndent(); node.thenBranch->accept(*this); decreaseIndent(); }
+  if (node.thenBranch) {
+    increaseIndent();
+    node.thenBranch->accept(*this);
+    decreaseIndent();
+  }
 
   if (node.elseBranch && node.elseBranch.value()) {
     print_label("else", indent_);
-    increaseIndent(); node.elseBranch.value()->accept(*this); decreaseIndent();
+    increaseIndent();
+    node.elseBranch.value()->accept(*this);
+    decreaseIndent();
   }
 
   decreaseIndent();
@@ -166,10 +177,18 @@ void ASTPrinter::visit(BinaryExpression &node) {
   print_kv("op", TokenTypeToString(node.op), indent_);
 
   print_label("left", indent_);
-  if (node.left) { increaseIndent(); node.left->accept(*this); decreaseIndent(); }
+  if (node.left) {
+    increaseIndent();
+    node.left->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("right", indent_);
-  if (node.right) { increaseIndent(); node.right->accept(*this); decreaseIndent(); }
+  if (node.right) {
+    increaseIndent();
+    node.right->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -182,7 +201,11 @@ void ASTPrinter::visit(UnaryExpression &node) {
   print_kv("op", TokenTypeToString(node.op), indent_);
 
   print_label("operand", indent_);
-  if (node.operand) { increaseIndent(); node.operand->accept(*this); decreaseIndent(); }
+  if (node.operand) {
+    increaseIndent();
+    node.operand->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -195,10 +218,9 @@ void ASTPrinter::visit(ConstantExpression &node) {
   indent_spaces(indent_);
   std::visit(
       [&](const auto &value) {
-        std::cout << blue << "value" << reset << "="
-                  << magenta << value << reset << ", "
-                  << blue << "type"  << reset << "="
-                  << cyan << typeid(value).name() << reset << std::endl;
+        std::cout << blue << "value" << reset << "=" << magenta << value
+                  << reset << ", " << blue << "type" << reset << "=" << cyan
+                  << typeid(value).name() << reset << std::endl;
       },
       node.value);
 
@@ -215,12 +237,21 @@ void ASTPrinter::visit(AssignmentExpression &node) {
   increaseIndent();
 
   print_label("left", indent_);
-  if (node.left) { increaseIndent(); node.left->accept(*this); decreaseIndent(); }
+  if (node.left) {
+    increaseIndent();
+    node.left->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("right", indent_);
-  if (node.right) { increaseIndent(); node.right->accept(*this); decreaseIndent(); }
+  if (node.right) {
+    increaseIndent();
+    node.right->accept(*this);
+    decreaseIndent();
+  }
 
-  // note: if node.type is std::optional<TokenType>, replace condition with: if (node.type.has_value())
+  // note: if node.type is std::optional<TokenType>, replace condition with:
+  // if (node.type.has_value())
   if (node.type) {
     print_label("type", indent_);
     increaseIndent();
@@ -240,7 +271,11 @@ void ASTPrinter::visit(PostfixExpression &node) {
   print_kv("op", TokenTypeToString(node.op), indent_);
 
   print_label("operand", indent_);
-  if (node.operand) { increaseIndent(); node.operand->accept(*this); decreaseIndent(); }
+  if (node.operand) {
+    increaseIndent();
+    node.operand->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -251,13 +286,25 @@ void ASTPrinter::visit(ConditionalExpression &node) {
   increaseIndent();
 
   print_label("condition", indent_);
-  if (node.condition) { increaseIndent(); node.condition->accept(*this); decreaseIndent(); }
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("trueExp", indent_);
-  if (node.trueExpr) { increaseIndent(); node.trueExpr->accept(*this); decreaseIndent(); }
+  if (node.trueExpr) {
+    increaseIndent();
+    node.trueExpr->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("falseExp", indent_);
-  if (node.falseExpr) { increaseIndent(); node.falseExpr->accept(*this); decreaseIndent(); }
+  if (node.falseExpr) {
+    increaseIndent();
+    node.falseExpr->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -268,7 +315,11 @@ void ASTPrinter::visit(DereferenceExpression &node) {
   increaseIndent();
 
   print_label("pointerExpr", indent_);
-  if (node.pointerExpr) { increaseIndent(); node.pointerExpr->accept(*this); decreaseIndent(); }
+  if (node.pointerExpr) {
+    increaseIndent();
+    node.pointerExpr->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -279,7 +330,11 @@ void ASTPrinter::visit(AddressOfExpression &node) {
   increaseIndent();
 
   print_label("variableExpr", indent_);
-  if (node.variableExpr) { increaseIndent(); node.variableExpr->accept(*this); decreaseIndent(); }
+  if (node.variableExpr) {
+    increaseIndent();
+    node.variableExpr->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -310,7 +365,8 @@ void ASTPrinter::visit(BlockNode &node) {
 
   increaseIndent();
   for (const auto &item : node.block_items) {
-    if (item) item->accept(*this);
+    if (item)
+      item->accept(*this);
   }
   decreaseIndent();
 
@@ -368,10 +424,18 @@ void ASTPrinter::visit(WhileNode &node) {
   increaseIndent();
 
   print_label("condition", indent_);
-  if (node.condition) { increaseIndent(); node.condition->accept(*this); decreaseIndent(); }
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("body", indent_);
-  if (node.body) { increaseIndent(); node.body->accept(*this); decreaseIndent(); }
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -382,10 +446,18 @@ void ASTPrinter::visit(DoWhileNode &node) {
   increaseIndent();
 
   print_label("body", indent_);
-  if (node.body) { increaseIndent(); node.body->accept(*this); decreaseIndent(); }
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("condition", indent_);
-  if (node.condition) { increaseIndent(); node.condition->accept(*this); decreaseIndent(); }
+  if (node.condition) {
+    increaseIndent();
+    node.condition->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -396,16 +468,32 @@ void ASTPrinter::visit(ForNode &node) {
   increaseIndent();
 
   print_label("init", indent_);
-  if (node.init) { increaseIndent(); node.init->accept(*this); decreaseIndent(); }
+  if (node.init) {
+    increaseIndent();
+    node.init->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("condition", indent_);
-  if (node.condition) { increaseIndent(); node.condition.value()->accept(*this); decreaseIndent(); }
+  if (node.condition) {
+    increaseIndent();
+    node.condition.value()->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("post", indent_);
-  if (node.post) { increaseIndent(); node.post.value()->accept(*this); decreaseIndent(); }
+  if (node.post) {
+    increaseIndent();
+    node.post.value()->accept(*this);
+    decreaseIndent();
+  }
 
   print_label("body", indent_);
-  if (node.body) { increaseIndent(); node.body->accept(*this); decreaseIndent(); }
+  if (node.body) {
+    increaseIndent();
+    node.body->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -418,14 +506,18 @@ void ASTPrinter::visit(FunDeclNode &node) {
   print_string_kv("name", node.name, indent_);
 
   print_label("type", indent_);
-  increaseIndent(); node.type.accept(*this); decreaseIndent();
+  increaseIndent();
+  node.type.accept(*this);
+  decreaseIndent();
 
   if (node.storage_class.has_value()) {
-    print_kv("storage_class", TokenTypeToString(node.storage_class.value()), indent_);
+    print_kv("storage_class", TokenTypeToString(node.storage_class.value()),
+             indent_);
   }
 
   print_label("parameters", indent_);
-  indent_spaces(indent_); std::cout << "[" << std::endl;
+  indent_spaces(indent_);
+  std::cout << "[" << std::endl;
   if (!node.param_names.empty()) {
     increaseIndent();
     for (const auto &param : node.param_names) {
@@ -433,11 +525,14 @@ void ASTPrinter::visit(FunDeclNode &node) {
     }
     decreaseIndent();
   }
-  indent_spaces(indent_); std::cout << "]," << std::endl;
+  indent_spaces(indent_);
+  std::cout << "]," << std::endl;
 
   if (node.body) {
     print_label("body", indent_);
-    increaseIndent(); node.body.value()->accept(*this); decreaseIndent();
+    increaseIndent();
+    node.body.value()->accept(*this);
+    decreaseIndent();
   } else {
     print_kv("body", "null", indent_);
   }
@@ -453,15 +548,20 @@ void ASTPrinter::visit(VarDeclNode &node) {
   print_string_kv("name", node.name, indent_);
 
   print_label("type", indent_);
-  increaseIndent(); node.type.accept(*this); decreaseIndent();
+  increaseIndent();
+  node.type.accept(*this);
+  decreaseIndent();
 
   if (node.storage_class.has_value()) {
-    print_kv("storage_class", TokenTypeToString(node.storage_class.value()), indent_);
+    print_kv("storage_class", TokenTypeToString(node.storage_class.value()),
+             indent_);
   }
 
   if (node.init.has_value()) {
     print_label("init", indent_);
-    increaseIndent(); node.init.value()->accept(*this); decreaseIndent();
+    increaseIndent();
+    node.init.value()->accept(*this);
+    decreaseIndent();
   }
 
   decreaseIndent();
@@ -475,15 +575,18 @@ void ASTPrinter::visit(FunctionCallNode &node) {
   print_string_kv("name", node.name, indent_);
 
   print_label("arguments", indent_);
-  indent_spaces(indent_); std::cout << "[" << std::endl;
+  indent_spaces(indent_);
+  std::cout << "[" << std::endl;
   if (!node.args.empty()) {
     increaseIndent();
     for (const auto &arg : node.args) {
-      if (arg) arg->accept(*this);
+      if (arg)
+        arg->accept(*this);
     }
     decreaseIndent();
   }
-  indent_spaces(indent_); std::cout << "]" << std::endl;
+  indent_spaces(indent_);
+  std::cout << "]" << std::endl;
 
   decreaseIndent();
   print_close(indent_);
@@ -502,10 +605,16 @@ void ASTPrinter::visit(CastExpression &node) {
   increaseIndent();
 
   print_label("targetType", indent_);
-  increaseIndent(); node.targetType.accept(*this); decreaseIndent();
+  increaseIndent();
+  node.targetType.accept(*this);
+  decreaseIndent();
 
   print_label("expression", indent_);
-  if (node.expression) { increaseIndent(); node.expression->accept(*this); decreaseIndent(); }
+  if (node.expression) {
+    increaseIndent();
+    node.expression->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -528,7 +637,8 @@ void ASTPrinter::visit(DeclaratorNode &node) {
 void ASTPrinter::visit(PointerDeclarator &node) {
   print_open("PointerDeclarator", indent_);
   increaseIndent();
-  if (node.declarator) node.declarator->accept(*this);
+  if (node.declarator)
+    node.declarator->accept(*this);
   decreaseIndent();
   print_close(indent_);
 }
@@ -539,11 +649,17 @@ void ASTPrinter::visit(FunDeclarator &node) {
 
   print_label("params", indent_);
   increaseIndent();
-  for (auto &param : node.params) { param.accept(*this); }
+  for (auto &param : node.params) {
+    param.accept(*this);
+  }
   decreaseIndent();
 
   print_label("declarator", indent_);
-  if (node.declarator) { increaseIndent(); node.declarator->accept(*this); decreaseIndent(); }
+  if (node.declarator) {
+    increaseIndent();
+    node.declarator->accept(*this);
+    decreaseIndent();
+  }
 
   decreaseIndent();
   print_close(indent_);
@@ -554,13 +670,20 @@ void ASTPrinter::visit(paraminfo &node) {
   increaseIndent();
 
   print_label("type", indent_);
-  increaseIndent(); node.type.accept(*this); decreaseIndent();
+  increaseIndent();
+  node.type.accept(*this);
+  decreaseIndent();
 
   print_label("declarator", indent_);
   if (node.declarator) {
-    increaseIndent(); node.declarator->accept(*this); decreaseIndent();
+    increaseIndent();
+    node.declarator->accept(*this);
+    decreaseIndent();
   } else {
-    increaseIndent(); indent_spaces(indent_); std::cout << "null" << std::endl; decreaseIndent();
+    increaseIndent();
+    indent_spaces(indent_);
+    std::cout << "null" << std::endl;
+    decreaseIndent();
   }
 
   decreaseIndent();
@@ -570,7 +693,8 @@ void ASTPrinter::visit(paraminfo &node) {
 void ASTPrinter::visit(AbstractPointer &node) {
   print_open("AbstractPointer", indent_);
   increaseIndent();
-  if (node.base) node.base->accept(*this);
+  if (node.base)
+    node.base->accept(*this);
   decreaseIndent();
   print_close(indent_);
 }
