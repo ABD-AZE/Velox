@@ -5,7 +5,9 @@
 #include "../utils/termcolor.hpp"
 #include "../utils/token_classifier.hpp"
 #include "../utils/type_utils.hpp"
+#include "../semantic_analysis/semantic_analysis.hpp"
 #include <algorithm>
+#include <format>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -32,7 +34,7 @@ public:
   Parser(const std::vector<Token> &tokens);
   // Error handling and status
   bool isSuccessful() const { return success; }
-  const ASTNodePtr &parseProgram();
+  ASTNodePtr &parseProgram();
   const std::vector<ParserErrorInfo> &getErrors() const { return errors; }
   void printErrors() const;
   const ASTNodePtr &getAST() const { return ast; }

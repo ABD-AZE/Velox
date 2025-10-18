@@ -3,9 +3,9 @@
 
 constexpr TypeKind TokenTypeToTypeKind(TokenType t) {
   switch (t) {
-  case TokenType::INT:
+  case TokenType::INT_CONSTANT:
     return TypeKind::INT;
-  case TokenType::LONG:
+  case TokenType::LONG_CONSTANT:
     return TypeKind::LONG;
   case TokenType::UINT_CONSTANT:
     return TypeKind::UINT;
@@ -21,9 +21,9 @@ constexpr TypeKind TokenTypeToTypeKind(TokenType t) {
 constexpr TokenType TypeKindToTokenType(TypeKind k) {
   switch (k) {
   case TypeKind::INT:
-    return TokenType::INT;
+    return TokenType::INT_CONSTANT;
   case TypeKind::LONG:
-    return TokenType::LONG;
+    return TokenType::LONG_CONSTANT;
   case TypeKind::UINT:
     return TokenType::UINT_CONSTANT;
   case TypeKind::ULONG:

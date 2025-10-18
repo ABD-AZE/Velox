@@ -119,6 +119,10 @@ std::string IRFunctionNode::toString() const {
   std::stringstream ss;
   ss << "function " << identifier << "() {\n";
   for (const auto &instruction : instructions) {
+    if(instruction->opType == IROpType::LABEL){
+      ss << instruction->toString()<< ":\n";
+      continue;
+    }
     ss << "    " << instruction->toString() << "\n";
   }
   ss << "}\n";
@@ -145,47 +149,130 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
   return std::move(program);
 }
 
-// Stub implementations for other visitor methods
-void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
-void IRGenerator::visit(
-    DeclarationNode &node) { /* Handle declarations if needed */ }
-void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */ }
-void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
-void IRGenerator::visit(IfStatement &node) { /* TODO: Implement control flow */
+void IRGenerator::visit(IfStatement &node) { 
+  if (node.condition) {
+    // Generate IR for condition
+    node.condition->accept(*this);
+    IRValuePtr conditionValue = std::make_shared<IRValueNode>(*currentValue);
+
+    // Generate labels for branching
+    std::string elseLabel = generateLabelName();
+    std::string endLabel = generateLabelName();
+
+    // Create jump instruction based on condition
+    auto jumpInst = IRInstructionNode::makeJumpIfZero(
+        std::move(conditionValue), elseLabel);
+    currentFunction->addInstruction(std::move(jumpInst));
+
+    // Generate IR for 'then' block
+    if (node.thenBranch) {
+      node.thenBranch->accept(*this);
+    }
+
+    // Jump to end after 'then' block
+    auto jumpToEndInst = IRInstructionNode::makeJump(endLabel);
+    currentFunction->addInstruction(std::move(jumpToEndInst));
+
+    // Else label
+    auto elseLabelInst = IRInstructionNode::makeLabel(elseLabel);
+    currentFunction->addInstruction(std::move(elseLabelInst));
+
+    // Generate IR for 'else' block if it exists
+    if (node.elseBranch) {
+      (*node.elseBranch)->accept(*this);
+    }
+
+    // End label
+    auto endLabelInst = IRInstructionNode::makeLabel(endLabel);
+    currentFunction->addInstruction(std::move(endLabelInst));
+  }
 }
-void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
-void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
-void IRGenerator::visit(
-    CompoundStatement &node) { /* Handle compound statements */ }
-void IRGenerator::visit(PostfixExpression &node) { /* TODO: Implement postfix */
+
+void IRGenerator::visit(PostfixExpression &node) { 
+  if (node.operand) {
+    // Generate IR for operand
+    node.operand->accept(*this);
+    IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
+
+    // Create temporary for result
+    IRValuePtr result = createTemporary();
+
+    // Convert token type to IR operation
+    IROpType irOp;
+    if (node.op == TokenType::INCREMENT_OPERATOR) {
+      irOp = IROpType::ADD;
+    } else if (node.op == TokenType::DECREMENT_OPERATOR) {
+      irOp = IROpType::SUBTRACT;
+    } else {
+      // Unsupported postfix operation
+      return;
+    }
+
+    // Create constant value of 1
+    IRValuePtr one = IRValueNode::makeConstant(1);
+
+    // Create postfix instruction
+    auto inst = IRInstructionNode::makeBinary(
+        irOp, result, std::move(operand), std::move(one));
+    currentFunction->addInstruction(std::move(inst));
+
+    // Update current value to the result
+    currentValue = result;
+  }
+
 }
 void IRGenerator::visit(
-    ConditionalExpression &node) { /* TODO: Implement ternary */ }
-void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */ }
-void IRGenerator::visit(
-    DereferenceExpression &node) { /* TODO: Implement dereference */ }
-void IRGenerator::visit(
-    AddressOfExpression &node) { /* TODO: Implement address-of */ }
-void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
-void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
-void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
-void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */ }
-void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */ }
-void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */ }
-void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */ }
-void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */ }
-void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
+    ConditionalExpression &node) { 
+    if (node.condition) {
+    // Generate IR for condition
+    node.condition->accept(*this);
+    IRValuePtr conditionValue = std::make_shared<IRValueNode>(*currentValue);
+
+    // Generate labels for branching
+    std::string falseLabel = generateLabelName();
+    std::string endLabel = generateLabelName();
+
+    // Create jump instruction based on condition
+    auto jumpInst = IRInstructionNode::makeJumpIfZero(
+        std::move(conditionValue), falseLabel);
+    currentFunction->addInstruction(std::move(jumpInst));
+
+    // Generate IR for 'then' block
+    if (node.trueExpr) {
+      node.trueExpr->accept(*this);
+    }
+    IRValuePtr trueExprValue = std::make_shared<IRValueNode>(*currentValue);
+    // Create a temporary variable to hold the result of the true expression
+    IRValuePtr result = createTemporary();
+    // Assign true expression value to result
+    auto copyTrueInst = IRInstructionNode::makeCopy(
+        std::move(trueExprValue), std::make_shared<IRValueNode>(result));
+    currentFunction->addInstruction(std::move(copyTrueInst));
+
+    // Jump to end after 'then' block
+    auto jumpToEndInst = IRInstructionNode::makeJump(endLabel);
+    currentFunction->addInstruction(std::move(jumpToEndInst));
+
+    // False label
+    auto falseLabelInst = IRInstructionNode::makeLabel(falseLabel);
+    currentFunction->addInstruction(std::move(falseLabelInst));
+
+    // Generate IR for 'false' block if it exists
+    if (node.falseExpr) {
+      (node.falseExpr)->accept(*this);
+    }
+
+    IRValuePtr falseExprValue = std::make_shared<IRValueNode>(*currentValue);
+    // Assign false expression value to result
+    auto copyFalseInst = IRInstructionNode::makeCopy(
+        std::move(falseExprValue), std::make_shared<IRValueNode>(result));;
+    currentFunction->addInstruction(std::move(copyFalseInst));
+    // End label
+    auto endLabelInst = IRInstructionNode::makeLabel(endLabel);
+    currentFunction->addInstruction(std::move(endLabelInst));
+    currentValue = result;
+  }
 }
-void IRGenerator::visit(
-    DeclaratorNode &node) { /* Not needed for basic IR generation */ }
-void IRGenerator::visit(
-    PointerDeclarator &node) { /* Not needed for basic IRgeneration */ }
-void IRGenerator::visit(
-    FunDeclarator &node) { /* Not needed for basic IR generation */ }
-void IRGenerator::visit(
-    paraminfo &node) { /* Not needed for basic IR generation */ }
-void IRGenerator::visit(AbstractPointer &node) {}
-void IRGenerator::visit(AbstractBase &node) {}
 
 void IRGenerator::visit(ProgramNode &node) {
   // Process all declarations in the program
@@ -221,6 +308,8 @@ void IRGenerator::visit(FunDeclNode &node) {
   if (node.body) {
     (*node.body)->accept(*this);
   }
+  func->addInstruction(
+      IRInstructionNode::makeReturn(IRValueNode::makeConstant(0))); // Ensure function ends with return
   program->addFunction(std::move(func));
   currentFunction = nullptr;
 }
@@ -523,3 +612,40 @@ IRValuePtr IRGenerator::createTemporary() {
 IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
   return generator.generateIR(ast);
 }
+
+
+// <------------------------------------------------------------------------------------->
+void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
+void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
+void IRGenerator::visit(
+    CompoundStatement &node) { /* Handle compound statements */ }
+void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */ }
+void IRGenerator::visit(
+    DereferenceExpression &node) { /* TODO: Implement dereference */ }
+void IRGenerator::visit(
+    AddressOfExpression &node) { /* TODO: Implement address-of */ }
+void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
+void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
+void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
+void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */ }
+void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */ }
+void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */ }
+void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */ }
+void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */ }
+void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
+}
+void IRGenerator::visit(
+    DeclaratorNode &node) { /* Not needed for basic IR generation */ }
+void IRGenerator::visit(
+    PointerDeclarator &node) { /* Not needed for basic IRgeneration */ }
+void IRGenerator::visit(
+    FunDeclarator &node) { /* Not needed for basic IR generation */ }
+void IRGenerator::visit(
+    paraminfo &node) { /* Not needed for basic IR generation */ }
+void IRGenerator::visit(AbstractPointer &node) {}
+void IRGenerator::visit(AbstractBase &node) {}
+void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
+void IRGenerator::visit(
+    DeclarationNode &node) { /* Handle declarations if needed */ }
+void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */ }
+void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }

@@ -63,6 +63,15 @@ public:
   std::string name;
 
   // Constructors
+  // copy ctr
+  IRValueNode(IRValuePtr other){
+    type = other->type;
+    intValue = other->intValue;
+    name = other->name;
+  }
+  
+  IRValueNode() = default;
+
   static IRValuePtr makeConstant(int value) {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
@@ -201,7 +210,7 @@ public:
 // IR Generator using visitor pattern
 class IRGenerator : public ASTVisitor {
 public:
-  IRGenerator() : tempCounter(0), labelCounter(0) {}
+  IRGenerator() : tempCounter(), labelCounter() {}
 
   IRProgramPtr generateIR(const ASTNodePtr &ast);
 
