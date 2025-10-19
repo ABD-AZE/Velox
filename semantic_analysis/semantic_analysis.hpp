@@ -1,6 +1,7 @@
 #pragma once
 #include "../ast/ast.hpp"
 #include <map>
+#include <stack>
 #include <string>
 #include <vector>
 
@@ -73,6 +74,7 @@ public:
   std::vector<std::string> errors;
 
 private:
+  // stores the updated variable names for the current scope, the current scope being the last element in the stack
   std::map<std::string, std::string> variable_map;
 
   // Helper methods

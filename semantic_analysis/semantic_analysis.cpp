@@ -39,9 +39,11 @@ void SemanticAnalyzer::analyze(ASTNodePtr &ast)
   }
 }
 
+// push the parent scope's variable map onto the stack and reset the current variable map
 void SemanticAnalyzer::pushScope()
 {
   scope_stack.push_back(variable_map);
+  variable_map.clear();
 }
 
 void SemanticAnalyzer::popScope()
@@ -72,14 +74,6 @@ void SemanticAnalyzer::visit(FunctionDefinitionNode &node)
   {
     node.body->accept(*this);
   }
-
-  // Visit the function body with a new scope
-  // if (node.body)
-  // {
-  //   pushScope();
-  //   node.body->accept(*this);
-  //   popScope();
-  // }
 }
 
 void SemanticAnalyzer::visit(FunDeclNode &node)
@@ -116,6 +110,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
 
 void SemanticAnalyzer::visit(BlockNode &node)
 {
+  pushScope();
   for (auto &item : node.block_items)
   {
     if (item)
@@ -123,6 +118,7 @@ void SemanticAnalyzer::visit(BlockNode &node)
       item->accept(*this);
     }
   }
+  popScope();
 }
 
 void SemanticAnalyzer::visit(BlockItemNode &node)
@@ -238,8 +234,6 @@ void SemanticAnalyzer::visit(DoWhileNode &node)
 
 void SemanticAnalyzer::visit(ForNode &node)
 {
-  pushScope();
-
   // Resolve init
   if (node.init)
   {
@@ -263,8 +257,6 @@ void SemanticAnalyzer::visit(ForNode &node)
   {
     node.body->accept(*this);
   }
-
-  popScope();
 }
 
 void SemanticAnalyzer::visit(BreakNode &node)
@@ -380,17 +372,29 @@ void SemanticAnalyzer::visit(ConstantExpression &node)
 
 void SemanticAnalyzer::visit(VariableExpression &node)
 {
-  // Check if variable is declared
-  auto it = variable_map.find(node.identifier);
-  if (it == variable_map.end())
+
+  // check if variable is in current scope
+  auto found_current = variable_map.find(node.identifier);
+  if (found_current != variable_map.end())
   {
-    success = 0;
-    errors.push_back("Variable '" + node.identifier + "' used before declaration");
+    // Replace with unique name
+    node.identifier = found_current->second;
     return;
   }
-
-  // Replace with unique name
-  node.identifier = it->second;
+  // Check if variable is declared in parent scopes
+  for(auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it)
+  {
+    auto found = it->find(node.identifier);
+    if (found != it->end())
+    {
+      // Replace with unique name
+      node.identifier = found->second;
+      return;
+    }
+  }
+  success = 0;
+  errors.push_back("Variable '" + node.identifier + "' used before declaration");
+  return;
 }
 
 void SemanticAnalyzer::visit(ConditionalExpression &node)

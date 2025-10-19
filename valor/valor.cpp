@@ -613,12 +613,14 @@ IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
   return generator.generateIR(ast);
 }
 
+void IRGenerator::visit(
+    CompoundStatement &node) {
+  node.block->accept(*this);
+}
 
 // <------------------------------------------------------------------------------------->
 void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
 void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
-void IRGenerator::visit(
-    CompoundStatement &node) { /* Handle compound statements */ }
 void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */ }
 void IRGenerator::visit(
     DereferenceExpression &node) { /* TODO: Implement dereference */ }
