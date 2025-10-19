@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
     return 0;
   }
   // Generate IR
-  Valor valor;
+  Valor valor(semanticAnalyzer.label_counter);
   auto irProgram = valor.convertToIR(ast);
   std::cout << "\n=== IR ===" << std::endl;
   std::cout << irProgram->toString() << std::endl;

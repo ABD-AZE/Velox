@@ -210,7 +210,7 @@ public:
 // IR Generator using visitor pattern
 class IRGenerator : public ASTVisitor {
 public:
-  IRGenerator() : tempCounter(), labelCounter() {}
+  IRGenerator(int labelCounter) : tempCounter(), labelCounter(labelCounter) {}
 
   IRProgramPtr generateIR(const ASTNodePtr &ast);
 
@@ -287,7 +287,7 @@ private:
 
 class Valor {
 public:
-  Valor() = default;
+  Valor(int labelcounter) : generator(labelcounter) {};
   ~Valor() = default;
 
   IRProgramPtr convertToIR(const ASTNodePtr &ast);

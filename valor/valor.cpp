@@ -546,6 +546,117 @@ void IRGenerator::visit(AssignmentExpression &node) {
   currentValue = std::move(rightValue);
 }
 
+void IRGenerator::visit(
+    CompoundStatement &node) {
+  node.block->accept(*this);
+}
+
+void IRGenerator::visit(BreakNode &node) { 
+  IRInstructionPtr breakInst = IRInstructionNode::makeJump("break_" + node.label);
+  currentFunction->addInstruction(std::move(breakInst));
+}
+
+void IRGenerator::visit(ContinueNode &node) { 
+  IRInstructionPtr continueInst = IRInstructionNode::makeJump("continue_" + node.label);
+  currentFunction->addInstruction(std::move(continueInst));
+} 
+
+void IRGenerator::visit(DoWhileNode &node) { 
+  std::string startLabel = generateLabelName();
+  // Start label
+  auto startLabelInst = IRInstructionNode::makeLabel(startLabel);
+  currentFunction->addInstruction(std::move(startLabelInst));
+  // Generate IR for body
+  if (node.body) {
+    node.body->accept(*this);
+  }
+  // continue label
+  auto continueLabel =  IRInstructionNode::makeLabel("continue_" + node.label);
+  currentFunction->addInstruction(std::move(continueLabel));
+
+  // Generate IR for condition
+  IRValuePtr conditionValue;
+  if (node.condition) {
+    node.condition->accept(*this);
+    conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    // Create jump instruction based on condition
+  }
+  auto jumpInst = IRInstructionNode::makeJumpIfNotZero(
+      std::move(conditionValue), startLabel);
+  currentFunction->addInstruction(std::move(jumpInst));
+  // break label
+  auto breakLabel = IRInstructionNode::makeLabel("break_" + node.label);
+  currentFunction->addInstruction(std::move(breakLabel));
+}
+
+void IRGenerator::visit(WhileNode &node) { 
+  auto continueLabel = "continue_" + node.label;
+  auto breakLabel = "break_"+node.label;
+  auto startInstr = IRInstructionNode::makeLabel(continueLabel);
+  currentFunction->addInstruction(std::move(startInstr));
+
+  // condition instructions
+  auto conditionValue = std::make_shared<IRValueNode>();
+  // always true for while and do while
+  if(node.condition){
+    node.condition->accept(*this);
+    conditionValue = std::make_shared<IRValueNode>(*currentValue);
+  }
+  IRInstructionPtr jumpInstr;
+  jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue,breakLabel);
+  currentFunction->addInstruction(std::move(jumpInstr));
+  // body instructions
+  if(node.body){
+    node.body->accept(*this);
+  }
+  // jump back to continue
+  auto jumpBackInstr = IRInstructionNode::makeJump(continueLabel);
+  currentFunction->addInstruction(std::move(jumpBackInstr));
+  // break label
+  auto breakInstr = IRInstructionNode::makeLabel(breakLabel);
+  currentFunction->addInstruction(std::move(breakInstr));
+}
+
+void IRGenerator::visit(ForNode &node) { 
+  // instructions for init
+  if(node.init){
+    node.init->accept(*this);
+  }
+  // start label
+  auto startLabel = generateLabelName();
+  auto continueLabel = "continue_"+node.label;
+  auto breakLabel = "break_"+node.label;
+  auto startLabelInstr = IRInstructionNode::makeLabel(startLabel);
+  currentFunction->addInstruction(std::move(startLabelInstr));
+  // condition instructions
+  IRInstructionPtr jumpInstr;
+  IRValuePtr conditionValue;
+  // if condition is not present then no need for an additional jump instruction
+  if(node.condition){
+    (*node.condition)->accept(*this);
+    conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue,breakLabel);
+    currentFunction->addInstruction(std::move(jumpInstr));
+  }
+  // body instructions
+  if(node.body){
+    node.body->accept(*this);
+  }
+  // continue label
+  auto continueLabelInstr = IRInstructionNode::makeLabel(continueLabel);
+  currentFunction->addInstruction(std::move(continueLabelInstr));
+  // post instructions
+  if(node.post){
+    (*node.post)->accept(*this);
+  }
+  // jump back to start
+  auto jumpBackInstr = IRInstructionNode::makeJump(startLabel);
+  currentFunction->addInstruction(std::move(jumpBackInstr));
+  // break label
+  auto breakInstr = IRInstructionNode::makeLabel(breakLabel);
+  currentFunction->addInstruction(std::move(breakInstr));
+}
+
 IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
   switch (tokenType) {
   case TokenType::PLUS:
@@ -580,7 +691,7 @@ IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
     return IROpType::GREATER_EQUAL;
   case TokenType::LEFT_SHIFT:
     return IROpType::LEFT_SHIFT;
-  case TokenType::RIGHT_SHIFT:
+    case TokenType::RIGHT_SHIFT:
     return IROpType::RIGHT_SHIFT;
   case TokenType::LAND:
     return IROpType::LOGICAL_AND;
@@ -613,10 +724,6 @@ IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
   return generator.generateIR(ast);
 }
 
-void IRGenerator::visit(
-    CompoundStatement &node) {
-  node.block->accept(*this);
-}
 
 // <------------------------------------------------------------------------------------->
 void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
@@ -629,11 +736,6 @@ void IRGenerator::visit(
 void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
 void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
-void IRGenerator::visit(BreakNode &node) { /* TODO: Implement break */ }
-void IRGenerator::visit(ContinueNode &node) { /* TODO: Implement continue */ }
-void IRGenerator::visit(WhileNode &node) { /* TODO: Implement while loops */ }
-void IRGenerator::visit(DoWhileNode &node) { /* TODO: Implement do-while */ }
-void IRGenerator::visit(ForNode &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
 }
 void IRGenerator::visit(

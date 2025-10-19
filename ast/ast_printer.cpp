@@ -423,6 +423,10 @@ void ASTPrinter::visit(WhileNode &node) {
   print_open("While", indent_);
   increaseIndent();
 
+  print_label("label", indent_);
+  increaseIndent();
+  print_string_kv("label", node.label, indent_);
+
   print_label("condition", indent_);
   if (node.condition) {
     increaseIndent();
@@ -444,7 +448,11 @@ void ASTPrinter::visit(WhileNode &node) {
 void ASTPrinter::visit(DoWhileNode &node) {
   print_open("DoWhile", indent_);
   increaseIndent();
-
+  
+  print_label("label", indent_);
+  increaseIndent();
+  print_string_kv("label", node.label, indent_);
+  
   print_label("body", indent_);
   if (node.body) {
     increaseIndent();
@@ -467,6 +475,10 @@ void ASTPrinter::visit(ForNode &node) {
   print_open("For", indent_);
   increaseIndent();
 
+  print_label("label", indent_);
+  increaseIndent();
+  print_string_kv("label", node.label, indent_);
+  
   print_label("init", indent_);
   if (node.init) {
     increaseIndent();
