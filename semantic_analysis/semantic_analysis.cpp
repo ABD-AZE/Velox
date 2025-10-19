@@ -1,12 +1,17 @@
 #include "semantic_analysis.hpp"
 
-std::string make_temp(const std::string &var_name)
+std::string SemanticAnalyzer::make_temp(const std::string &var_name)
 {
   static int counter = 0;
   return "$" + var_name + "." + std::to_string(counter++);
 }
 
-bool isLvalue(ASTNode *expr)
+std::string SemanticAnalyzer::make_label()
+{
+  return "label." + std::to_string(label_counter++);
+}
+
+bool SemanticAnalyzer::isLvalue(ASTNode *expr)
 {
   if (!expr)
     return false;
@@ -210,6 +215,9 @@ void SemanticAnalyzer::visit(LabelStatement &node)
 
 void SemanticAnalyzer::visit(WhileNode &node)
 {
+  node.label = make_label();
+  std::string tmp_label = current_label;
+  current_label = node.label;
   if (node.condition)
   {
     node.condition->accept(*this);
@@ -218,22 +226,31 @@ void SemanticAnalyzer::visit(WhileNode &node)
   {
     node.body->accept(*this);
   }
+  current_label = tmp_label;
 }
 
 void SemanticAnalyzer::visit(DoWhileNode &node)
 {
-  if (node.body)
-  {
-    node.body->accept(*this);
-  }
+  node.label = make_label();
+  std::string tmp_label = current_label;
+  current_label = node.label;
   if (node.condition)
   {
     node.condition->accept(*this);
   }
+  if (node.body)
+  {
+    node.body->accept(*this);
+  }
+  current_label = tmp_label;
 }
 
 void SemanticAnalyzer::visit(ForNode &node)
 {
+  node.label = make_label();
+  std::string tmp_label = current_label;
+  current_label = node.label;
+  pushScope();
   // Resolve init
   if (node.init)
   {
@@ -251,22 +268,33 @@ void SemanticAnalyzer::visit(ForNode &node)
   {
     node.post.value()->accept(*this);
   }
-
   // Resolve body
   if (node.body)
   {
     node.body->accept(*this);
   }
+  popScope();
+  current_label = tmp_label;
 }
 
 void SemanticAnalyzer::visit(BreakNode &node)
 {
-  (void)node;
+  node.label = current_label;
+  if(current_label == ""){
+    success = 0;
+    errors.push_back("Break statement not within a loop");
+    return;
+  }
 }
 
 void SemanticAnalyzer::visit(ContinueNode &node)
 {
-  (void)node;
+  node.label = current_label;
+  if(current_label == ""){
+    success = 0;
+    errors.push_back("Continue statement not within a loop");
+    return;
+  }
 }
 
 void SemanticAnalyzer::visit(ForInit &node)

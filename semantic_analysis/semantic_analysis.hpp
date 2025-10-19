@@ -5,12 +5,6 @@
 #include <string>
 #include <vector>
 
-// Helper function for generating unique variable names
-std::string make_temp(const std::string &var_name);
-
-// Helper function to check if expression is an lvalue
-bool isLvalue(ASTNode *expr);
-
 // Semantic Analyzer using visitor pattern
 class SemanticAnalyzer : public ASTVisitor
 {
@@ -69,18 +63,25 @@ public:
   void visit(AbstractPointer &node) override;
   void visit(AbstractBase &node) override;
 
-  // Getters for error state
   bool success;
+  int label_counter = 0;
   std::vector<std::string> errors;
 
-private:
+  
+  private:
   // stores the updated variable names for the current scope, the current scope being the last element in the stack
   std::map<std::string, std::string> variable_map;
-
+  std::string current_label;
   // Helper methods
   void pushScope();
   void popScope();
-
+  // Helper function for generating unique variable names
+  std::string make_temp(const std::string &var_name);
+  // Helper function for generating unique labels
+  std::string make_label();
+  // Helper function to check if expression is an lvalue
+  bool isLvalue(ASTNode *expr);
+  
   // Scope stack for nested blocks
   std::vector<std::map<std::string, std::string>> scope_stack;
 };

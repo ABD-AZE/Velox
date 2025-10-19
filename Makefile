@@ -10,7 +10,7 @@ DEBUG_OBJ_FILES = build/obj/debug/lexer.o build/obj/debug/velox.o build/obj/debu
 
 .PHONY: all clean help test 
 
-all: build/velox
+all: build/velox build/debug
 
 debug: build/debug 	
 
