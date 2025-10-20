@@ -1,5 +1,6 @@
 #pragma once
 #include "../ast/ast.hpp"
+#include "../symbol_table/symbol_table.hpp"
 #include <map>
 #include <stack>
 #include <string>
@@ -69,8 +70,8 @@ public:
 
   
   private:
-  // stores the updated variable names for the current scope, the current scope being the last element in the stack
-  std::map<std::string, std::string> variable_map;
+  // stores the updated variable names for the current scope(the bool represents linkage of the variable), the current scope being the last element in the stack
+  std::map<std::string, std::pair<std::string,bool>> identifier_map;
   std::string current_label;
   // Helper methods
   void pushScope();
@@ -81,7 +82,9 @@ public:
   std::string make_label();
   // Helper function to check if expression is an lvalue
   bool isLvalue(ASTNode *expr);
+  bool isFunctionBlock = false;
+  bool inFunctionScope = false;
   
   // Scope stack for nested blocks
-  std::vector<std::map<std::string, std::string>> scope_stack;
+  std::vector<std::map<std::string,  std::pair<std::string,bool>>> scope_stack;
 };

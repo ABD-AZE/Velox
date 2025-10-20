@@ -106,6 +106,17 @@ std::string IRInstructionNode::toString() const {
   case IROpType::LABEL:
     ss << label << ":";
     break;
+  case IROpType::CALL:
+    ss << dst->toString() << " = call " << src1->toString() << ", args: ";
+    if (src2 && src2->type == IRValueType::ARGS) {
+      for (size_t i = 0; i < src2->args.size(); ++i) {
+        ss << src2->args[i]->toString();
+        if (i < src2->args.size() - 1) {
+          ss << ", ";
+        }
+      }
+    }
+    break;
   default:
     ss << "unknown_op";
     break;
@@ -301,6 +312,9 @@ void IRGenerator::visit(VarDeclNode &node) {
 }
 
 void IRGenerator::visit(FunDeclNode &node) {
+  if(!node.body.has_value()){
+    return;
+  }
   std::shared_ptr<IRFunctionNode> func = std::make_shared<IRFunctionNode>();
   func->identifier = node.name;
   currentFunction = func;
@@ -657,6 +671,28 @@ void IRGenerator::visit(ForNode &node) {
   currentFunction->addInstruction(std::move(breakInstr));
 }
 
+void IRGenerator::visit(FunctionCallNode &node) {
+  // Generate IR for arguments
+  std::vector<IRValuePtr> argValues;
+  for (const auto &arg : node.args) {
+    arg->accept(*this);
+    argValues.push_back(std::make_shared<IRValueNode>(*currentValue));
+  }
+
+  // Create IRValue for function name
+  IRValuePtr funcValue = IRValueNode::makeVariable(node.name);
+
+  // Create temporary for result
+  IRValuePtr result = createTemporary();
+
+  // Create call instruction
+  auto callInst = IRInstructionNode::makeCall(
+      funcValue, IRValueNode::makeArgs(argValues), result);
+  currentFunction->addInstruction(std::move(callInst));
+
+  currentValue = std::move(result);
+}
+
 IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
   switch (tokenType) {
   case TokenType::PLUS:
@@ -751,5 +787,4 @@ void IRGenerator::visit(AbstractBase &node) {}
 void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
     DeclarationNode &node) { /* Handle declarations if needed */ }
-void IRGenerator::visit(FunctionCallNode &node) { /* Handle function calls */ }
 void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
