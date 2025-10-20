@@ -18,7 +18,7 @@ using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
 
 // IR Value types
-enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY };
+enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
 
 // IR Instruction types
 enum class IROpType {
@@ -61,13 +61,14 @@ public:
   IRValueType type;
   int intValue = 0;
   std::string name;
-
+  std::vector<IRValuePtr> args;
   // Constructors
   // copy ctr
   IRValueNode(IRValuePtr other){
     type = other->type;
     intValue = other->intValue;
     name = other->name;
+    args = other->args;
   }
   
   IRValueNode() = default;
@@ -93,6 +94,13 @@ public:
     return val;
   }
 
+  static IRValuePtr makeArgs(const std::vector<IRValuePtr> &arguments) {
+    auto val = std::make_shared<IRValueNode>();
+    val->type = IRValueType::ARGS;
+    val->args = arguments;
+    return val;
+  }
+
   std::string toString() const {
     switch (type) {
     case IRValueType::CONSTANT:
@@ -100,6 +108,18 @@ public:
     case IRValueType::VARIABLE:
     case IRValueType::TEMPORARY:
       return name;
+    case IRValueType::ARGS:
+      {
+        std::string argList = "[";
+        for(size_t i=0; i<args.size(); i++){
+          argList += args[i]->toString();
+          if(i != args.size()-1){
+            argList += ", ";
+          }
+        }
+        argList += "]";
+        return argList;
+      }
     }
     return "";
   }
@@ -112,6 +132,14 @@ public:
   IRValuePtr src1;   // First operand
   IRValuePtr src2;   // Second operand (null for unary operations)
   std::string label; // For labels and jumps
+
+  /*
+  for function call:
+  result = call(fn,[arg1,arg2,arg3,...])
+
+  here src1 = fn
+  src2 points to list of arguments
+  */ 
 
   // Factory methods for different instruction types
   static IRInstructionPtr makeUnary(IROpType op, IRValuePtr dst,
@@ -177,6 +205,17 @@ public:
     inst->opType = IROpType::JUMP_IF_NOT_ZERO;
     inst->src1 = std::move(condition);
     inst->label = target;
+    return inst;
+  }
+
+  static IRInstructionPtr makeCall(IRValuePtr function,
+                                    IRValuePtr arguments,
+                                    IRValuePtr result) {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::CALL;
+    inst->src1 = std::move(function);
+    inst->src2 = std::move(arguments);
+    inst->dst = std::move(result);
     return inst;
   }
 

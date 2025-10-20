@@ -1,5 +1,7 @@
 #include "semantic_analysis.hpp"
 
+std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
+
 std::string SemanticAnalyzer::make_temp(const std::string &var_name)
 {
   static int counter = 0;
@@ -47,15 +49,15 @@ void SemanticAnalyzer::analyze(ASTNodePtr &ast)
 // push the parent scope's variable map onto the stack and reset the current variable map
 void SemanticAnalyzer::pushScope()
 {
-  scope_stack.push_back(variable_map);
-  variable_map.clear();
+  scope_stack.push_back(identifier_map);
+  identifier_map.clear();
 }
 
 void SemanticAnalyzer::popScope()
 {
   if (!scope_stack.empty())
   {
-    variable_map = scope_stack.back();
+    identifier_map = scope_stack.back();
     scope_stack.pop_back();
   }
 }
@@ -74,6 +76,10 @@ void SemanticAnalyzer::visit(ProgramNode &node)
 
 void SemanticAnalyzer::visit(FunctionDefinitionNode &node)
 {
+  if(identifier_map.find(node.name) != identifier_map.end())
+  {
+    auto prev_entry = identifier_map[node.name];
+  }
   // Visit the function declaration
   if (node.body)
   {
@@ -83,16 +89,77 @@ void SemanticAnalyzer::visit(FunctionDefinitionNode &node)
 
 void SemanticAnalyzer::visit(FunDeclNode &node)
 {
+  if (inFunctionScope){
+    if(node.body){
+      success = 0;
+      errors.push_back("Nested function definitions are not allowed");
+      return;
+    }
+  }
+  auto temp_inFunctionScope = inFunctionScope;
+  inFunctionScope = true;
+
+  if(global_symbol_table.find(node.name) != global_symbol_table.end()){
+    auto old_decl = global_symbol_table[node.name];
+    if(node.type != old_decl.type){
+      success = 0;
+      errors.push_back("Function '" + node.name + "' redeclared with different type");
+      return;
+    }
+    if(node.body.has_value() && old_decl.isDefined){
+      success = 0;
+      errors.push_back("Function '" + node.name + "' already defined");
+      return;
+    }
+    global_symbol_table[node.name] = SymbolTableEntry(node.name,true,true,node.body.has_value()||old_decl.isDefined,node.type);
+  }
+  else{
+    global_symbol_table[node.name] = SymbolTableEntry(node.name, true, true, node.body.has_value(), node.type);
+  }
+  // Check for redeclaration
+  if (identifier_map.find(node.name) != identifier_map.end())
+  {
+    auto prev_entry = identifier_map[node.name];
+    if(prev_entry.second == 0) // internal linkage
+    {
+      success = 0;
+      errors.push_back("Declaration of function '" + node.name + "' conflicts with previous declaration");
+      return;
+    }
+  }
+  identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external) for functions
+  // visit params
+  pushScope();
+  bool hasbody = node.body.has_value();
+  for (auto &param_name : node.param_names)
+  {
+    // generate unique name for parameter
+    if(identifier_map.find(param_name) != identifier_map.end())
+    {
+      success = 0;
+      errors.push_back("Parameter '" + param_name + "' redeclared");
+      continue;
+    }
+    std::string uniqueName = make_temp(param_name);
+    identifier_map[param_name] = {uniqueName,0}; // default linkage to 0 (internal) for parameters
+    if(hasbody){
+      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName,false,false,true,Type::Int()); // assuming all params are int for simplicity
+    }
+  }
+  isFunctionBlock = true;
   if(node.body)
   {
     node.body.value()->accept(*this);
   }
+  isFunctionBlock = false;
+  inFunctionScope = temp_inFunctionScope;
+  popScope();  
 }
 
 void SemanticAnalyzer::visit(VarDeclNode &node)
 {
   // Check for redeclaration
-  if (variable_map.find(node.name) != variable_map.end())
+  if (identifier_map.find(node.name) != identifier_map.end())
   {
     success = 0;
     errors.push_back("Variable '" + node.name + "' redeclared");
@@ -101,8 +168,8 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
 
   // Generate unique name BEFORE resolving initializer
   std::string uniqueName = make_temp(node.name);
-  variable_map[node.name] = uniqueName;
-
+  identifier_map[node.name] = {uniqueName, 0}; // default linkage to 0 (internal) for variables
+  SymbolTableEntry entry(uniqueName, false, false, node.init.has_value(), node.type);
   // Resolve initializer if present (after adding to map)
   if (node.init)
   {
@@ -115,7 +182,13 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
 
 void SemanticAnalyzer::visit(BlockNode &node)
 {
-  pushScope();
+  auto temp_isFunctionBlock = isFunctionBlock;
+  if(isFunctionBlock)
+  {
+    isFunctionBlock = false;
+  }else{
+    pushScope();
+  }
   for (auto &item : node.block_items)
   {
     if (item)
@@ -123,7 +196,11 @@ void SemanticAnalyzer::visit(BlockNode &node)
       item->accept(*this);
     }
   }
-  popScope();
+  // popscope if not function block
+  if(!temp_isFunctionBlock)
+  {
+    popScope();
+  }
 }
 
 void SemanticAnalyzer::visit(BlockItemNode &node)
@@ -142,6 +219,35 @@ void SemanticAnalyzer::visit(DeclarationNode &node)
 
 void SemanticAnalyzer::visit(FunctionCallNode &node)
 {
+  // check if function is declared
+  auto found_current = identifier_map.find(node.name);
+  if (found_current == identifier_map.end())
+  {
+    for(auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it)
+    {
+      auto found = it->find(node.name);
+      if (found != it->end())
+      {
+        found_current = found;
+        break;
+      }
+    }
+    if (found_current == identifier_map.end())
+    {
+      success = 0;
+      errors.push_back("Function '" + node.name + "' not declared");
+      return;
+    }
+    else
+    {
+      // Replace with unique name
+      node.name = found_current->second.first;
+    }
+  }
+  else{
+    // Replace with unique name
+    node.name = found_current->second.first;
+  }
   // Resolve all argument expressions
   for (auto &arg : node.args)
   {
@@ -149,6 +255,18 @@ void SemanticAnalyzer::visit(FunctionCallNode &node)
     {
       arg->accept(*this);
     }
+  }
+
+  auto entry = global_symbol_table[node.name];
+  if(!entry.isFunction){
+    success = 0;
+    errors.push_back("Variable '" + node.name + "' used as function");
+    return;
+  }
+  if(node.args.size() != (entry.type.data.index() == 1 ? std::get<FunType>(entry.type.data).params.size() : -1)){
+    success = 0;
+    errors.push_back("Function '" + node.name + "' called with incorrect number of arguments");
+    return;
   }
 }
 
@@ -402,11 +520,16 @@ void SemanticAnalyzer::visit(VariableExpression &node)
 {
 
   // check if variable is in current scope
-  auto found_current = variable_map.find(node.identifier);
-  if (found_current != variable_map.end())
+  auto found_current = identifier_map.find(node.identifier);
+  if (found_current != identifier_map.end())
   {
     // Replace with unique name
-    node.identifier = found_current->second;
+    node.identifier = found_current->second.first;
+    auto entry = global_symbol_table[node.identifier];
+    if(entry.isFunction){
+      success = 0;
+      errors.push_back("Function '" + node.identifier + "' used as variable");
+    }
     return;
   }
   // Check if variable is declared in parent scopes
@@ -416,7 +539,12 @@ void SemanticAnalyzer::visit(VariableExpression &node)
     if (found != it->end())
     {
       // Replace with unique name
-      node.identifier = found->second;
+      node.identifier = found->second.first;
+      auto entry = global_symbol_table[node.identifier];
+      if(entry.isFunction){
+        success = 0;
+        errors.push_back("Function '" + node.identifier + "' used as variable");
+      }
       return;
     }
   }

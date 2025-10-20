@@ -136,43 +136,42 @@ enum class StorageClass { STATIC, EXTERN };
 
 struct FunType {
   std::vector<Type> params;
-  std::unique_ptr<Type> ret;
-  FunType(std::vector<Type> params, std::unique_ptr<Type> ret)
-      : params(std::move(params)), ret(std::move(ret)) {}
+  std::shared_ptr<Type> ret;
+  FunType(std::vector<Type> params, std::shared_ptr<Type> ret)
+      : params((params)), ret((ret)) {}
 };
 
 struct PointerType {
-  std::unique_ptr<Type> base;
-  PointerType(std::unique_ptr<Type> base) : base(std::move(base)) {}
+  std::shared_ptr<Type> base;
+  PointerType(std::shared_ptr<Type> base) : base(base) {}
 };
 
 enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ERROR };
 
 class Type : public ASTNode {
 public:
-  std::string identifier;
   TypeKind kind;
   std::variant<std::monostate, FunType, PointerType> data;
   // default constructor for int type
   Type() : kind(TypeKind::INT), data(std::move(std::monostate{})) {}
   // constructor for other types
-  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d,
-       std::string id = "")
-      : identifier(id), kind(k), data(std::move(d)) {}
+  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d)
+      : kind(k), data(std::move(d)) {}
+  // remove this 
   // copy constructor
-  Type(const Type &other) : identifier(other.identifier), kind(other.kind) {
+  Type(const Type &other) : kind(other.kind) {
     switch (other.kind) {
     case TypeKind::FUNC: {
       const auto &funType = std::get<FunType>(other.data);
       std::vector<Type> params_copy = funType.params;
-      auto ret_copy = std::make_unique<Type>(*funType.ret);
-      data = FunType{std::move(params_copy), std::move(ret_copy)};
+      auto ret_copy = funType.ret;
+      data = FunType{params_copy, ret_copy};
       break;
     }
     case TypeKind::POINTER: {
       const auto &ptrType = std::get<PointerType>(other.data);
-      auto base_copy = std::make_unique<Type>(*ptrType.base);
-      data = PointerType{std::move(base_copy)};
+      auto base_copy = ptrType.base;
+      data = PointerType{base_copy};
       break;
     }
     default:
@@ -180,14 +179,38 @@ public:
       break;
     }
   }
+  // copy assignment
+  Type &operator=(const Type &other) {
+    if (this != &other) {
+      kind = other.kind;
+      switch (other.kind) {
+      case TypeKind::FUNC: {
+        const auto &funType = std::get<FunType>(other.data);
+        std::vector<Type> params_copy = funType.params;
+        auto ret_copy = funType.ret;
+        data = FunType{params_copy, ret_copy};
+        break;
+      }
+      case TypeKind::POINTER: {
+        const auto &ptrType = std::get<PointerType>(other.data);
+        auto base_copy = ptrType.base;
+        data = PointerType{base_copy};
+        break;
+      }
+      default:
+        data = std::monostate{};
+        break;
+      }
+    }
+    return *this;
+  }
   // move constructor
   Type(Type &&other) noexcept
-      : identifier(std::move(other.identifier)), kind(other.kind),
+      : kind(other.kind),
         data(std::move(other.data)) {}
   // move assignment
   Type &operator=(Type &&other) noexcept {
     if (this != &other) {
-      identifier = std::move(other.identifier);
       kind = other.kind;
       data = std::move(other.data);
     }
@@ -208,6 +231,35 @@ public:
     return Type{TypeKind::POINTER, std::move(ptype)};
   }
   static Type Error() { return Type{TypeKind::ERROR, std::monostate{}}; }
+
+  bool operator==(Type& other){
+    if(other.kind != this->kind){
+      return false;
+    }
+    if(this->kind == TypeKind::FUNC){
+      auto& this_fun = std::get<FunType>(this->data);
+      auto& other_fun = std::get<FunType>(other.data);
+      if(this_fun.params.size() != other_fun.params.size()){
+        return false;
+      }
+      for(size_t i=0; i<this_fun.params.size(); i++){
+        if(!(this_fun.params[i] == other_fun.params[i])){
+          return false;
+        }
+      }
+      return *(this_fun.ret) == *(other_fun.ret);
+    }
+    else if(this->kind == TypeKind::POINTER){
+      auto& this_ptr = std::get<PointerType>(this->data);
+      auto& other_ptr = std::get<PointerType>(other.data);
+      return *(this_ptr.base) == *(other_ptr.base);
+    }
+    return true;
+  }
+
+  bool operator!=(Type &other){
+    return !(*this == other);
+  }
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
