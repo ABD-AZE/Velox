@@ -1,5 +1,20 @@
 #include "semantic_analysis.hpp"
+/*
+// defining foo after its usage won't work because we are doing semantic analysis in a single pass
+int foo = 3;
+int main(void) {
+  int outer = 1;
+  int foo = 0;
+  if (outer) {
+    extern int foo;
+    extern int foo;
+    return foo;
+  }
+  return 0;
+}
 
+
+*/
 std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
 
 std::string SemanticAnalyzer::make_temp(const std::string &var_name)
@@ -95,10 +110,17 @@ void SemanticAnalyzer::visit(FunDeclNode &node)
       errors.push_back("Nested function definitions are not allowed");
       return;
     }
+    if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::STATIC){
+      success = 0;
+      errors.push_back("Function declarations inside function scope cannot have 'static' storage class");
+      return;
+    }
   }
+  auto temp_inFileScope = inFileScope;
+  inFileScope = false;
   auto temp_inFunctionScope = inFunctionScope;
   inFunctionScope = true;
-
+  auto global = (!node.storage_class.has_value())||(node.storage_class.has_value() && node.storage_class.value() != StorageClass::STATIC);
   if(global_symbol_table.find(node.name) != global_symbol_table.end()){
     auto old_decl = global_symbol_table[node.name];
     if(node.type != old_decl.type){
@@ -106,15 +128,26 @@ void SemanticAnalyzer::visit(FunDeclNode &node)
       errors.push_back("Function '" + node.name + "' redeclared with different type");
       return;
     }
-    if(node.body.has_value() && old_decl.isDefined){
+    if(node.body.has_value() && old_decl.initType == InitType::INITIALIZED){
       success = 0;
       errors.push_back("Function '" + node.name + "' already defined");
       return;
     }
-    global_symbol_table[node.name] = SymbolTableEntry(node.name,true,true,node.body.has_value()||old_decl.isDefined,node.type);
+    if(old_decl.linkage==LinkageType::EXTERNAL && !global){
+      success = 0;
+      errors.push_back("Function '" + node.name + "' redeclared with different linkage");
+      return;
+    }
+    InitType new_initType = old_decl.initType;
+    if(node.body.has_value()){
+      new_initType = InitType::INITIALIZED;
+    }
+    // no need to update linkage as this declaration would follow the linkage of the first declaration
+    global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::FUNCTION,new_initType,node.type);
   }
   else{
-    global_symbol_table[node.name] = SymbolTableEntry(node.name, true, true, node.body.has_value(), node.type);
+    global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::FUNCTION, node.body.has_value() ? InitType::INITIALIZED : InitType::TENTATIVE, node.type);
+    global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
   }
   // Check for redeclaration
   if (identifier_map.find(node.name) != identifier_map.end())
@@ -143,7 +176,9 @@ void SemanticAnalyzer::visit(FunDeclNode &node)
     std::string uniqueName = make_temp(param_name);
     identifier_map[param_name] = {uniqueName,0}; // default linkage to 0 (internal) for parameters
     if(hasbody){
-      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName,false,false,true,Type::Int()); // assuming all params are int for simplicity
+      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName,SymbolType::VARIABLE,InitType::TENTATIVE,Type::Int()); // assuming all params are int for simplicity
+      global_symbol_table[uniqueName].linkage = LinkageType::NONE; 
+      global_symbol_table[uniqueName].storageClass = StorageClass::AUTO;
     }
   }
   isFunctionBlock = true;
@@ -153,23 +188,142 @@ void SemanticAnalyzer::visit(FunDeclNode &node)
   }
   isFunctionBlock = false;
   inFunctionScope = temp_inFunctionScope;
+  inFileScope = temp_inFileScope;
   popScope();  
 }
 
 void SemanticAnalyzer::visit(VarDeclNode &node)
 {
-  // Check for redeclaration
-  if (identifier_map.find(node.name) != identifier_map.end())
-  {
-    success = 0;
-    errors.push_back("Variable '" + node.name + "' redeclared");
+  // FILE SCOPE VARIABLE CHECK
+  if(inFileScope){
+    identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external) for file scope variables 
+    auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE : InitType::UNINITIALIZED;
+    auto constInit = node.init.has_value()? dynamic_cast<ConstantExpression*>(node.init.value().get()): nullptr;
+    if(initType == InitType::INITIALIZED && !constInit){
+      success = 0;
+      errors.push_back("File scope variable '" + node.name + "' must be initialized with a constant value");
+      return;
+    }
+
+    auto global = (!node.storage_class.has_value())||(node.storage_class.has_value() && node.storage_class.value() != StorageClass::STATIC);
+
+    if(global_symbol_table.find(node.name) != global_symbol_table.end()){
+      auto old_decl = global_symbol_table[node.name];
+      if(node.type != old_decl.type){
+        success = 0;
+        errors.push_back("Variable '" + node.name + "' redeclared with different type at file scope");
+        return;
+      }
+      if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN){
+        global = old_decl.linkage == LinkageType::EXTERNAL; 
+      }
+      if((old_decl.linkage==LinkageType::EXTERNAL && !global) || (old_decl.linkage==LinkageType::INTERNAL && global)){
+        success = 0;
+        errors.push_back("Variable '" + node.name + "' redeclared with different linkage at file scope");
+        return;
+      }
+      InitType new_initType = old_decl.initType;
+      if(old_decl.initType == InitType::INITIALIZED && initType == InitType::INITIALIZED){
+        success = 0;
+        errors.push_back("Variable '" + node.name + "' already defined at file scope");
+        return;
+      } else if(initType == InitType::INITIALIZED || old_decl.initType == InitType::INITIALIZED){
+        new_initType = InitType::INITIALIZED;
+      }
+      else if(initType == InitType::TENTATIVE || old_decl.initType == InitType::TENTATIVE){
+        new_initType = InitType::TENTATIVE;
+      }
+      else if(initType == InitType::UNINITIALIZED && old_decl.initType == InitType::UNINITIALIZED){
+        new_initType = InitType::UNINITIALIZED;
+      } 
+      global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::VARIABLE,new_initType,node.type);
+      global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+    }
+    else{
+      global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::VARIABLE, initType, node.type);
+      global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+    }
     return;
   }
 
-  // Generate unique name BEFORE resolving initializer
-  std::string uniqueName = make_temp(node.name);
-  identifier_map[node.name] = {uniqueName, 0}; // default linkage to 0 (internal) for variables
-  SymbolTableEntry entry(uniqueName, false, false, node.init.has_value(), node.type);
+
+  // LOCAL SCOPE VARIABLE CHECK
+  // Check for redeclaration
+  if (forInit && node.storage_class.has_value()) {
+    success = 0;
+    errors.push_back("Variables declared in for-loop initialization cannot have storage class specifiers");
+    return;
+  }
+  if (identifier_map.find(node.name) != identifier_map.end())
+  {
+    auto prev_entry = identifier_map[node.name];
+    if(!(prev_entry.second && node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN)){ // internal linkage
+    success = 0;
+    errors.push_back("Variable '" + node.name + "' redeclared");
+    return;
+    }
+  }
+  std::string uniqueName;
+  if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN){
+    // extern variable redeclaration
+    identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external)
+  }
+  else{
+    // Generate unique name BEFORE resolving initializer
+    uniqueName = make_temp(node.name);
+    identifier_map[node.name] = {uniqueName, 0}; // default linkage to 0 (internal) for variables
+  }
+  auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE : InitType::UNINITIALIZED;
+
+  if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN){
+    if(initType == InitType::INITIALIZED){
+      success = 0;
+      errors.push_back("Extern variable '" + node.name + "' cannot be initialized");
+      return;
+    }
+    if(global_symbol_table.find(node.name) != global_symbol_table.end()){
+      auto old_decl = global_symbol_table[node.name];
+      if(node.type != old_decl.type){
+        success = 0;
+        errors.push_back("Variable '" + node.name + "' redeclared with different type");
+        return;
+      }
+    }
+    else{
+      global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::VARIABLE,InitType::UNINITIALIZED,node.type);
+      global_symbol_table[node.name].linkage = LinkageType::EXTERNAL;
+    }
+    return;
+  } else if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::STATIC){
+    // static variable
+    if(initType == InitType::INITIALIZED){
+      auto constInit = node.init.has_value()? dynamic_cast<ConstantExpression*>(node.init.value().get()): nullptr;
+      if(initType == InitType::INITIALIZED && !constInit){
+        success = 0;
+        errors.push_back("File scope variable '" + node.name + "' must be initialized with a constant value");
+        return;
+      }
+      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, InitType::INITIALIZED, node.type);
+      global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
+      global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
+      return;
+    } else if(initType == InitType::UNINITIALIZED){
+      // zero-initialized static variable
+      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, InitType::ZERO_INITIALIZED, node.type);
+      global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
+      global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
+      return;
+    } else{
+      success = 0;
+      errors.push_back("non constant initializer on Static variable '" + node.name + "'");
+      return;
+    }
+  } else{
+    // automatic variable
+    global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, initType, node.type);
+    global_symbol_table[uniqueName].linkage = LinkageType::NONE;
+    global_symbol_table[uniqueName].storageClass = StorageClass::AUTO;
+  }
   // Resolve initializer if present (after adding to map)
   if (node.init)
   {
@@ -258,7 +412,7 @@ void SemanticAnalyzer::visit(FunctionCallNode &node)
   }
 
   auto entry = global_symbol_table[node.name];
-  if(!entry.isFunction){
+  if(entry.symbolType != SymbolType::FUNCTION){
     success = 0;
     errors.push_back("Variable '" + node.name + "' used as function");
     return;
@@ -370,11 +524,12 @@ void SemanticAnalyzer::visit(ForNode &node)
   current_label = node.label;
   pushScope();
   // Resolve init
+  forInit = true;
   if (node.init)
   {
     node.init->accept(*this);
   }
-
+  forInit = false;
   // Resolve condition
   if (node.condition)
   {
@@ -424,7 +579,13 @@ void SemanticAnalyzer::visit(ForInit &node)
 }
 
 void SemanticAnalyzer::visit(InitDecl &node)
-{
+{ 
+  auto varnode = dynamic_cast<VarDeclNode*>(node.init.get());
+  if (varnode && varnode->storage_class.has_value()){
+    success = 0;
+    errors.push_back("Storage class specifier not allowed in for-init declaration");
+    return;
+  }
   if (node.init)
   {
     node.init->accept(*this);
@@ -526,7 +687,7 @@ void SemanticAnalyzer::visit(VariableExpression &node)
     // Replace with unique name
     node.identifier = found_current->second.first;
     auto entry = global_symbol_table[node.identifier];
-    if(entry.isFunction){
+    if(entry.symbolType == SymbolType::FUNCTION){
       success = 0;
       errors.push_back("Function '" + node.identifier + "' used as variable");
     }
@@ -541,7 +702,7 @@ void SemanticAnalyzer::visit(VariableExpression &node)
       // Replace with unique name
       node.identifier = found->second.first;
       auto entry = global_symbol_table[node.identifier];
-      if(entry.isFunction){
+      if(entry.symbolType == SymbolType::FUNCTION){
         success = 0;
         errors.push_back("Function '" + node.identifier + "' used as variable");
       }

@@ -1,6 +1,8 @@
 // #ifdef SUPPRESS_WARNINGS
 // #pragma GCC diagnostic ignored "-Wunused-variable"
 // #endif
+// defining foo after its usage won't work because we are doing semantic analysis in a single pass
+int foo = 3;
 int main(void) {
   int outer = 1;
   int foo = 0;
@@ -15,5 +17,3 @@ int main(void) {
   }
   return 0;
 }
-
-int foo = 3;
