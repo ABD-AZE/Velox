@@ -134,7 +134,7 @@ public:
 
 enum class StorageClass { STATIC, EXTERN, AUTO };
 
-bool operator==(const TokenType &a, const StorageClass &b){
+constexpr bool operator==(const TokenType &a, const StorageClass &b){
   if(b == StorageClass::STATIC && a == TokenType::STATIC){
     return true;
   }

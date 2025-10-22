@@ -3,10 +3,12 @@
 #include <sstream>
 
 // IRInstructionNode implementation
-std::string IRInstructionNode::toString() const {
+std::string IRInstructionNode::toString() const
+{
   std::stringstream ss;
 
-  switch (opType) {
+  switch (opType)
+  {
   case IROpType::RETURN:
     ss << "return " << (src1 ? src1->toString() : "");
     break;
@@ -108,10 +110,13 @@ std::string IRInstructionNode::toString() const {
     break;
   case IROpType::CALL:
     ss << dst->toString() << " = call " << src1->toString() << ", args: ";
-    if (src2 && src2->type == IRValueType::ARGS) {
-      for (size_t i = 0; i < src2->args.size(); ++i) {
+    if (src2 && src2->type == IRValueType::ARGS)
+    {
+      for (size_t i = 0; i < src2->args.size(); ++i)
+      {
         ss << src2->args[i]->toString();
-        if (i < src2->args.size() - 1) {
+        if (i < src2->args.size() - 1)
+        {
           ss << ", ";
         }
       }
@@ -126,42 +131,149 @@ std::string IRInstructionNode::toString() const {
 }
 
 // IRFunctionNode implementation
-std::string IRFunctionNode::toString() const {
+std::string IRFunctionNode::toString() const
+{
   std::stringstream ss;
-  ss << "function " << identifier << "() {\n";
-  for (const auto &instruction : instructions) {
-    if(instruction->opType == IROpType::LABEL){
-      ss << instruction->toString()<< ":\n";
-      continue;
+  ss << "Function(name=" << identifier << ", global=" << (global ? "true" : "false");
+
+  // Print parameters
+  if (!parameters.empty())
+  {
+    ss << ", params=[";
+    for (size_t i = 0; i < parameters.size(); ++i)
+    {
+      ss << parameters[i];
+      if (i < parameters.size() - 1)
+      {
+        ss << ", ";
+      }
     }
-    ss << "    " << instruction->toString() << "\n";
+    ss << "]";
+  }
+
+  ss << ") {\n";
+
+  // Print instructions
+  for (const auto &instruction : instructions)
+  {
+    if (instruction->opType == IROpType::LABEL)
+    {
+      ss << instruction->toString() << "\n";
+    }
+    else
+    {
+      ss << "    " << instruction->toString() << "\n";
+    }
   }
   ss << "}\n";
   return ss.str();
 }
 
-// IRProgramNode implementation
-std::string IRProgramNode::toString() const {
+// IRStaticVariableNode implementation
+std::string IRStaticVariableNode::toString() const
+{
   std::stringstream ss;
-  for (const auto &function : functions) {
-    ss << function->toString() << "\n";
+  ss << "StaticVariable(name=" << identifier
+     << ", global=" << (global ? "true" : "false")
+     << ", init=";
+  
+  // Handle the variant type by visiting it
+  std::visit([&ss](auto&& arg) { ss << arg; }, initialValue);
+  
+  ss << ")";
+  return ss.str();
+}
+
+// IRProgramNode implementation
+std::string IRProgramNode::toString() const
+{
+  std::stringstream ss;
+  ss << "Program(\n";
+  for (const auto &item : topLevelItems)
+  {
+    ss << item->toString();
+    // Add newline if it's a static variable (functions already have newlines)
+    if (dynamic_cast<IRStaticVariableNode *>(item.get()))
+    {
+      ss << "\n";
+    }
   }
+  ss << ")\n";
   return ss.str();
 }
 
 // IRGenerator implementation
-IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
+IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast)
+{
   program = std::make_unique<IRProgramNode>();
   tempCounter = 0;
   labelCounter = 0;
 
+  // First, process the AST to generate function definitions
   ast->accept(*this);
 
+  // Second, convert symbol table entries to static variables
+  convertSymbolTableToIR();
+  // move the staticvariable to the front
+  std::stable_partition(program->topLevelItems.begin(), program->topLevelItems.end(),
+                        [](const IRTopLevelPtr &item) {
+                          return dynamic_cast<IRStaticVariableNode *>(item.get()) != nullptr;
+                        });
+                        
   return std::move(program);
 }
 
-void IRGenerator::visit(IfStatement &node) { 
-  if (node.condition) {
+void IRGenerator::convertSymbolTableToIR()
+{
+  // Iterate through the global symbol table
+  for (const auto &[name, entry] : global_symbol_table)
+  {
+    // Skip if it's not a variable
+    if (entry.symbolType != SymbolType::VARIABLE)
+    {
+      continue;
+    }
+
+    // Skip if it doesn't have static linkage (we only want static variables)
+    if (entry.linkage != LinkageType::INTERNAL &&
+        entry.linkage != LinkageType::EXTERNAL)
+    {
+      continue;
+    }
+
+    // Skip if it has no initializer (not defined in this translation unit)
+    if (entry.initType == InitType::UNINITIALIZED)
+    {
+      continue;
+    }
+
+    // Determine if it's global (external linkage) or file-scope (internal
+    // linkage)
+    bool isGlobal = (entry.linkage == LinkageType::EXTERNAL);
+
+    // Get initial value
+    std::variant<int, long int, long unsigned int, unsigned int, double> initValue = 0;
+    if (entry.initType == InitType::INITIALIZED)
+    {
+      initValue = entry.value;
+    }
+    else if (entry.initType == InitType::TENTATIVE ||
+             entry.initType == InitType::ZERO_INITIALIZED)
+    {
+      initValue = 0;
+    }
+
+    // Create static variable node
+    auto staticVar =
+        std::make_shared<IRStaticVariableNode>(name, isGlobal, initValue);
+    program->addStaticVariable(std::move(staticVar));
+  }
+}
+
+void IRGenerator::visit(IfStatement &node)
+{
+  if (node.condition)
+  {
     // Generate IR for condition
     node.condition->accept(*this);
     IRValuePtr conditionValue = std::make_shared<IRValueNode>(*currentValue);
@@ -176,7 +288,8 @@ void IRGenerator::visit(IfStatement &node) {
     currentFunction->addInstruction(std::move(jumpInst));
 
     // Generate IR for 'then' block
-    if (node.thenBranch) {
+    if (node.thenBranch)
+    {
       node.thenBranch->accept(*this);
     }
 
@@ -189,7 +302,8 @@ void IRGenerator::visit(IfStatement &node) {
     currentFunction->addInstruction(std::move(elseLabelInst));
 
     // Generate IR for 'else' block if it exists
-    if (node.elseBranch) {
+    if (node.elseBranch)
+    {
       (*node.elseBranch)->accept(*this);
     }
 
@@ -199,8 +313,10 @@ void IRGenerator::visit(IfStatement &node) {
   }
 }
 
-void IRGenerator::visit(PostfixExpression &node) { 
-  if (node.operand) {
+void IRGenerator::visit(PostfixExpression &node)
+{
+  if (node.operand)
+  {
     // Generate IR for operand
     node.operand->accept(*this);
     IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
@@ -210,11 +326,16 @@ void IRGenerator::visit(PostfixExpression &node) {
 
     // Convert token type to IR operation
     IROpType irOp;
-    if (node.op == TokenType::INCREMENT_OPERATOR) {
+    if (node.op == TokenType::INCREMENT_OPERATOR)
+    {
       irOp = IROpType::ADD;
-    } else if (node.op == TokenType::DECREMENT_OPERATOR) {
+    }
+    else if (node.op == TokenType::DECREMENT_OPERATOR)
+    {
       irOp = IROpType::SUBTRACT;
-    } else {
+    }
+    else
+    {
       // Unsupported postfix operation
       return;
     }
@@ -230,11 +351,12 @@ void IRGenerator::visit(PostfixExpression &node) {
     // Update current value to the result
     currentValue = result;
   }
-
 }
 void IRGenerator::visit(
-    ConditionalExpression &node) { 
-    if (node.condition) {
+    ConditionalExpression &node)
+{
+  if (node.condition)
+  {
     // Generate IR for condition
     node.condition->accept(*this);
     IRValuePtr conditionValue = std::make_shared<IRValueNode>(*currentValue);
@@ -249,7 +371,8 @@ void IRGenerator::visit(
     currentFunction->addInstruction(std::move(jumpInst));
 
     // Generate IR for 'then' block
-    if (node.trueExpr) {
+    if (node.trueExpr)
+    {
       node.trueExpr->accept(*this);
     }
     IRValuePtr trueExprValue = std::make_shared<IRValueNode>(*currentValue);
@@ -269,14 +392,16 @@ void IRGenerator::visit(
     currentFunction->addInstruction(std::move(falseLabelInst));
 
     // Generate IR for 'false' block if it exists
-    if (node.falseExpr) {
+    if (node.falseExpr)
+    {
       (node.falseExpr)->accept(*this);
     }
 
     IRValuePtr falseExprValue = std::make_shared<IRValueNode>(*currentValue);
     // Assign false expression value to result
     auto copyFalseInst = IRInstructionNode::makeCopy(
-        std::move(falseExprValue), std::make_shared<IRValueNode>(result));;
+        std::move(falseExprValue), std::make_shared<IRValueNode>(result));
+    ;
     currentFunction->addInstruction(std::move(copyFalseInst));
     // End label
     auto endLabelInst = IRInstructionNode::makeLabel(endLabel);
@@ -285,41 +410,79 @@ void IRGenerator::visit(
   }
 }
 
-void IRGenerator::visit(ProgramNode &node) {
+void IRGenerator::visit(ProgramNode &node)
+{
   // Process all declarations in the program
-  for (const auto &declaration : node.Declarations) {
+  for (const auto &declaration : node.Declarations)
+  {
     declaration->accept(*this);
   }
 }
 
-void IRGenerator::visit(FunctionDefinitionNode &node) {
+void IRGenerator::visit(FunctionDefinitionNode &node)
+{
   // not used
 }
 
-void IRGenerator::visit(VarDeclNode &node) {
+void IRGenerator::visit(VarDeclNode &node)
+{
+  // Skip file-scope variables - they'll be generated from the symbol table
+  if (!currentFunction)
+  {
+    return;
+  }
+
+  // Skip local static and extern variables - they're in the symbol table
+  if (node.storage_class.has_value())
+  {
+    if (node.storage_class.value() == TokenType::STATIC ||
+        node.storage_class.value() == TokenType::EXTERN)
+    {
+      return;
+    }
+  }
+
+  // Local automatic variable - generate IR for it
   IRValuePtr var = IRValueNode::makeVariable(node.name);
+
   // If there's an initializer, generate IR for it
-  if (node.init) {
+  if (node.init)
+  {
     (*node.init)->accept(*this);
     IRValuePtr initValue = std::make_shared<IRValueNode>(*currentValue);
     // Create copy instruction to assign initializer value to variable
     auto copyInst =
         IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
-    if (currentFunction) {
-      currentFunction->addInstruction(std::move(copyInst));
-    }
+    currentFunction->addInstruction(std::move(copyInst));
   }
 }
 
-void IRGenerator::visit(FunDeclNode &node) {
-  if(!node.body.has_value()){
+void IRGenerator::visit(FunDeclNode &node)
+{
+  if (!node.body.has_value())
+  {
     return;
   }
-  std::shared_ptr<IRFunctionNode> func = std::make_shared<IRFunctionNode>();
-  func->identifier = node.name;
+
+  // Determine if function is global based on storage class
+  bool isGlobal = true;
+  if (node.storage_class.has_value())
+  {
+    isGlobal = (node.storage_class.value() != TokenType::STATIC);
+  }
+
+  std::shared_ptr<IRFunctionNode> func = std::make_shared<IRFunctionNode>(node.name, isGlobal);
+
+  // Add parameters
+  for (const auto &param : node.param_names)
+  {
+    func->parameters.push_back(param);
+  }
+
   currentFunction = func;
   // Generate IR for function body
-  if (node.body) {
+  if (node.body)
+  {
     (*node.body)->accept(*this);
   }
   func->addInstruction(
@@ -328,24 +491,30 @@ void IRGenerator::visit(FunDeclNode &node) {
   currentFunction = nullptr;
 }
 
-void IRGenerator::visit(BlockNode &node) {
+void IRGenerator::visit(BlockNode &node)
+{
   // Process all block items
-  for (const auto &item : node.block_items) {
+  for (const auto &item : node.block_items)
+  {
     item->accept(*this);
   }
 }
 
-void IRGenerator::visit(BlockItemNode &node) {
+void IRGenerator::visit(BlockItemNode &node)
+{
   // Delegate to the contained statement or declaration
-  if (node.block_item) {
+  if (node.block_item)
+  {
     node.block_item->accept(*this);
   }
 }
 
-void IRGenerator::visit(ReturnStatement &node) {
+void IRGenerator::visit(ReturnStatement &node)
+{
   IRValuePtr returnValue = nullptr;
 
-  if (node.expression) {
+  if (node.expression)
+  {
     // Generate IR for the return expression
     node.expression->accept(*this);
     if (currentValue)
@@ -357,27 +526,33 @@ void IRGenerator::visit(ReturnStatement &node) {
   currentFunction->addInstruction(std::move(returnInst));
 }
 
-void IRGenerator::visit(ExpressionStatement &node) {
-  if (node.expression) {
+void IRGenerator::visit(ExpressionStatement &node)
+{
+  if (node.expression)
+  {
     node.expression->accept(*this);
     // Result is in currentValue but we don't need to do anything with it
   }
 }
 
-void IRGenerator::visit(ConstantExpression &node) {
+void IRGenerator::visit(ConstantExpression &node)
+{
   // Create a constant value
   // Extract the value from the variant
   int intValue = std::visit(
-      [](auto &&arg) -> int { return static_cast<int>(arg); }, node.value);
+      [](auto &&arg) -> int
+      { return static_cast<int>(arg); }, node.value);
   currentValue = IRValueNode::makeConstant(intValue);
 }
 
-void IRGenerator::visit(VariableExpression &node) {
+void IRGenerator::visit(VariableExpression &node)
+{
   // Create a variable reference
   currentValue = IRValueNode::makeVariable(node.identifier);
 }
 
-void IRGenerator::visit(UnaryExpression &node) {
+void IRGenerator::visit(UnaryExpression &node)
+{
   // Generate IR for operand
   node.operand->accept(*this);
   IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
@@ -395,9 +570,11 @@ void IRGenerator::visit(UnaryExpression &node) {
   currentValue = std::move(result);
 }
 
-void IRGenerator::visit(BinaryExpression &node) {
+void IRGenerator::visit(BinaryExpression &node)
+{
   // Handle short-circuiting operators specially
-  if (node.op == TokenType::LAND) {
+  if (node.op == TokenType::LAND)
+  {
     // Implement && operator with short-circuiting
     // e1 && e2 pattern:
     // <instructions for e1>
@@ -458,7 +635,8 @@ void IRGenerator::visit(BinaryExpression &node) {
     return;
   }
 
-  if (node.op == TokenType::LOR) {
+  if (node.op == TokenType::LOR)
+  {
     // Implement || operator with short-circuiting
     // e1 || e2 pattern:
     // <instructions for e1>
@@ -543,7 +721,8 @@ void IRGenerator::visit(BinaryExpression &node) {
   currentValue = std::move(result);
 }
 
-void IRGenerator::visit(AssignmentExpression &node) {
+void IRGenerator::visit(AssignmentExpression &node)
+{
   // Generate IR for right side (value being assigned)
   node.right->accept(*this);
   IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
@@ -561,36 +740,42 @@ void IRGenerator::visit(AssignmentExpression &node) {
 }
 
 void IRGenerator::visit(
-    CompoundStatement &node) {
+    CompoundStatement &node)
+{
   node.block->accept(*this);
 }
 
-void IRGenerator::visit(BreakNode &node) { 
+void IRGenerator::visit(BreakNode &node)
+{
   IRInstructionPtr breakInst = IRInstructionNode::makeJump("break_" + node.label);
   currentFunction->addInstruction(std::move(breakInst));
 }
 
-void IRGenerator::visit(ContinueNode &node) { 
+void IRGenerator::visit(ContinueNode &node)
+{
   IRInstructionPtr continueInst = IRInstructionNode::makeJump("continue_" + node.label);
   currentFunction->addInstruction(std::move(continueInst));
-} 
+}
 
-void IRGenerator::visit(DoWhileNode &node) { 
+void IRGenerator::visit(DoWhileNode &node)
+{
   std::string startLabel = generateLabelName();
   // Start label
   auto startLabelInst = IRInstructionNode::makeLabel(startLabel);
   currentFunction->addInstruction(std::move(startLabelInst));
   // Generate IR for body
-  if (node.body) {
+  if (node.body)
+  {
     node.body->accept(*this);
   }
   // continue label
-  auto continueLabel =  IRInstructionNode::makeLabel("continue_" + node.label);
+  auto continueLabel = IRInstructionNode::makeLabel("continue_" + node.label);
   currentFunction->addInstruction(std::move(continueLabel));
 
   // Generate IR for condition
   IRValuePtr conditionValue;
-  if (node.condition) {
+  if (node.condition)
+  {
     node.condition->accept(*this);
     conditionValue = std::make_shared<IRValueNode>(*currentValue);
     // Create jump instruction based on condition
@@ -603,24 +788,27 @@ void IRGenerator::visit(DoWhileNode &node) {
   currentFunction->addInstruction(std::move(breakLabel));
 }
 
-void IRGenerator::visit(WhileNode &node) { 
+void IRGenerator::visit(WhileNode &node)
+{
   auto continueLabel = "continue_" + node.label;
-  auto breakLabel = "break_"+node.label;
+  auto breakLabel = "break_" + node.label;
   auto startInstr = IRInstructionNode::makeLabel(continueLabel);
   currentFunction->addInstruction(std::move(startInstr));
 
   // condition instructions
   auto conditionValue = std::make_shared<IRValueNode>();
   // always true for while and do while
-  if(node.condition){
+  if (node.condition)
+  {
     node.condition->accept(*this);
     conditionValue = std::make_shared<IRValueNode>(*currentValue);
   }
   IRInstructionPtr jumpInstr;
-  jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue,breakLabel);
+  jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue, breakLabel);
   currentFunction->addInstruction(std::move(jumpInstr));
   // body instructions
-  if(node.body){
+  if (node.body)
+  {
     node.body->accept(*this);
   }
   // jump back to continue
@@ -631,36 +819,41 @@ void IRGenerator::visit(WhileNode &node) {
   currentFunction->addInstruction(std::move(breakInstr));
 }
 
-void IRGenerator::visit(ForNode &node) { 
+void IRGenerator::visit(ForNode &node)
+{
   // instructions for init
-  if(node.init){
+  if (node.init)
+  {
     node.init->accept(*this);
   }
   // start label
   auto startLabel = generateLabelName();
-  auto continueLabel = "continue_"+node.label;
-  auto breakLabel = "break_"+node.label;
+  auto continueLabel = "continue_" + node.label;
+  auto breakLabel = "break_" + node.label;
   auto startLabelInstr = IRInstructionNode::makeLabel(startLabel);
   currentFunction->addInstruction(std::move(startLabelInstr));
   // condition instructions
   IRInstructionPtr jumpInstr;
   IRValuePtr conditionValue;
   // if condition is not present then no need for an additional jump instruction
-  if(node.condition){
+  if (node.condition)
+  {
     (*node.condition)->accept(*this);
     conditionValue = std::make_shared<IRValueNode>(*currentValue);
-    jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue,breakLabel);
+    jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue, breakLabel);
     currentFunction->addInstruction(std::move(jumpInstr));
   }
   // body instructions
-  if(node.body){
+  if (node.body)
+  {
     node.body->accept(*this);
   }
   // continue label
   auto continueLabelInstr = IRInstructionNode::makeLabel(continueLabel);
   currentFunction->addInstruction(std::move(continueLabelInstr));
   // post instructions
-  if(node.post){
+  if (node.post)
+  {
     (*node.post)->accept(*this);
   }
   // jump back to start
@@ -671,10 +864,12 @@ void IRGenerator::visit(ForNode &node) {
   currentFunction->addInstruction(std::move(breakInstr));
 }
 
-void IRGenerator::visit(FunctionCallNode &node) {
+void IRGenerator::visit(FunctionCallNode &node)
+{
   // Generate IR for arguments
   std::vector<IRValuePtr> argValues;
-  for (const auto &arg : node.args) {
+  for (const auto &arg : node.args)
+  {
     arg->accept(*this);
     argValues.push_back(std::make_shared<IRValueNode>(*currentValue));
   }
@@ -693,8 +888,10 @@ void IRGenerator::visit(FunctionCallNode &node) {
   currentValue = std::move(result);
 }
 
-IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
-  switch (tokenType) {
+IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType)
+{
+  switch (tokenType)
+  {
   case TokenType::PLUS:
     return IROpType::ADD;
   case TokenType::HYPHEN:
@@ -727,7 +924,7 @@ IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
     return IROpType::GREATER_EQUAL;
   case TokenType::LEFT_SHIFT:
     return IROpType::LEFT_SHIFT;
-    case TokenType::RIGHT_SHIFT:
+  case TokenType::RIGHT_SHIFT:
     return IROpType::RIGHT_SHIFT;
   case TokenType::LAND:
     return IROpType::LOGICAL_AND;
@@ -738,8 +935,10 @@ IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
   }
 }
 
-IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType) {
-  switch (tokenType) {
+IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType)
+{
+  switch (tokenType)
+  {
   case TokenType::HYPHEN:
     return IROpType::NEGATE;
   case TokenType::TILDE:
@@ -751,15 +950,16 @@ IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType) {
   }
 }
 
-IRValuePtr IRGenerator::createTemporary() {
+IRValuePtr IRGenerator::createTemporary()
+{
   return IRValueNode::makeTemporary(generateTempName());
 }
 
 // Valor class implementation
-IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
+IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast)
+{
   return generator.generateIR(ast);
 }
-
 
 // <------------------------------------------------------------------------------------->
 void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
@@ -772,7 +972,8 @@ void IRGenerator::visit(
 void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
 void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
-void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
+void IRGenerator::visit(Ident &node)
+{ /* Not needed for basic IR generation */
 }
 void IRGenerator::visit(
     DeclaratorNode &node) { /* Not needed for basic IR generation */ }

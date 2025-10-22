@@ -199,6 +199,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
     identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external) for file scope variables 
     auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE : InitType::UNINITIALIZED;
     auto constInit = node.init.has_value()? dynamic_cast<ConstantExpression*>(node.init.value().get()): nullptr;
+
     if(initType == InitType::INITIALIZED && !constInit){
       success = 0;
       errors.push_back("File scope variable '" + node.name + "' must be initialized with a constant value");
@@ -238,10 +239,17 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
       } 
       global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::VARIABLE,new_initType,node.type);
       global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+      if(initType == InitType::INITIALIZED){
+        // update value if initialized
+        global_symbol_table[node.name].value = constInit->value;
+      } 
     }
     else{
       global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::VARIABLE, initType, node.type);
       global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+      if(initType == InitType::INITIALIZED){
+        global_symbol_table[node.name].value = constInit->value;
+      }
     }
     return;
   }
@@ -306,6 +314,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
       global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, InitType::INITIALIZED, node.type);
       global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
+      global_symbol_table[uniqueName].value = constInit->value;
       return;
     } else if(initType == InitType::UNINITIALIZED){
       // zero-initialized static variable

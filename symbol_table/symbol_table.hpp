@@ -21,7 +21,7 @@ enum class SymbolType {
   FUNCTION
 };
 
-bool operator==(const StorageClass &a,const LinkageType& b){
+constexpr bool operator==(const StorageClass &a,const LinkageType& b){
   if(b == LinkageType::INTERNAL && a == StorageClass::STATIC){
     return true;
   }
@@ -39,7 +39,7 @@ class SymbolTableEntry{
   SymbolType symbolType;
   StorageClass storageClass;
   InitType initType;
-  int value; // for initialized constants
+  std::variant<int, long int, long unsigned int, unsigned int, double> value; // for initialized constants
   Type type;
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name,SymbolType symbolType, InitType initType, Type type): name(name),symbolType(symbolType), initType(initType),type(type){}

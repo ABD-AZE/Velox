@@ -1,6 +1,7 @@
 #pragma once
 #include "../ast/ast.hpp"
 #include "../parser/parser.hpp"
+#include "../symbol_table/symbol_table.hpp"
 #include "../token/token.hpp"
 #include <memory>
 #include <string>
@@ -8,22 +9,31 @@
 
 // Forward declarations
 class IRProgramNode;
+class IRTopLevelNode;
 class IRFunctionNode;
+class IRStaticVariableNode;
 class IRInstructionNode;
 class IRValueNode;
-class IRStaticVariableNode;
 
 using IRProgramPtr = std::unique_ptr<IRProgramNode>;
+using IRTopLevelPtr = std::shared_ptr<IRTopLevelNode>;
 using IRFunctionPtr = std::shared_ptr<IRFunctionNode>;
+using IRStaticVariablePtr = std::shared_ptr<IRStaticVariableNode>;
 using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
-using IRStaticVariablePtr = std::shared_ptr<IRStaticVariableNode>;
 
 // IR Value types
-enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
+enum class IRValueType
+{
+  CONSTANT,
+  VARIABLE,
+  TEMPORARY,
+  ARGS
+};
 
 // IR Instruction types
-enum class IROpType {
+enum class IROpType
+{
   // Unary operations
   COMPLEMENT,
   NEGATE,
@@ -58,7 +68,8 @@ enum class IROpType {
   LABEL
 };
 
-class IRValueNode {
+class IRValueNode
+{
 public:
   IRValueType type;
   int intValue = 0;
@@ -66,68 +77,78 @@ public:
   std::vector<IRValuePtr> args;
   // Constructors
   // copy ctr
-  IRValueNode(IRValuePtr other){
+  IRValueNode(IRValuePtr other)
+  {
     type = other->type;
     intValue = other->intValue;
     name = other->name;
     args = other->args;
   }
-  
+
   IRValueNode() = default;
 
-  static IRValuePtr makeConstant(int value) {
+  static IRValuePtr makeConstant(int value)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
     val->intValue = value;
     return val;
   }
 
-  static IRValuePtr makeVariable(const std::string &varName) {
+  static IRValuePtr makeVariable(const std::string &varName)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::VARIABLE;
     val->name = varName;
     return val;
   }
 
-  static IRValuePtr makeTemporary(const std::string &tempName) {
+  static IRValuePtr makeTemporary(const std::string &tempName)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::TEMPORARY;
     val->name = tempName;
     return val;
   }
 
-  static IRValuePtr makeArgs(const std::vector<IRValuePtr> &arguments) {
+  static IRValuePtr makeArgs(const std::vector<IRValuePtr> &arguments)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::ARGS;
     val->args = arguments;
     return val;
   }
 
-  std::string toString() const {
-    switch (type) {
+  std::string toString() const
+  {
+    switch (type)
+    {
     case IRValueType::CONSTANT:
       return std::to_string(intValue);
     case IRValueType::VARIABLE:
     case IRValueType::TEMPORARY:
       return name;
     case IRValueType::ARGS:
+    {
+      std::string argList = "[";
+      for (size_t i = 0; i < args.size(); i++)
       {
-        std::string argList = "[";
-        for(size_t i=0; i<args.size(); i++){
-          argList += args[i]->toString();
-          if(i != args.size()-1){
-            argList += ", ";
-          }
+        argList += args[i]->toString();
+        if (i != args.size() - 1)
+        {
+          argList += ", ";
         }
-        argList += "]";
-        return argList;
       }
+      argList += "]";
+      return argList;
+    }
     }
     return "";
   }
 };
 
-class IRInstructionNode {
+class IRInstructionNode
+{
 public:
   IROpType opType;
   IRValuePtr dst;    // Destination (can be null for some operations)
@@ -141,11 +162,12 @@ public:
 
   here src1 = fn
   src2 points to list of arguments
-  */ 
+  */
 
   // Factory methods for different instruction types
   static IRInstructionPtr makeUnary(IROpType op, IRValuePtr dst,
-                                    IRValuePtr src) {
+                                    IRValuePtr src)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = op;
     inst->dst = std::move(dst);
@@ -154,7 +176,8 @@ public:
   }
 
   static IRInstructionPtr makeBinary(IROpType op, IRValuePtr dst,
-                                     IRValuePtr src1, IRValuePtr src2) {
+                                     IRValuePtr src1, IRValuePtr src2)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = op;
     inst->dst = std::move(dst);
@@ -163,21 +186,24 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeReturn(IRValuePtr value) {
+  static IRInstructionPtr makeReturn(IRValuePtr value)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::RETURN;
     inst->src1 = std::move(value);
     return inst;
   }
 
-  static IRInstructionPtr makeLabel(const std::string &labelName) {
+  static IRInstructionPtr makeLabel(const std::string &labelName)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::LABEL;
     inst->label = labelName;
     return inst;
   }
 
-  static IRInstructionPtr makeCopy(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeCopy(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::COPY;
     inst->src1 = std::move(src);
@@ -185,7 +211,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeJump(const std::string &target) {
+  static IRInstructionPtr makeJump(const std::string &target)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP;
     inst->label = target;
@@ -193,7 +220,8 @@ public:
   }
 
   static IRInstructionPtr makeJumpIfZero(IRValuePtr condition,
-                                         const std::string &target) {
+                                         const std::string &target)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP_IF_ZERO;
     inst->src1 = std::move(condition);
@@ -202,7 +230,8 @@ public:
   }
 
   static IRInstructionPtr makeJumpIfNotZero(IRValuePtr condition,
-                                            const std::string &target) {
+                                            const std::string &target)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP_IF_NOT_ZERO;
     inst->src1 = std::move(condition);
@@ -211,8 +240,9 @@ public:
   }
 
   static IRInstructionPtr makeCall(IRValuePtr function,
-                                    IRValuePtr arguments,
-                                    IRValuePtr result) {
+                                   IRValuePtr arguments,
+                                   IRValuePtr result)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::CALL;
     inst->src1 = std::move(function);
@@ -224,47 +254,73 @@ public:
   std::string toString() const;
 };
 
-class IRFunctionNode {
+// Base class for top-level IR nodes (functions and static variables)
+class IRTopLevelNode
+{
+public:
+  virtual ~IRTopLevelNode() = default;
+  virtual std::string toString() const = 0;
+};
+
+class IRFunctionNode : public IRTopLevelNode
+{
 public:
   std::string identifier;
+  bool global;
   std::vector<std::string> parameters;
   std::vector<IRInstructionPtr> instructions;
-  bool global;
 
-  void addInstruction(IRInstructionPtr instruction) {
+  IRFunctionNode(std::string id, bool isGlobal = true)
+      : identifier(std::move(id)), global(isGlobal) {}
+
+  void addInstruction(IRInstructionPtr instruction)
+  {
     instructions.push_back(std::move(instruction));
   }
 
-  std::string toString() const;
+  std::string toString() const override;
 };
 
-// represents both external and static variables
-class IRStaticVariableNode {
+// Represents both external and local static variables
+class IRStaticVariableNode : public IRTopLevelNode
+{
 public:
   std::string identifier;
-  Type type;
-  bool isInitialized;
-  int initialValue; // default to 0 if uninitialized
+  bool global;
+  std::variant<int, long int, long unsigned int, unsigned int, double> initialValue; // default to 0 if uninitialized
 
-  IRStaticVariableNode(std::string id, Type t)
-      : identifier(std::move(id)), type(std::move(t)), isInitialized(false), initialValue(0) {}
+  IRStaticVariableNode(std::string id, bool isGlobal, std::variant<int, long int, long unsigned int, unsigned int, double> init = 0)
+      : identifier(std::move(id)), global(isGlobal), initialValue(init) {}
 
-  std::string toString() const;
+  std::string toString() const override;
 };
 
-class IRProgramNode {
+class IRProgramNode
+{
 public:
-  std::vector<IRFunctionPtr> functions;
+  std::vector<IRTopLevelPtr> topLevelItems;
 
-  void addFunction(IRFunctionPtr function) {
-    functions.push_back(std::move(function));
+  void addTopLevel(IRTopLevelPtr item)
+  {
+    topLevelItems.push_back(std::move(item));
+  }
+
+  void addFunction(IRFunctionPtr function)
+  {
+    topLevelItems.push_back(std::static_pointer_cast<IRTopLevelNode>(function));
+  }
+
+  void addStaticVariable(IRStaticVariablePtr variable)
+  {
+    topLevelItems.push_back(std::static_pointer_cast<IRTopLevelNode>(variable));
   }
 
   std::string toString() const;
 };
 
 // IR Generator using visitor pattern
-class IRGenerator : public ASTVisitor {
+class IRGenerator : public ASTVisitor
+{
 public:
   IRGenerator(int labelCounter) : tempCounter(), labelCounter(labelCounter) {}
 
@@ -328,20 +384,26 @@ private:
   int labelCounter;
 
   // Helper methods
-  std::string generateTempName() {
+  std::string generateTempName()
+  {
     return "tmp." + std::to_string(tempCounter++);
   }
 
-  std::string generateLabelName() {
+  std::string generateLabelName()
+  {
     return "label." + std::to_string(labelCounter++);
   }
+
+  // Convert symbol table entries to static variables
+  void convertSymbolTableToIR();
 
   IROpType tokenTypeToBinaryIR(TokenType tokenType);
   IROpType tokenTypeToUnaryIR(TokenType tokenType);
   IRValuePtr createTemporary();
 };
 
-class Valor {
+class Valor
+{
 public:
   Valor(int labelcounter) : generator(labelcounter) {};
   ~Valor() = default;
