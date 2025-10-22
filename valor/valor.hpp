@@ -11,11 +11,13 @@ class IRProgramNode;
 class IRFunctionNode;
 class IRInstructionNode;
 class IRValueNode;
+class IRStaticVariableNode;
 
 using IRProgramPtr = std::unique_ptr<IRProgramNode>;
 using IRFunctionPtr = std::shared_ptr<IRFunctionNode>;
 using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
+using IRStaticVariablePtr = std::shared_ptr<IRStaticVariableNode>;
 
 // IR Value types
 enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
@@ -227,10 +229,25 @@ public:
   std::string identifier;
   std::vector<std::string> parameters;
   std::vector<IRInstructionPtr> instructions;
+  bool global;
 
   void addInstruction(IRInstructionPtr instruction) {
     instructions.push_back(std::move(instruction));
   }
+
+  std::string toString() const;
+};
+
+// represents both external and static variables
+class IRStaticVariableNode {
+public:
+  std::string identifier;
+  Type type;
+  bool isInitialized;
+  int initialValue; // default to 0 if uninitialized
+
+  IRStaticVariableNode(std::string id, Type t)
+      : identifier(std::move(id)), type(std::move(t)), isInitialized(false), initialValue(0) {}
 
   std::string toString() const;
 };

@@ -132,7 +132,17 @@ public:
   virtual void accept(ASTVisitor &visitor) = 0;
 };
 
-enum class StorageClass { STATIC, EXTERN };
+enum class StorageClass { STATIC, EXTERN, AUTO };
+
+bool operator==(const TokenType &a, const StorageClass &b){
+  if(b == StorageClass::STATIC && a == TokenType::STATIC){
+    return true;
+  }
+  if(b == StorageClass::EXTERN && a == TokenType::EXTERN){
+    return true;
+  }
+  return false;
+}
 
 struct FunType {
   std::vector<Type> params;

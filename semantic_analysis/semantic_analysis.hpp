@@ -84,7 +84,8 @@ public:
   bool isLvalue(ASTNode *expr);
   bool isFunctionBlock = false;
   bool inFunctionScope = false;
-  
+  bool inFileScope = true;
+  bool forInit = false;
   // Scope stack for nested blocks
   std::vector<std::map<std::string,  std::pair<std::string,bool>>> scope_stack;
 };
