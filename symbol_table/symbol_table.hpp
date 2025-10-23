@@ -33,16 +33,17 @@ constexpr bool operator==(const StorageClass &a,const LinkageType& b){
 
 
 class SymbolTableEntry{
-  public:
+public:
   std::string name;
   LinkageType linkage;
   SymbolType symbolType;
   StorageClass storageClass;
   InitType initType;
+  std::vector<Type> param_types; // for functions
   std::variant<int, long int, long unsigned int, unsigned int, double> value; // for initialized constants
   Type type;
   SymbolTableEntry() = default;
-  SymbolTableEntry(std::string name,SymbolType symbolType, InitType initType, Type type): name(name),symbolType(symbolType), initType(initType),type(type){}
+  SymbolTableEntry(std::string name,SymbolType symbolType, InitType initType, Type type, std::vector<Type> param_types = {}): name(name),symbolType(symbolType), initType(initType),type(type), param_types(param_types) {}
 };
 
 extern std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;

@@ -78,7 +78,7 @@ private:
   non-function declarators, empty vector
   */
   std::tuple<std::string, Type, std::vector<std::string>>
-  processDeclarator(ASTNodePtr declaratorNode, Type baseType);
+  processDeclarator(ASTNodePtr& declaratorNode, Type& baseType);
   Type processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
                                  Type baseType);
   std::vector<paraminfo> parseParams();

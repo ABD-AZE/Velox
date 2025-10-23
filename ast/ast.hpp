@@ -271,6 +271,22 @@ public:
     return !(*this == other);
   }
 
+  static Type getCommonType(Type &first, Type &second){
+    if(first.kind == TypeKind::DOUBLE || second.kind == TypeKind::DOUBLE){
+      return Type::Double();
+    }
+    if(first.kind == TypeKind::ULONG || second.kind == TypeKind::ULONG){
+      return Type::ULong();
+    }
+    if(first.kind == TypeKind::LONG || second.kind == TypeKind::LONG){
+      return Type::Long();
+    }
+    if(first.kind == TypeKind::UINT || second.kind == TypeKind::UINT){
+      return Type::UInt();
+    }
+    return Type::Int();
+  }
+
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
@@ -314,7 +330,7 @@ public:
 class ReturnStatement : public StatementNode {
 public:
   ASTNodePtr expression;
-
+std::shared_ptr<Type> type;
   ReturnStatement(ASTNodePtr expr) : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -374,6 +390,8 @@ public:
 // Base Expression class
 class ExpressionNode : public ASTNode {
 public:
+std::shared_ptr<Type> type;
+  ExpressionNode() = default;
   ~ExpressionNode() override = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
@@ -384,7 +402,7 @@ public:
   TokenType op;
   ASTNodePtr left;
   ASTNodePtr right;
-
+// std::shared_ptr<Type> type;
   BinaryExpression(TokenType op, ASTNodePtr left, ASTNodePtr right)
       : op(op), left(std::move(left)), right(std::move(right)) {}
 
@@ -395,7 +413,7 @@ class UnaryExpression : public ExpressionNode {
 public:
   TokenType op;
   ASTNodePtr operand;
-
+// std::shared_ptr<Type> type;
   UnaryExpression(TokenType op, ASTNodePtr operand)
       : op(op), operand(std::move(operand)) {}
 
@@ -405,7 +423,7 @@ public:
 class ConstantExpression : public ExpressionNode {
 public:
   std::variant<int, long, unsigned long, unsigned int, double> value;
-
+// std::shared_ptr<Type> type;
   ConstantExpression(
       std::variant<int, long, unsigned long, unsigned int, double> value)
       : value(value) {}
@@ -416,7 +434,7 @@ public:
 class VariableExpression : public ExpressionNode {
 public:
   std::string identifier;
-
+// std::shared_ptr<Type> type;
   VariableExpression(std::string identifier)
       : identifier(std::move(identifier)) {}
 
@@ -427,11 +445,11 @@ class AssignmentExpression : public ExpressionNode {
 public:
   ASTNodePtr left;
   ASTNodePtr right;
-  TokenType type; // Type of assignment (e.g., compound_sum ,
+  TokenType assignment_type; // Type of assignment (e.g., compound_sum ,
                   // compound_difference or simple assignment)
-
-  AssignmentExpression(ASTNodePtr left, ASTNodePtr right, TokenType type)
-      : left(std::move(left)), right(std::move(right)), type(type) {}
+// std::shared_ptr<Type> type;
+  AssignmentExpression(ASTNodePtr left, ASTNodePtr right, TokenType assignment_type)
+      : left(std::move(left)), right(std::move(right)), assignment_type(assignment_type) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
@@ -440,7 +458,7 @@ class PostfixExpression : public ExpressionNode {
 public:
   TokenType op; // INCREMENT_OPERATOR or DECREMENT_OPERATOR
   ASTNodePtr operand;
-
+// std::shared_ptr<Type> type;
   PostfixExpression(ASTNodePtr operand, TokenType op)
       : op(op), operand(std::move(operand)) {}
 
@@ -452,6 +470,7 @@ public:
   ASTNodePtr condition;
   ASTNodePtr trueExpr;
   ASTNodePtr falseExpr;
+// std::shared_ptr<Type> type;
   ConditionalExpression(ASTNodePtr cond, ASTNodePtr trueE, ASTNodePtr falseE)
       : condition(std::move(cond)), trueExpr(std::move(trueE)),
         falseExpr(std::move(falseE)) {}
@@ -462,17 +481,16 @@ class CastExpression : public ExpressionNode {
 public:
   Type targetType;
   ASTNodePtr expression;
-
   CastExpression(Type targetType, ASTNodePtr expr)
       : targetType(std::move(targetType)), expression(std::move(expr)) {}
-
+  CastExpression() = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 };
 
 class DereferenceExpression : public ExpressionNode {
 public:
   ASTNodePtr pointerExpr;
-
+// std::shared_ptr<Type> type;
   DereferenceExpression(ASTNodePtr ptrExpr) : pointerExpr(std::move(ptrExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -481,7 +499,7 @@ public:
 class AddressOfExpression : public ExpressionNode {
 public:
   ASTNodePtr variableExpr;
-
+// std::shared_ptr<Type> type;
   AddressOfExpression(ASTNodePtr varExpr) : variableExpr(std::move(varExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -580,6 +598,7 @@ public:
   std::optional<ASTNodePtr> body;         // block
   Type type;                              // return type
   std::optional<TokenType> storage_class; // storage class
+  std::vector<Type> param_types;          // parameter info
   FunDeclNode() = default;
   FunDeclNode(std::string name, std::vector<std::string> param_names,
               ASTNodePtr body)
@@ -716,6 +735,7 @@ class FunctionCallNode : public ExpressionNode {
 public:
   std::string name;
   std::vector<ASTNodePtr> args;
+  std::vector<std::shared_ptr<Type>> param_types; // parameter types after semantic analysis
   FunctionCallNode(std::string name, std::vector<ASTNodePtr> args)
       : name(std::move(name)), args(std::move(args)) {}
   ~FunctionCallNode() override = default;

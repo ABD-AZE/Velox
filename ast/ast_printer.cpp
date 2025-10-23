@@ -252,11 +252,11 @@ void ASTPrinter::visit(AssignmentExpression &node) {
 
   // note: if node.type is std::optional<TokenType>, replace condition with:
   // if (node.type.has_value())
-  if (node.type) {
+  if (node.assignment_type) {
     print_label("type", indent_);
     increaseIndent();
     indent_spaces(indent_);
-    std::cout << TokenTypeToString(node.type) << std::endl;
+    std::cout << TokenTypeToString(node.assignment_type) << std::endl;
     decreaseIndent();
   }
 

@@ -38,6 +38,9 @@ enum class IROpType
   COMPLEMENT,
   NEGATE,
   NOT,
+  // Type conversion operations
+  SIGN_EXTEND,
+  TRUNCATE,
   // Binary operations
   ADD,
   SUBTRACT,
@@ -72,7 +75,8 @@ class IRValueNode
 {
 public:
   IRValueType type;
-  int intValue = 0;
+  TypeKind constType;
+  std::variant<int, long int, long unsigned int, unsigned int, double> value;
   std::string name;
   std::vector<IRValuePtr> args;
   // Constructors
@@ -80,18 +84,33 @@ public:
   IRValueNode(IRValuePtr other)
   {
     type = other->type;
-    intValue = other->intValue;
+    value = other->value;
     name = other->name;
     args = other->args;
   }
 
   IRValueNode() = default;
 
-  static IRValuePtr makeConstant(int value)
+  static IRValuePtr makeConstant(std::variant<int, long int, long unsigned int, unsigned int, double> value)
   {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
-    val->intValue = value;
+    val->value = value;
+    val->constType = std::visit([&](auto&& val){
+      using T = std::decay_t<decltype(val)>;
+      if constexpr (std::is_same_v<T, int>)
+        return TypeKind::INT;
+      else if constexpr (std::is_same_v<T, long int>)
+        return TypeKind::LONG;
+      else if constexpr (std::is_same_v<T, unsigned int>)
+        return TypeKind::UINT;
+      else if constexpr (std::is_same_v<T, long unsigned int>)
+        return TypeKind::ULONG;
+      else if constexpr (std::is_same_v<T, double>)
+        return TypeKind::DOUBLE;
+      else
+        return TypeKind::ERROR;
+    },val->value);
     return val;
   }
 
@@ -124,7 +143,7 @@ public:
     switch (type)
     {
     case IRValueType::CONSTANT:
-      return std::to_string(intValue);
+      return std::visit([](auto &&arg) { return std::to_string(arg); }, value);
     case IRValueType::VARIABLE:
     case IRValueType::TEMPORARY:
       return name;
@@ -183,6 +202,24 @@ public:
     inst->dst = std::move(dst);
     inst->src1 = std::move(src1);
     inst->src2 = std::move(src2);
+    return inst;
+  }
+
+  static IRInstructionPtr makeSignExtend(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::SIGN_EXTEND;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeTruncate(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::TRUNCATE;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
     return inst;
   }
 
@@ -287,10 +324,10 @@ class IRStaticVariableNode : public IRTopLevelNode
 public:
   std::string identifier;
   bool global;
+  Type type;
   std::variant<int, long int, long unsigned int, unsigned int, double> initialValue; // default to 0 if uninitialized
-
-  IRStaticVariableNode(std::string id, bool isGlobal, std::variant<int, long int, long unsigned int, unsigned int, double> init = 0)
-      : identifier(std::move(id)), global(isGlobal), initialValue(init) {}
+  IRStaticVariableNode(std::string id, bool isGlobal, Type varType, std::variant<int, long int, long unsigned int, unsigned int, double> init = 0)
+      : identifier(std::move(id)), global(isGlobal), type(varType), initialValue(init) {}
 
   std::string toString() const override;
 };
@@ -400,6 +437,9 @@ private:
   IROpType tokenTypeToBinaryIR(TokenType tokenType);
   IROpType tokenTypeToUnaryIR(TokenType tokenType);
   IRValuePtr createTemporary();
+
+  // Helper function to create temporary variables with type tracking
+  IRValuePtr makeTackyVariable(Type varType);
 };
 
 class Valor
