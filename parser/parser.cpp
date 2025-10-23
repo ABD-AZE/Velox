@@ -169,8 +169,9 @@ ASTNodePtr Parser::parseFunctionDeclaration()
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   auto declarator = parseDeclarator();
+  auto type_spec = parseTypeSpecifierList(type_list);
   auto [name, type, param_names] = processDeclarator(
-      std::move(declarator), parseTypeSpecifierList(type_list));
+      (declarator), (type_spec));
   if (type.kind != TypeKind::FUNC)
   {
     success = 0;
@@ -188,6 +189,11 @@ ASTNodePtr Parser::parseFunctionDeclaration()
   functionDeclNode->storage_class = storage_class;
   functionDeclNode->name = name;
   functionDeclNode->param_names = param_names;
+  auto &paraminfo = dynamic_cast<FunDeclarator *>(declarator.get())->params;
+  for (const auto &param : paraminfo)
+  {
+    functionDeclNode->param_types.push_back(param.type);
+  }
   if (peek().GetType() == TokenType::SEMICOLON)
   {
     consume();               // consume ';'
@@ -221,8 +227,9 @@ ASTNodePtr Parser::parseVariableDeclaration()
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   auto declarator = parseDeclarator();
+  auto type_spec = parseTypeSpecifierList(type_list);
   auto [name, type, param_names] = processDeclarator(
-      std::move(declarator), parseTypeSpecifierList(type_list));
+      (declarator), (type_spec));
   if (type.kind == TypeKind::FUNC)
   {
     success = 0;
@@ -374,6 +381,7 @@ ASTNodePtr Parser::parseFactor()
     consume();
     try
     {
+      // Try parsing as int first
       std::string lexeme = currentToken.GetLexeme();
       int value = 0;
       if (!lexeme.empty())
@@ -384,24 +392,53 @@ ASTNodePtr Parser::parseFactor()
     }
     catch (const std::exception &e)
     {
-      // If int parsing fails, try parsing as long
+      // If int parsing fails, try parsing as unsigned int
       try
       {
         std::string lexeme = currentToken.GetLexeme();
-        long value = 0;
+        unsigned int value = 0;
         if (!lexeme.empty())
         {
-          value = std::stol(lexeme);
+          value = (unsigned int)std::stoul(lexeme);
         }
         factorNode = std::make_unique<ConstantExpression>(value);
       }
-      catch (const std::exception &e2)
+      catch (const std::exception &e1)
       {
-        factorNode = std::make_unique<ConstantExpression>(0);
-        success = 0;
-        errors.push_back(ParserErrorInfo(
-            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-            currentToken.GetType(), "invalid integer constant"));
+        // If uint parsing fails, try as long
+        try
+        {
+          std::string lexeme = currentToken.GetLexeme();
+          long value = 0;
+          if (!lexeme.empty())
+          {
+            value = std::stol(lexeme);
+          }
+          factorNode = std::make_unique<ConstantExpression>(value);
+        }
+        catch (const std::exception &e2)
+        {
+          // If long parsing fails, try as unsigned long
+          try
+          {
+            std::string lexeme = currentToken.GetLexeme();
+            unsigned long value = 0;
+            if (!lexeme.empty())
+            {
+              value = std::stoul(lexeme);
+            }
+            factorNode = std::make_unique<ConstantExpression>(value);
+          }
+          catch (const std::exception &e3)
+          {
+            // All parsing attempts failed
+            factorNode = std::make_unique<ConstantExpression>(0);
+            success = 0;
+            errors.push_back(ParserErrorInfo(
+                currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+                currentToken.GetType(), "invalid integer constant"));
+          }
+        }
       }
     }
     break;
@@ -420,11 +457,24 @@ ASTNodePtr Parser::parseFactor()
     }
     catch (const std::exception &e)
     {
-      factorNode = std::make_unique<ConstantExpression>(0L);
-      success = 0;
-      errors.push_back(ParserErrorInfo(
-          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-          currentToken.GetType(), "long integer constant"));
+      try{
+        std::string lexeme = currentToken.GetLexeme();
+        unsigned long value = 0;
+        if (!lexeme.empty())
+        {
+          value = std::stoul(lexeme);
+        }
+        factorNode = std::make_unique<ConstantExpression>(value);
+      }
+      catch(const std::exception &e1){
+
+      
+        factorNode = std::make_unique<ConstantExpression>(0L);
+        success = 0;
+        errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            currentToken.GetType(), "long integer constant"));
+        }
     }
     break;
 
@@ -442,11 +492,23 @@ ASTNodePtr Parser::parseFactor()
     }
     catch (const std::exception &e)
     {
-      factorNode = std::make_unique<ConstantExpression>((unsigned int)0);
-      success = 0;
-      errors.push_back(ParserErrorInfo(
-          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-          currentToken.GetType(), "unsigned int constant"));
+      try{
+        std::string lexeme = currentToken.GetLexeme();
+        unsigned long value = 0;
+        if (!lexeme.empty())
+        {
+          value = std::stoul(lexeme);
+        }
+        factorNode = std::make_unique<ConstantExpression>(value);
+      }
+      catch(const std::exception& e1){
+
+        factorNode = std::make_unique<ConstantExpression>((unsigned int)0);
+        success = 0;
+        errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            currentToken.GetType(), "unsigned int constant"));
+      }
     }
     break;
   case TokenType::ULONG_CONSTANT:
@@ -692,8 +754,9 @@ ASTNodePtr Parser::parseDeclaration()
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   auto declarator = parseDeclarator();
+  auto type_spec = parseTypeSpecifierList(type_list);
   auto [name, type, param_names] = processDeclarator(
-      std::move(declarator), parseTypeSpecifierList(type_list));
+      (declarator), (type_spec));
   if (type.kind == TypeKind::FUNC)
   {
     FunDeclNodePtr functionDeclNode = std::make_unique<FunDeclNode>();
@@ -701,6 +764,10 @@ ASTNodePtr Parser::parseDeclaration()
     functionDeclNode->storage_class = storage_class;
     functionDeclNode->name = name;
     functionDeclNode->param_names = param_names;
+    for (auto &param : dynamic_cast<FunDeclarator *>(declarator.get())->params)
+    {
+      functionDeclNode->param_types.push_back(param.type);
+    }
     if (peek().GetType() == TokenType::SEMICOLON)
     {
       consume();               // consume ';'
@@ -803,7 +870,7 @@ ASTNodePtr Parser::parseAbstractDeclarator()
 }
 
 std::tuple<std::string, Type, std::vector<std::string>>
-Parser::processDeclarator(ASTNodePtr declaratorNode, Type baseType)
+Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType)
 {
   std::string name;
   std::vector<std::string> param_names;
@@ -817,8 +884,8 @@ Parser::processDeclarator(ASTNodePtr declaratorNode, Type baseType)
                dynamic_cast<PointerDeclarator *>(declaratorNode.get()))
   {
     type = Type(TypeKind::POINTER, PointerType(std::make_unique<Type>(type)));
-    return processDeclarator(std::move(pointerDecl->declarator),
-                             std::move(type));
+    return processDeclarator((pointerDecl->declarator),
+                             (type));
   }
   else if (auto funDecl =
                dynamic_cast<FunDeclarator *>(declaratorNode.get()))
@@ -828,7 +895,7 @@ Parser::processDeclarator(ASTNodePtr declaratorNode, Type baseType)
     {
 
       auto [param_name, param_type, _] =
-          processDeclarator(std::move(param.declarator), std::move(param.type));
+          processDeclarator((param.declarator), (param.type));
       if (param_type.kind == TypeKind::FUNC)
       {
         success = 0;

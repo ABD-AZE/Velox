@@ -1,4 +1,5 @@
 #include "valor.hpp"
+#include "../utils/token_classifier.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -96,6 +97,12 @@ std::string IRInstructionNode::toString() const
   case IROpType::COMPLEMENT:
     ss << dst->toString() << " = ~" << src1->toString();
     break;
+  case IROpType::SIGN_EXTEND:
+    ss << dst->toString() << " = sign_extend(" << src1->toString() << ")";
+    break;
+  case IROpType::TRUNCATE:
+    ss << dst->toString() << " = truncate(" << src1->toString() << ")";
+    break;
   case IROpType::JUMP:
     ss << "jump " << label;
     break;
@@ -175,11 +182,13 @@ std::string IRStaticVariableNode::toString() const
   std::stringstream ss;
   ss << "StaticVariable(name=" << identifier
      << ", global=" << (global ? "true" : "false")
+     << ", type=" << TypeKindToString(type.kind)
      << ", init=";
-  
+
   // Handle the variant type by visiting it
-  std::visit([&ss](auto&& arg) { ss << arg; }, initialValue);
-  
+  std::visit([&ss](auto &&arg)
+             { ss << arg; }, initialValue);
+
   ss << ")";
   return ss.str();
 }
@@ -216,10 +225,11 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast)
   convertSymbolTableToIR();
   // move the staticvariable to the front
   std::stable_partition(program->topLevelItems.begin(), program->topLevelItems.end(),
-                        [](const IRTopLevelPtr &item) {
+                        [](const IRTopLevelPtr &item)
+                        {
                           return dynamic_cast<IRStaticVariableNode *>(item.get()) != nullptr;
                         });
-                        
+
   return std::move(program);
 }
 
@@ -265,7 +275,7 @@ void IRGenerator::convertSymbolTableToIR()
 
     // Create static variable node
     auto staticVar =
-        std::make_shared<IRStaticVariableNode>(name, isGlobal, initValue);
+        std::make_shared<IRStaticVariableNode>(name, isGlobal, entry.type, initValue);
     program->addStaticVariable(std::move(staticVar));
   }
 }
@@ -321,8 +331,8 @@ void IRGenerator::visit(PostfixExpression &node)
     node.operand->accept(*this);
     IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
 
-    // Create temporary for result
-    IRValuePtr result = createTemporary();
+    // Create temporary for result with proper type tracking
+    IRValuePtr result = makeTackyVariable(*node.type);
 
     // Convert token type to IR operation
     IROpType irOp;
@@ -376,8 +386,8 @@ void IRGenerator::visit(
       node.trueExpr->accept(*this);
     }
     IRValuePtr trueExprValue = std::make_shared<IRValueNode>(*currentValue);
-    // Create a temporary variable to hold the result of the true expression
-    IRValuePtr result = createTemporary();
+    // Create a temporary variable to hold the result with proper type tracking
+    IRValuePtr result = makeTackyVariable(*node.type);
     // Assign true expression value to result
     auto copyTrueInst = IRInstructionNode::makeCopy(
         std::move(trueExprValue), std::make_shared<IRValueNode>(result));
@@ -539,10 +549,7 @@ void IRGenerator::visit(ConstantExpression &node)
 {
   // Create a constant value
   // Extract the value from the variant
-  int intValue = std::visit(
-      [](auto &&arg) -> int
-      { return static_cast<int>(arg); }, node.value);
-  currentValue = IRValueNode::makeConstant(intValue);
+  currentValue = IRValueNode::makeConstant(node.value);
 }
 
 void IRGenerator::visit(VariableExpression &node)
@@ -557,8 +564,8 @@ void IRGenerator::visit(UnaryExpression &node)
   node.operand->accept(*this);
   IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
 
-  // Create temporary for result
-  IRValuePtr result = createTemporary();
+  // Create temporary for result with proper type tracking
+  IRValuePtr result = makeTackyVariable(*node.type);
 
   // Convert token type to IR operation
   IROpType irOp = tokenTypeToUnaryIR(node.op);
@@ -591,7 +598,8 @@ void IRGenerator::visit(BinaryExpression &node)
 
     std::string falseLabel = generateLabelName();
     std::string endLabel = generateLabelName();
-    IRValuePtr result = createTemporary();
+    // Logical operators always produce int type (0 or 1)
+    IRValuePtr result = makeTackyVariable(Type::Int());
 
     // Generate IR for left operand
     node.left->accept(*this);
@@ -653,7 +661,8 @@ void IRGenerator::visit(BinaryExpression &node)
 
     std::string trueLabel = generateLabelName();
     std::string endLabel = generateLabelName();
-    IRValuePtr result = createTemporary();
+    // Logical operators always produce int type (0 or 1)
+    IRValuePtr result = makeTackyVariable(Type::Int());
 
     // Generate IR for left operand
     node.left->accept(*this);
@@ -707,8 +716,8 @@ void IRGenerator::visit(BinaryExpression &node)
   node.right->accept(*this);
   IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
 
-  // Create temporary for result
-  IRValuePtr result = createTemporary();
+  // Create temporary for result with proper type tracking
+  IRValuePtr result = makeTackyVariable(*node.type);
 
   // Convert token type to IR operation
   IROpType irOp = tokenTypeToBinaryIR(node.op);
@@ -877,8 +886,8 @@ void IRGenerator::visit(FunctionCallNode &node)
   // Create IRValue for function name
   IRValuePtr funcValue = IRValueNode::makeVariable(node.name);
 
-  // Create temporary for result
-  IRValuePtr result = createTemporary();
+  // Create temporary for result with proper type tracking
+  IRValuePtr result = makeTackyVariable(*node.type);
 
   // Create call instruction
   auto callInst = IRInstructionNode::makeCall(
@@ -955,6 +964,20 @@ IRValuePtr IRGenerator::createTemporary()
   return IRValueNode::makeTemporary(generateTempName());
 }
 
+// Helper function for generating TACKY variables with type tracking
+IRValuePtr IRGenerator::makeTackyVariable(Type varType)
+{
+  std::string varName = generateTempName();
+
+  // Add to symbol table with type and LocalAttr
+  SymbolTableEntry entry(varName, SymbolType::VARIABLE, InitType::UNINITIALIZED, varType);
+  entry.linkage = LinkageType::NONE;
+  entry.storageClass = StorageClass::AUTO;
+  global_symbol_table[varName] = entry;
+
+  return IRValueNode::makeTemporary(varName);
+}
+
 // Valor class implementation
 IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast)
 {
@@ -964,7 +987,50 @@ IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast)
 // <------------------------------------------------------------------------------------->
 void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
 void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
-void IRGenerator::visit(CastExpression &node) { /* TODO: Implement casts */ }
+
+void IRGenerator::visit(CastExpression &node)
+{
+  // Generate IR for the inner expression
+  node.expression->accept(*this);
+  IRValuePtr result = std::make_shared<IRValueNode>(*currentValue);
+
+  // Get the type we're casting from (the inner expression's type)
+  auto exp = dynamic_cast<ExpressionNode*>(node.expression.get());
+  Type innerType = *exp->type;
+
+  // If already the correct type, no cast needed
+  if (node.targetType == innerType)
+  {
+    currentValue = result;
+    return;
+  }
+
+  // Create destination variable with the target type
+  IRValuePtr dst = makeTackyVariable(node.targetType);
+
+  // Determine if we need SignExtend (int to long) or Truncate (long to int)
+  if (node.targetType.kind == TypeKind::LONG)
+  {
+    // Cast from int to long - sign extend
+    auto signExtendInst = IRInstructionNode::makeSignExtend(result, dst);
+    currentFunction->addInstruction(std::move(signExtendInst));
+  }
+  else if (node.targetType.kind == TypeKind::INT)
+  {
+    // Cast from long to int - truncate
+    auto truncateInst = IRInstructionNode::makeTruncate(result, dst);
+    currentFunction->addInstruction(std::move(truncateInst));
+  }
+  else
+  {
+    // For other types, just copy
+    auto copyInst = IRInstructionNode::makeCopy(result, dst);
+    currentFunction->addInstruction(std::move(copyInst));
+  }
+
+  currentValue = dst;
+}
+
 void IRGenerator::visit(
     DereferenceExpression &node) { /* TODO: Implement dereference */ }
 void IRGenerator::visit(

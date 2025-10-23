@@ -49,6 +49,25 @@ bool SemanticAnalyzer::isLvalue(ASTNode *expr)
   return false;
 }
 
+// Helper function to make implicit type conversions explicit
+ExpressionNodePtr SemanticAnalyzer::convertTo(ExpressionNodePtr expr, Type &targetType)
+{
+  if (!expr || !expr->type)
+    return expr;
+
+  // If expression already has the correct type, return unchanged
+  if (*expr->type == targetType)
+    return expr;
+
+  // Create a Cast expression to explicitly convert
+  auto castExpr = std::make_unique<CastExpression>();
+  castExpr->targetType = targetType;
+  castExpr->expression = std::move(expr);
+  castExpr->type = std::make_shared<Type>(targetType);
+
+  return castExpr;
+}
+
 // Constructor
 SemanticAnalyzer::SemanticAnalyzer() : success(true) {}
 
@@ -91,7 +110,7 @@ void SemanticAnalyzer::visit(ProgramNode &node)
 
 void SemanticAnalyzer::visit(FunctionDefinitionNode &node)
 {
-  if(identifier_map.find(node.name) != identifier_map.end())
+  if (identifier_map.find(node.name) != identifier_map.end())
   {
     auto prev_entry = identifier_map[node.name];
   }
@@ -104,13 +123,16 @@ void SemanticAnalyzer::visit(FunctionDefinitionNode &node)
 
 void SemanticAnalyzer::visit(FunDeclNode &node)
 {
-  if (inFunctionScope){
-    if(node.body){
+  if (inFunctionScope)
+  {
+    if (node.body)
+    {
       success = 0;
       errors.push_back("Nested function definitions are not allowed");
       return;
     }
-    if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::STATIC){
+    if (node.storage_class.has_value() && node.storage_class.value() == StorageClass::STATIC)
+    {
       success = 0;
       errors.push_back("Function declarations inside function scope cannot have 'static' storage class");
       return;
@@ -120,144 +142,177 @@ void SemanticAnalyzer::visit(FunDeclNode &node)
   inFileScope = false;
   auto temp_inFunctionScope = inFunctionScope;
   inFunctionScope = true;
-  auto global = (!node.storage_class.has_value())||(node.storage_class.has_value() && node.storage_class.value() != StorageClass::STATIC);
-  if(global_symbol_table.find(node.name) != global_symbol_table.end()){
+  auto global = (!node.storage_class.has_value()) || (node.storage_class.has_value() && node.storage_class.value() != StorageClass::STATIC);
+  if (global_symbol_table.find(node.name) != global_symbol_table.end())
+  {
     auto old_decl = global_symbol_table[node.name];
-    if(node.type != old_decl.type){
+    if (node.type != old_decl.type)
+    {
       success = 0;
       errors.push_back("Function '" + node.name + "' redeclared with different type");
       return;
     }
-    if(node.body.has_value() && old_decl.initType == InitType::INITIALIZED){
+    if (node.body.has_value() && old_decl.initType == InitType::INITIALIZED)
+    {
       success = 0;
       errors.push_back("Function '" + node.name + "' already defined");
       return;
     }
-    if(old_decl.linkage==LinkageType::EXTERNAL && !global){
+    if (old_decl.linkage == LinkageType::EXTERNAL && !global)
+    {
       success = 0;
       errors.push_back("Function '" + node.name + "' redeclared with different linkage");
       return;
     }
     InitType new_initType = old_decl.initType;
-    if(node.body.has_value()){
+    if (node.body.has_value())
+    {
       new_initType = InitType::INITIALIZED;
     }
     // no need to update linkage as this declaration would follow the linkage of the first declaration
-    global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::FUNCTION,new_initType,node.type);
+    global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::FUNCTION, new_initType, node.type, node.param_types);
   }
-  else{
-    global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::FUNCTION, node.body.has_value() ? InitType::INITIALIZED : InitType::TENTATIVE, node.type);
+  else
+  {
+    global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::FUNCTION, node.body.has_value() ? InitType::INITIALIZED : InitType::TENTATIVE, node.type, node.param_types);
     global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
   }
   // Check for redeclaration
   if (identifier_map.find(node.name) != identifier_map.end())
   {
     auto prev_entry = identifier_map[node.name];
-    if(prev_entry.second == 0) // internal linkage
+    if (prev_entry.second == 0) // internal linkage
     {
       success = 0;
       errors.push_back("Declaration of function '" + node.name + "' conflicts with previous declaration");
       return;
     }
   }
-  identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external) for functions
+  identifier_map[node.name] = {node.name, 1}; // set linkage to 1 (external) for functions
   // visit params
   pushScope();
   bool hasbody = node.body.has_value();
   for (auto &param_name : node.param_names)
   {
     // generate unique name for parameter
-    if(identifier_map.find(param_name) != identifier_map.end())
+    if (identifier_map.find(param_name) != identifier_map.end())
     {
       success = 0;
       errors.push_back("Parameter '" + param_name + "' redeclared");
       continue;
     }
     std::string uniqueName = make_temp(param_name);
-    identifier_map[param_name] = {uniqueName,0}; // default linkage to 0 (internal) for parameters
-    if(hasbody){
-      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName,SymbolType::VARIABLE,InitType::TENTATIVE,Type::Int()); // assuming all params are int for simplicity
-      global_symbol_table[uniqueName].linkage = LinkageType::NONE; 
+    identifier_map[param_name] = {uniqueName, 0}; // default linkage to 0 (internal) for parameters
+    if (hasbody)
+    {
+      Type type;
+      // find type from param_types
+      auto it = &node.param_types[&param_name - &node.param_names[0]];
+      if (it)
+      {
+        type = *it;
+      }
+      global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, InitType::TENTATIVE, type, {}); // assuming all params are int for simplicity
+      global_symbol_table[uniqueName].linkage = LinkageType::NONE;
       global_symbol_table[uniqueName].storageClass = StorageClass::AUTO;
     }
   }
   isFunctionBlock = true;
-  if(node.body)
+  auto temp_currentFunction = currentFunction;
+  currentFunction = &node;
+
+  if (node.body)
   {
     node.body.value()->accept(*this);
   }
+  currentFunction = temp_currentFunction;
   isFunctionBlock = false;
   inFunctionScope = temp_inFunctionScope;
   inFileScope = temp_inFileScope;
-  popScope();  
+  popScope();
 }
 
 void SemanticAnalyzer::visit(VarDeclNode &node)
 {
   // FILE SCOPE VARIABLE CHECK
-  if(inFileScope){
-    identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external) for file scope variables 
-    auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE : InitType::UNINITIALIZED;
-    auto constInit = node.init.has_value()? dynamic_cast<ConstantExpression*>(node.init.value().get()): nullptr;
+  if (inFileScope)
+  {
+    identifier_map[node.name] = {node.name, 1}; // set linkage to 1 (external) for file scope variables
+    auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE
+                                                                                                               : InitType::UNINITIALIZED;
+    auto constInit = node.init.has_value() ? dynamic_cast<ConstantExpression *>(node.init.value().get()) : nullptr;
 
-    if(initType == InitType::INITIALIZED && !constInit){
+    if (initType == InitType::INITIALIZED && !constInit)
+    {
       success = 0;
       errors.push_back("File scope variable '" + node.name + "' must be initialized with a constant value");
       return;
     }
 
-    auto global = (!node.storage_class.has_value())||(node.storage_class.has_value() && node.storage_class.value() != StorageClass::STATIC);
+    auto global = (!node.storage_class.has_value()) || (node.storage_class.has_value() && node.storage_class.value() != StorageClass::STATIC);
 
-    if(global_symbol_table.find(node.name) != global_symbol_table.end()){
+    if (global_symbol_table.find(node.name) != global_symbol_table.end())
+    {
       auto old_decl = global_symbol_table[node.name];
-      if(node.type != old_decl.type){
+      if (node.type != old_decl.type)
+      {
         success = 0;
         errors.push_back("Variable '" + node.name + "' redeclared with different type at file scope");
         return;
       }
-      if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN){
-        global = old_decl.linkage == LinkageType::EXTERNAL; 
+      if (node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN)
+      {
+        global = old_decl.linkage == LinkageType::EXTERNAL;
       }
-      if((old_decl.linkage==LinkageType::EXTERNAL && !global) || (old_decl.linkage==LinkageType::INTERNAL && global)){
+      if ((old_decl.linkage == LinkageType::EXTERNAL && !global) || (old_decl.linkage == LinkageType::INTERNAL && global))
+      {
         success = 0;
         errors.push_back("Variable '" + node.name + "' redeclared with different linkage at file scope");
         return;
       }
       InitType new_initType = old_decl.initType;
-      if(old_decl.initType == InitType::INITIALIZED && initType == InitType::INITIALIZED){
+      if (old_decl.initType == InitType::INITIALIZED && initType == InitType::INITIALIZED)
+      {
         success = 0;
         errors.push_back("Variable '" + node.name + "' already defined at file scope");
         return;
-      } else if(initType == InitType::INITIALIZED || old_decl.initType == InitType::INITIALIZED){
+      }
+      else if (initType == InitType::INITIALIZED || old_decl.initType == InitType::INITIALIZED)
+      {
         new_initType = InitType::INITIALIZED;
       }
-      else if(initType == InitType::TENTATIVE || old_decl.initType == InitType::TENTATIVE){
+      else if (initType == InitType::TENTATIVE || old_decl.initType == InitType::TENTATIVE)
+      {
         new_initType = InitType::TENTATIVE;
       }
-      else if(initType == InitType::UNINITIALIZED && old_decl.initType == InitType::UNINITIALIZED){
+      else if (initType == InitType::UNINITIALIZED && old_decl.initType == InitType::UNINITIALIZED)
+      {
         new_initType = InitType::UNINITIALIZED;
-      } 
-      global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::VARIABLE,new_initType,node.type);
+      }
+      global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::VARIABLE, new_initType, node.type);
       global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
-      if(initType == InitType::INITIALIZED){
+      if (initType == InitType::INITIALIZED)
+      {
         // update value if initialized
         global_symbol_table[node.name].value = constInit->value;
-      } 
+      }
     }
-    else{
+    else
+    {
       global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::VARIABLE, initType, node.type);
       global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
-      if(initType == InitType::INITIALIZED){
+      if (initType == InitType::INITIALIZED)
+      {
         global_symbol_table[node.name].value = constInit->value;
       }
     }
     return;
   }
 
-
   // LOCAL SCOPE VARIABLE CHECK
   // Check for redeclaration
-  if (forInit && node.storage_class.has_value()) {
+  if (forInit && node.storage_class.has_value())
+  {
     success = 0;
     errors.push_back("Variables declared in for-loop initialization cannot have storage class specifiers");
     return;
@@ -265,48 +320,61 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
   if (identifier_map.find(node.name) != identifier_map.end())
   {
     auto prev_entry = identifier_map[node.name];
-    if(!(prev_entry.second && node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN)){ // internal linkage
-    success = 0;
-    errors.push_back("Variable '" + node.name + "' redeclared");
-    return;
+    if (!(prev_entry.second && node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN))
+    { // internal linkage
+      success = 0;
+      errors.push_back("Variable '" + node.name + "' redeclared");
+      return;
     }
   }
   std::string uniqueName;
-  if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN){
+  if (node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN)
+  {
     // extern variable redeclaration
-    identifier_map[node.name] = {node.name,1}; // set linkage to 1 (external)
+    identifier_map[node.name] = {node.name, 1}; // set linkage to 1 (external)
   }
-  else{
+  else
+  {
     // Generate unique name BEFORE resolving initializer
     uniqueName = make_temp(node.name);
     identifier_map[node.name] = {uniqueName, 0}; // default linkage to 0 (internal) for variables
   }
-  auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE : InitType::UNINITIALIZED;
+  auto initType = node.init.has_value() ? InitType::INITIALIZED : node.storage_class == StorageClass::EXTERN ? InitType::TENTATIVE
+                                                                                                             : InitType::UNINITIALIZED;
 
-  if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN){
-    if(initType == InitType::INITIALIZED){
+  if (node.storage_class.has_value() && node.storage_class.value() == StorageClass::EXTERN)
+  {
+    if (initType == InitType::INITIALIZED)
+    {
       success = 0;
       errors.push_back("Extern variable '" + node.name + "' cannot be initialized");
       return;
     }
-    if(global_symbol_table.find(node.name) != global_symbol_table.end()){
+    if (global_symbol_table.find(node.name) != global_symbol_table.end())
+    {
       auto old_decl = global_symbol_table[node.name];
-      if(node.type != old_decl.type){
+      if (node.type != old_decl.type)
+      {
         success = 0;
         errors.push_back("Variable '" + node.name + "' redeclared with different type");
         return;
       }
     }
-    else{
-      global_symbol_table[node.name] = SymbolTableEntry(node.name,SymbolType::VARIABLE,InitType::UNINITIALIZED,node.type);
+    else
+    {
+      global_symbol_table[node.name] = SymbolTableEntry(node.name, SymbolType::VARIABLE, InitType::UNINITIALIZED, node.type);
       global_symbol_table[node.name].linkage = LinkageType::EXTERNAL;
     }
     return;
-  } else if(node.storage_class.has_value() && node.storage_class.value() == StorageClass::STATIC){
+  }
+  else if (node.storage_class.has_value() && node.storage_class.value() == StorageClass::STATIC)
+  {
     // static variable
-    if(initType == InitType::INITIALIZED){
-      auto constInit = node.init.has_value()? dynamic_cast<ConstantExpression*>(node.init.value().get()): nullptr;
-      if(initType == InitType::INITIALIZED && !constInit){
+    if (initType == InitType::INITIALIZED)
+    {
+      auto constInit = node.init.has_value() ? dynamic_cast<ConstantExpression *>(node.init.value().get()) : nullptr;
+      if (initType == InitType::INITIALIZED && !constInit)
+      {
         success = 0;
         errors.push_back("File scope variable '" + node.name + "' must be initialized with a constant value");
         return;
@@ -316,18 +384,24 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
       global_symbol_table[uniqueName].value = constInit->value;
       return;
-    } else if(initType == InitType::UNINITIALIZED){
+    }
+    else if (initType == InitType::UNINITIALIZED)
+    {
       // zero-initialized static variable
       global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, InitType::ZERO_INITIALIZED, node.type);
       global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
       return;
-    } else{
+    }
+    else
+    {
       success = 0;
       errors.push_back("non constant initializer on Static variable '" + node.name + "'");
       return;
     }
-  } else{
+  }
+  else
+  {
     // automatic variable
     global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, initType, node.type);
     global_symbol_table[uniqueName].linkage = LinkageType::NONE;
@@ -337,6 +411,18 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
   if (node.init)
   {
     node.init.value()->accept(*this);
+    // Convert initializer to the variable's type if it's an expression
+    if (auto *initExp = dynamic_cast<ExpressionNode *>(node.init.value().get()))
+    {
+      // Check if type conversion is needed
+      if (initExp->type && *initExp->type != node.type)
+      {
+        // Create a cast expression to convert to variable's type
+        auto castExpr = std::make_unique<CastExpression>(node.type, std::move(node.init.value()));
+        castExpr->type = std::make_shared<Type>(node.type);
+        node.init = std::move(castExpr);
+      }
+    }
   }
 
   // Update node with unique name
@@ -346,10 +432,12 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
 void SemanticAnalyzer::visit(BlockNode &node)
 {
   auto temp_isFunctionBlock = isFunctionBlock;
-  if(isFunctionBlock)
+  if (isFunctionBlock)
   {
     isFunctionBlock = false;
-  }else{
+  }
+  else
+  {
     pushScope();
   }
   for (auto &item : node.block_items)
@@ -360,7 +448,7 @@ void SemanticAnalyzer::visit(BlockNode &node)
     }
   }
   // popscope if not function block
-  if(!temp_isFunctionBlock)
+  if (!temp_isFunctionBlock)
   {
     popScope();
   }
@@ -386,7 +474,7 @@ void SemanticAnalyzer::visit(FunctionCallNode &node)
   auto found_current = identifier_map.find(node.name);
   if (found_current == identifier_map.end())
   {
-    for(auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it)
+    for (auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it)
     {
       auto found = it->find(node.name);
       if (found != it->end())
@@ -407,26 +495,56 @@ void SemanticAnalyzer::visit(FunctionCallNode &node)
       node.name = found_current->second.first;
     }
   }
-  else{
+  else
+  {
     // Replace with unique name
     node.name = found_current->second.first;
   }
+  auto entry = global_symbol_table[node.name];
+  auto param_types = entry.param_types;
   // Resolve all argument expressions
-  for (auto &arg : node.args)
+  std::vector<std::shared_ptr<Type>> arg_types;
+  for (size_t i = 0; i < node.args.size(); ++i)
   {
+    auto &arg = node.args[i];
     if (arg)
     {
       arg->accept(*this);
+      auto argExp = dynamic_cast<ExpressionNode *>(arg.get());
+      if (argExp && argExp->type)
+      {
+        if (i < param_types.size())
+        {
+          Type expectedType = param_types[i];
+          // Convert argument to parameter type
+          if (*argExp->type != expectedType)
+          {
+            auto castExpr = std::make_unique<CastExpression>();
+            castExpr->targetType = expectedType;
+            castExpr->expression = std::move(arg);
+            castExpr->type = std::make_shared<Type>(expectedType);
+            node.args[i] = std::move(castExpr);
+          }
+          arg_types.push_back(std::make_shared<Type>(expectedType));
+        }
+        else
+        {
+          arg_types.push_back(argExp->type);
+        }
+      }
     }
   }
+  node.param_types = arg_types;
 
-  auto entry = global_symbol_table[node.name];
-  if(entry.symbolType != SymbolType::FUNCTION){
+  node.type = std::make_shared<Type>(entry.type);
+  if (entry.symbolType != SymbolType::FUNCTION)
+  {
     success = 0;
     errors.push_back("Variable '" + node.name + "' used as function");
     return;
   }
-  if(node.args.size() != (entry.type.data.index() == 1 ? std::get<FunType>(entry.type.data).params.size() : -1)){
+  if (node.args.size() != (entry.type.data.index() == 1 ? std::get<FunType>(entry.type.data).params.size() : -1))
+  {
     success = 0;
     errors.push_back("Function '" + node.name + "' called with incorrect number of arguments");
     return;
@@ -439,7 +557,25 @@ void SemanticAnalyzer::visit(ReturnStatement &node)
   if (node.expression)
   {
     node.expression->accept(*this);
+
+    // Convert return value to function's return type
+    if (currentFunction && currentFunction->type.data.index() == 1)
+    {
+      auto &funType = std::get<FunType>(currentFunction->type.data);
+      Type returnType = *funType.ret; // Dereference the shared_ptr
+
+      auto returnExp = dynamic_cast<ExpressionNode *>(node.expression.get());
+      if (returnExp && returnExp->type && *returnExp->type != returnType)
+      {
+        auto castExpr = std::make_unique<CastExpression>();
+        castExpr->targetType = returnType;
+        castExpr->expression = std::move(node.expression);
+        castExpr->type = std::make_shared<Type>(returnType);
+        node.expression = std::move(castExpr);
+      }
+    }
   }
+  node.type = std::make_shared<Type>(currentFunction->type);
 }
 
 void SemanticAnalyzer::visit(ExpressionStatement &node)
@@ -562,7 +698,8 @@ void SemanticAnalyzer::visit(ForNode &node)
 void SemanticAnalyzer::visit(BreakNode &node)
 {
   node.label = current_label;
-  if(current_label == ""){
+  if (current_label == "")
+  {
     success = 0;
     errors.push_back("Break statement not within a loop");
     return;
@@ -572,7 +709,8 @@ void SemanticAnalyzer::visit(BreakNode &node)
 void SemanticAnalyzer::visit(ContinueNode &node)
 {
   node.label = current_label;
-  if(current_label == ""){
+  if (current_label == "")
+  {
     success = 0;
     errors.push_back("Continue statement not within a loop");
     return;
@@ -588,9 +726,10 @@ void SemanticAnalyzer::visit(ForInit &node)
 }
 
 void SemanticAnalyzer::visit(InitDecl &node)
-{ 
-  auto varnode = dynamic_cast<VarDeclNode*>(node.init.get());
-  if (varnode && varnode->storage_class.has_value()){
+{
+  auto varnode = dynamic_cast<VarDeclNode *>(node.init.get());
+  if (varnode && varnode->storage_class.has_value())
+  {
     success = 0;
     errors.push_back("Storage class specifier not allowed in for-init declaration");
     return;
@@ -620,6 +759,71 @@ void SemanticAnalyzer::visit(BinaryExpression &node)
   {
     node.right->accept(*this);
   }
+
+  auto leftExp = dynamic_cast<ExpressionNode *>(node.left.get());
+  auto rightExp = dynamic_cast<ExpressionNode *>(node.right.get());
+
+  // Logical AND and OR don't perform type conversions
+  if (node.op == TokenType::LAND || node.op == TokenType::LOR)
+  {
+    node.type = std::make_shared<Type>(Type::Int());
+    return;
+  }
+
+  // For other binary operations, perform usual arithmetic conversions
+  if (leftExp && rightExp && leftExp->type && rightExp->type)
+  {
+    Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
+
+    // Convert both operands to the common type by wrapping in cast if needed
+    if (*leftExp->type != commonType)
+    {
+      auto castExpr = std::make_unique<CastExpression>();
+      castExpr->targetType = commonType;
+      castExpr->expression = std::move(node.left);
+      castExpr->type = std::make_shared<Type>(commonType);
+      node.left = std::move(castExpr);
+    }
+
+    if (*rightExp->type != commonType)
+    {
+      auto castExpr = std::make_unique<CastExpression>();
+      castExpr->targetType = commonType;
+      castExpr->expression = std::move(node.right);
+      castExpr->type = std::make_shared<Type>(commonType);
+      node.right = std::move(castExpr);
+    }
+
+    // Determine result type based on operator
+    switch (node.op)
+    {
+    case TokenType::PLUS:
+    case TokenType::HYPHEN:
+    case TokenType::ASTERISK:
+    case TokenType::FORWARD_SLASH:
+    case TokenType::PERCENT_SIGN:
+    case TokenType::AAND:
+    case TokenType::AOR:
+    case TokenType::XOR:
+    case TokenType::LEFT_SHIFT:
+    case TokenType::RIGHT_SHIFT:
+      // Arithmetic operations: result has common type
+      node.type = std::make_shared<Type>(commonType);
+      break;
+    case TokenType::EQUAL:
+    case TokenType::NOTEQUAL:
+    case TokenType::LESSTHAN:
+    case TokenType::LESSTHANEQUAL:
+    case TokenType::GREATERTHAN:
+    case TokenType::GREATERTHANEQUAL:
+      // Comparison operations: result is int
+      node.type = std::make_shared<Type>(Type::Int());
+      break;
+    default:
+      node.type = std::make_shared<Type>(commonType);
+      break;
+    }
+  }
 }
 
 void SemanticAnalyzer::visit(UnaryExpression &node)
@@ -641,6 +845,20 @@ void SemanticAnalyzer::visit(UnaryExpression &node)
   {
     node.operand->accept(*this);
   }
+  auto exp = dynamic_cast<ExpressionNode *>(node.operand.get());
+  if (exp)
+  {
+    node.type = exp->type;
+  }
+  switch (node.op)
+  {
+  case TokenType::NOT:
+    node.type = std::make_shared<Type>(Type::Int()); // logical NOT results in int
+    break;
+  default:
+    node.type = exp->type;
+    break;
+  }
 }
 
 void SemanticAnalyzer::visit(AssignmentExpression &node)
@@ -661,6 +879,28 @@ void SemanticAnalyzer::visit(AssignmentExpression &node)
   {
     node.right->accept(*this);
   }
+
+  auto leftExp = dynamic_cast<ExpressionNode *>(node.left.get());
+  auto rightExp = dynamic_cast<ExpressionNode *>(node.right.get());
+
+  if (leftExp && leftExp->type)
+  {
+    // Result of assignment has the type of the left-hand side
+    node.type = leftExp->type;
+
+    if (rightExp && rightExp->type)
+    {
+      // Convert right-hand side to the type of left-hand side
+      if (*rightExp->type != *leftExp->type)
+      {
+        auto castExpr = std::make_unique<CastExpression>();
+        castExpr->targetType = *leftExp->type;
+        castExpr->expression = std::move(node.right);
+        castExpr->type = leftExp->type;
+        node.right = std::move(castExpr);
+      }
+    }
+  }
 }
 
 void SemanticAnalyzer::visit(PostfixExpression &node)
@@ -678,17 +918,44 @@ void SemanticAnalyzer::visit(PostfixExpression &node)
   {
     node.operand->accept(*this);
   }
+  auto exp = dynamic_cast<ExpressionNode *>(node.operand.get());
+  if (exp)
+  {
+    node.type = exp->type;
+  }
 }
 
 void SemanticAnalyzer::visit(ConstantExpression &node)
 {
-  // Constants don't need resolution
-  (void)node;
+  std::visit([&](auto value)
+             {
+               using T = std::decay_t<decltype(value)>;
+               if constexpr (std::is_same_v<T, int>)
+               {
+                 node.type = std::make_shared<Type>(Type::Int());
+               }
+               else if constexpr (std::is_same_v<T, long>)
+               {
+                 node.type = std::make_shared<Type>(Type::Long());
+               }
+               else if constexpr (std::is_same_v<T, float>)
+               {
+                 node.type = std::make_shared<Type>(Type::Double());
+               }
+               else if constexpr (std::is_same_v<T, unsigned int>)
+               {
+                 node.type = std::make_shared<Type>(Type::UInt());
+               }
+               else if constexpr (std::is_same_v<T, unsigned long>)
+               {
+                 node.type = std::make_shared<Type>(Type::ULong());
+               }
+             },
+             node.value);
 }
 
 void SemanticAnalyzer::visit(VariableExpression &node)
 {
-
   // check if variable is in current scope
   auto found_current = identifier_map.find(node.identifier);
   if (found_current != identifier_map.end())
@@ -696,14 +963,16 @@ void SemanticAnalyzer::visit(VariableExpression &node)
     // Replace with unique name
     node.identifier = found_current->second.first;
     auto entry = global_symbol_table[node.identifier];
-    if(entry.symbolType == SymbolType::FUNCTION){
+    if (entry.symbolType == SymbolType::FUNCTION)
+    {
       success = 0;
       errors.push_back("Function '" + node.identifier + "' used as variable");
     }
+    node.type = std::make_shared<Type>(entry.type);
     return;
   }
   // Check if variable is declared in parent scopes
-  for(auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it)
+  for (auto it = scope_stack.rbegin(); it != scope_stack.rend(); ++it)
   {
     auto found = it->find(node.identifier);
     if (found != it->end())
@@ -711,10 +980,12 @@ void SemanticAnalyzer::visit(VariableExpression &node)
       // Replace with unique name
       node.identifier = found->second.first;
       auto entry = global_symbol_table[node.identifier];
-      if(entry.symbolType == SymbolType::FUNCTION){
+      if (entry.symbolType == SymbolType::FUNCTION)
+      {
         success = 0;
         errors.push_back("Function '" + node.identifier + "' used as variable");
       }
+      node.type = std::make_shared<Type>(entry.type);
       return;
     }
   }
@@ -737,6 +1008,34 @@ void SemanticAnalyzer::visit(ConditionalExpression &node)
   {
     node.falseExpr->accept(*this);
   }
+  auto trueExp = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
+  auto falseExp = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
+  if (trueExp && falseExp && trueExp->type && falseExp->type)
+  {
+    Type commonType = Type::getCommonType(*trueExp->type, *falseExp->type);
+
+    // Convert true expression to common type if needed
+    if (*trueExp->type != commonType)
+    {
+      auto castExpr = std::make_unique<CastExpression>();
+      castExpr->targetType = commonType;
+      castExpr->expression = std::move(node.trueExpr);
+      castExpr->type = std::make_shared<Type>(commonType);
+      node.trueExpr = std::move(castExpr);
+    }
+
+    // Convert false expression to common type if needed
+    if (*falseExp->type != commonType)
+    {
+      auto castExpr = std::make_unique<CastExpression>();
+      castExpr->targetType = commonType;
+      castExpr->expression = std::move(node.falseExpr);
+      castExpr->type = std::make_shared<Type>(commonType);
+      node.falseExpr = std::move(castExpr);
+    }
+
+    node.type = std::make_shared<Type>(commonType);
+  }
 }
 
 void SemanticAnalyzer::visit(CastExpression &node)
@@ -745,6 +1044,7 @@ void SemanticAnalyzer::visit(CastExpression &node)
   {
     node.expression->accept(*this);
   }
+  node.type = std::make_shared<Type>(node.targetType);
 }
 
 void SemanticAnalyzer::visit(DereferenceExpression &node)
@@ -752,6 +1052,17 @@ void SemanticAnalyzer::visit(DereferenceExpression &node)
   if (node.pointerExpr)
   {
     node.pointerExpr->accept(*this);
+  }
+  auto pointerType = dynamic_cast<PointerType *>(node.pointerExpr.get());
+  if (pointerType)
+  {
+    node.type = pointerType->base;
+  }
+  else
+  {
+    success = 0;
+    errors.push_back("Operand of dereference operator is not a pointer type");
+    return;
   }
 }
 
