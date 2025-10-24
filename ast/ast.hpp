@@ -71,7 +71,8 @@ using AbstractDeclaratorPtr = std::unique_ptr<AbstractDeclarator>;
 using AbstractPointerPtr = std::unique_ptr<AbstractPointer>;
 using AbstractBasePtr = std::unique_ptr<AbstractBase>;
 // Visitor interface to use visitor pattern
-class ASTVisitor {
+class ASTVisitor
+{
 public:
   virtual ~ASTVisitor() = default;
 
@@ -126,39 +127,80 @@ public:
   virtual void visit(ForNode &node) = 0;
 };
 
-class ASTNode {
+class ASTNode
+{
 public:
   virtual ~ASTNode() = default;
   virtual void accept(ASTVisitor &visitor) = 0;
+  virtual std::unique_ptr<ASTNode> clone() const = 0;
 };
 
-enum class StorageClass { STATIC, EXTERN, AUTO };
+enum class StorageClass
+{
+  STATIC,
+  EXTERN,
+  AUTO
+};
 
-constexpr bool operator==(const TokenType &a, const StorageClass &b){
-  if(b == StorageClass::STATIC && a == TokenType::STATIC){
+constexpr bool operator==(const TokenType &a, const StorageClass &b)
+{
+  if (b == StorageClass::STATIC && a == TokenType::STATIC)
+  {
     return true;
   }
-  if(b == StorageClass::EXTERN && a == TokenType::EXTERN){
+  if (b == StorageClass::EXTERN && a == TokenType::EXTERN)
+  {
     return true;
   }
   return false;
 }
 
-struct FunType {
+struct FunType
+{
   std::vector<Type> params;
   std::shared_ptr<Type> ret;
   FunType(std::vector<Type> params, std::shared_ptr<Type> ret)
       : params((params)), ret((ret)) {}
 };
 
-struct PointerType {
+struct PointerType
+{
   std::shared_ptr<Type> base;
   PointerType(std::shared_ptr<Type> base) : base(base) {}
 };
 
-enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ERROR };
+enum class TypeKind
+{
+  INT,
+  LONG,
+  UINT,
+  ULONG,
+  DOUBLE,
+  FUNC,
+  POINTER,
+  ERROR
+};
+constexpr int size(TypeKind &kind)
+{
+  switch (kind)
+  {
+  case TypeKind::INT:
+    return 4;
+  case TypeKind::UINT:
+    return 4;
+  case TypeKind::LONG:
+    return 8;
+  case TypeKind::ULONG:
+    return 8;
+  case TypeKind::DOUBLE:
+    return 8;
+  default:
+    return 0;
+  }
+};
 
-class Type : public ASTNode {
+class Type : public ASTNode
+{
 public:
   TypeKind kind;
   std::variant<std::monostate, FunType, PointerType> data;
@@ -167,18 +209,22 @@ public:
   // constructor for other types
   Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d)
       : kind(k), data(std::move(d)) {}
-  // remove this 
+  // remove this
   // copy constructor
-  Type(const Type &other) : kind(other.kind) {
-    switch (other.kind) {
-    case TypeKind::FUNC: {
+  Type(const Type &other) : kind(other.kind)
+  {
+    switch (other.kind)
+    {
+    case TypeKind::FUNC:
+    {
       const auto &funType = std::get<FunType>(other.data);
       std::vector<Type> params_copy = funType.params;
       auto ret_copy = funType.ret;
       data = FunType{params_copy, ret_copy};
       break;
     }
-    case TypeKind::POINTER: {
+    case TypeKind::POINTER:
+    {
       const auto &ptrType = std::get<PointerType>(other.data);
       auto base_copy = ptrType.base;
       data = PointerType{base_copy};
@@ -190,18 +236,23 @@ public:
     }
   }
   // copy assignment
-  Type &operator=(const Type &other) {
-    if (this != &other) {
+  Type &operator=(const Type &other)
+  {
+    if (this != &other)
+    {
       kind = other.kind;
-      switch (other.kind) {
-      case TypeKind::FUNC: {
+      switch (other.kind)
+      {
+      case TypeKind::FUNC:
+      {
         const auto &funType = std::get<FunType>(other.data);
         std::vector<Type> params_copy = funType.params;
         auto ret_copy = funType.ret;
         data = FunType{params_copy, ret_copy};
         break;
       }
-      case TypeKind::POINTER: {
+      case TypeKind::POINTER:
+      {
         const auto &ptrType = std::get<PointerType>(other.data);
         auto base_copy = ptrType.base;
         data = PointerType{base_copy};
@@ -219,8 +270,10 @@ public:
       : kind(other.kind),
         data(std::move(other.data)) {}
   // move assignment
-  Type &operator=(Type &&other) noexcept {
-    if (this != &other) {
+  Type &operator=(Type &&other) noexcept
+  {
+    if (this != &other)
+    {
       kind = other.kind;
       data = std::move(other.data);
     }
@@ -232,65 +285,92 @@ public:
   static Type UInt() { return Type{TypeKind::UINT, std::monostate{}}; }
   static Type ULong() { return Type{TypeKind::ULONG, std::monostate{}}; }
   static Type Double() { return Type{TypeKind::DOUBLE, std::monostate{}}; }
-  static Type Function(std::vector<Type> params, Type ret) {
+  static Type Function(std::vector<Type> params, Type ret)
+  {
     FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
     return Type{TypeKind::FUNC, std::move(ftype)};
   }
-  static Type Pointer(std::unique_ptr<Type> base) {
+  static Type Pointer(std::unique_ptr<Type> base)
+  {
     PointerType ptype{std::move(base)};
     return Type{TypeKind::POINTER, std::move(ptype)};
   }
   static Type Error() { return Type{TypeKind::ERROR, std::monostate{}}; }
 
-  bool operator==(Type& other){
-    if(other.kind != this->kind){
+  bool operator==(Type &other)
+  {
+    if (other.kind != this->kind)
+    {
       return false;
     }
-    if(this->kind == TypeKind::FUNC){
-      auto& this_fun = std::get<FunType>(this->data);
-      auto& other_fun = std::get<FunType>(other.data);
-      if(this_fun.params.size() != other_fun.params.size()){
+    if (this->kind == TypeKind::FUNC)
+    {
+      auto &this_fun = std::get<FunType>(this->data);
+      auto &other_fun = std::get<FunType>(other.data);
+      if (this_fun.params.size() != other_fun.params.size())
+      {
         return false;
       }
-      for(size_t i=0; i<this_fun.params.size(); i++){
-        if(!(this_fun.params[i] == other_fun.params[i])){
+      for (size_t i = 0; i < this_fun.params.size(); i++)
+      {
+        if (!(this_fun.params[i] == other_fun.params[i]))
+        {
           return false;
         }
       }
       return *(this_fun.ret) == *(other_fun.ret);
     }
-    else if(this->kind == TypeKind::POINTER){
-      auto& this_ptr = std::get<PointerType>(this->data);
-      auto& other_ptr = std::get<PointerType>(other.data);
+    else if (this->kind == TypeKind::POINTER)
+    {
+      auto &this_ptr = std::get<PointerType>(this->data);
+      auto &other_ptr = std::get<PointerType>(other.data);
       return *(this_ptr.base) == *(other_ptr.base);
     }
     return true;
   }
 
-  bool operator!=(Type &other){
+  bool operator!=(Type &other)
+  {
     return !(*this == other);
   }
 
-  static Type getCommonType(Type &first, Type &second){
-    if(first.kind == TypeKind::DOUBLE || second.kind == TypeKind::DOUBLE){
-      return Type::Double();
+  static Type getCommonType(Type &first, Type &second)
+  {
+    if (first.kind == second.kind)
+    {
+      return first;
     }
-    if(first.kind == TypeKind::ULONG || second.kind == TypeKind::ULONG){
-      return Type::ULong();
+    if (size(first.kind) == size(second.kind))
+    {
+      if (first.kind == TypeKind::INT || first.kind == TypeKind::LONG)
+      {
+        return second;
+      }
+      else
+      {
+        return first;
+      }
     }
-    if(first.kind == TypeKind::LONG || second.kind == TypeKind::LONG){
-      return Type::Long();
+    if (size(first.kind) > size(second.kind))
+    {
+      return first;
     }
-    if(first.kind == TypeKind::UINT || second.kind == TypeKind::UINT){
-      return Type::UInt();
+    else
+    {
+      return second;
     }
     return Type::Int();
   }
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<Type>(*this);
+  }
 };
 
-class ProgramNode : public ASTNode {
+class ProgramNode : public ASTNode
+{
 public:
   ProgramNode(std::vector<ASTNodePtr> &&Declarations)
       : Declarations(std::move(Declarations)) {}
@@ -298,14 +378,26 @@ public:
   ~ProgramNode() override = default;
 
   // double dispatch to the correct accept method
-  void accept(ASTVisitor &visitor) override {
+  void accept(ASTVisitor &visitor) override
+  {
     visitor.visit(*this); // single dispatch to the correct visit method
+  }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    std::vector<ASTNodePtr> clonedDecls;
+    for (const auto &decl : Declarations)
+    {
+      clonedDecls.push_back(decl->clone());
+    }
+    return std::make_unique<ProgramNode>(std::move(clonedDecls));
   }
 
   std::vector<ASTNodePtr> Declarations;
 };
 
-class FunctionDefinitionNode : public ASTNode {
+class FunctionDefinitionNode : public ASTNode
+{
 public:
   std::string name;
   ASTNodePtr body;
@@ -317,42 +409,70 @@ public:
   ~FunctionDefinitionNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<FunctionDefinitionNode>(name, body ? body->clone() : nullptr);
+  }
 };
 
 // Base Statement class
-class StatementNode : public ASTNode {
+class StatementNode : public ASTNode
+{
 public:
   ~StatementNode() override = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
 
 // Specific Statement types
-class ReturnStatement : public StatementNode {
+class ReturnStatement : public StatementNode
+{
 public:
   ASTNodePtr expression;
-std::shared_ptr<Type> type;
+  std::shared_ptr<Type> type;
   ReturnStatement(ASTNodePtr expr) : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<ReturnStatement>(expression ? expression->clone() : nullptr);
+    if (type)
+      cloned->type = std::make_shared<Type>(*type);
+    return cloned;
+  }
 };
 
-class NullStatement : public StatementNode {
+class NullStatement : public StatementNode
+{
 public:
   NullStatement() = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<NullStatement>();
+  }
 };
 
-class ExpressionStatement : public StatementNode {
+class ExpressionStatement : public StatementNode
+{
 public:
   ASTNodePtr expression;
 
   ExpressionStatement(ASTNodePtr expr) : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<ExpressionStatement>(expression ? expression->clone() : nullptr);
+  }
 };
 
-class IfStatement : public StatementNode {
+class IfStatement : public StatementNode
+{
 public:
   ASTNodePtr condition;
   ASTNodePtr thenBranch;
@@ -362,122 +482,224 @@ public:
       : condition(std::move(cond)), thenBranch(std::move(thenBr)),
         elseBranch(std::move(elseBr)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    std::optional<ASTNodePtr> clonedElse = std::nullopt;
+    if (elseBranch)
+    {
+      clonedElse = (*elseBranch)->clone();
+    }
+    return std::make_unique<IfStatement>(
+        condition ? condition->clone() : nullptr,
+        thenBranch ? thenBranch->clone() : nullptr,
+        std::move(clonedElse));
+  }
 };
 
-class GotoStatement : public StatementNode {
+class GotoStatement : public StatementNode
+{
 public:
   std::string label;
   GotoStatement(std::string label) : label(std::move(label)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<GotoStatement>(label);
+  }
 };
 
-class LabelStatement : public StatementNode {
+class LabelStatement : public StatementNode
+{
 public:
   std::string label;
   LabelStatement(std::string label) : label(std::move(label)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<LabelStatement>(label);
+  }
 };
 
-class CompoundStatement : public StatementNode {
+class CompoundStatement : public StatementNode
+{
 public:
   ASTNodePtr block;
 
   CompoundStatement(ASTNodePtr block) : block(std::move(block)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<CompoundStatement>(block ? block->clone() : nullptr);
+  }
 };
 
 // Base Expression class
-class ExpressionNode : public ASTNode {
+class ExpressionNode : public ASTNode
+{
 public:
-std::shared_ptr<Type> type;
+  std::shared_ptr<Type> type;
   ExpressionNode() = default;
   ~ExpressionNode() override = default;
   virtual void accept(ASTVisitor &visitor) = 0;
 };
 
 // Specific Expression types
-class BinaryExpression : public ExpressionNode {
+class BinaryExpression : public ExpressionNode
+{
 public:
   TokenType op;
   ASTNodePtr left;
   ASTNodePtr right;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   BinaryExpression(TokenType op, ASTNodePtr left, ASTNodePtr right)
       : op(op), left(std::move(left)), right(std::move(right)) {}
-
+  BinaryExpression() = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<BinaryExpression>(
+        op,
+        left ? left->clone() : nullptr,
+        right ? right->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class UnaryExpression : public ExpressionNode {
+class UnaryExpression : public ExpressionNode
+{
 public:
   TokenType op;
   ASTNodePtr operand;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   UnaryExpression(TokenType op, ASTNodePtr operand)
       : op(op), operand(std::move(operand)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<UnaryExpression>(
+        op,
+        operand ? operand->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class ConstantExpression : public ExpressionNode {
+class ConstantExpression : public ExpressionNode
+{
 public:
   std::variant<int, long, unsigned long, unsigned int, double> value;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   ConstantExpression(
       std::variant<int, long, unsigned long, unsigned int, double> value)
       : value(value) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<ConstantExpression>(value);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class VariableExpression : public ExpressionNode {
+class VariableExpression : public ExpressionNode
+{
 public:
   std::string identifier;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   VariableExpression(std::string identifier)
       : identifier(std::move(identifier)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<VariableExpression>(identifier);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class AssignmentExpression : public ExpressionNode {
+class AssignmentExpression : public ExpressionNode
+{
 public:
   ASTNodePtr left;
   ASTNodePtr right;
   TokenType assignment_type; // Type of assignment (e.g., compound_sum ,
-                  // compound_difference or simple assignment)
-// std::shared_ptr<Type> type;
+                             // compound_difference or simple assignment)
+                             // std::shared_ptr<Type> type;
   AssignmentExpression(ASTNodePtr left, ASTNodePtr right, TokenType assignment_type)
       : left(std::move(left)), right(std::move(right)), assignment_type(assignment_type) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<AssignmentExpression>(
+        left ? left->clone() : nullptr,
+        right ? right->clone() : nullptr,
+        assignment_type);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class PostfixExpression : public ExpressionNode {
+class PostfixExpression : public ExpressionNode
+{
 public:
   TokenType op; // INCREMENT_OPERATOR or DECREMENT_OPERATOR
   ASTNodePtr operand;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   PostfixExpression(ASTNodePtr operand, TokenType op)
       : op(op), operand(std::move(operand)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<PostfixExpression>(
+        operand ? operand->clone() : nullptr,
+        op);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class ConditionalExpression : public ExpressionNode {
+class ConditionalExpression : public ExpressionNode
+{
 public:
   ASTNodePtr condition;
   ASTNodePtr trueExpr;
   ASTNodePtr falseExpr;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   ConditionalExpression(ASTNodePtr cond, ASTNodePtr trueE, ASTNodePtr falseE)
       : condition(std::move(cond)), trueExpr(std::move(trueE)),
         falseExpr(std::move(falseE)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<ConditionalExpression>(
+        condition ? condition->clone() : nullptr,
+        trueExpr ? trueExpr->clone() : nullptr,
+        falseExpr ? falseExpr->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class CastExpression : public ExpressionNode {
+class CastExpression : public ExpressionNode
+{
 public:
   Type targetType;
   ASTNodePtr expression;
@@ -485,27 +707,55 @@ public:
       : targetType(std::move(targetType)), expression(std::move(expr)) {}
   CastExpression() = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<CastExpression>(
+        targetType,
+        expression ? expression->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class DereferenceExpression : public ExpressionNode {
+class DereferenceExpression : public ExpressionNode
+{
 public:
   ASTNodePtr pointerExpr;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   DereferenceExpression(ASTNodePtr ptrExpr) : pointerExpr(std::move(ptrExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<DereferenceExpression>(
+        pointerExpr ? pointerExpr->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class AddressOfExpression : public ExpressionNode {
+class AddressOfExpression : public ExpressionNode
+{
 public:
   ASTNodePtr variableExpr;
-// std::shared_ptr<Type> type;
+  // std::shared_ptr<Type> type;
   AddressOfExpression(ASTNodePtr varExpr) : variableExpr(std::move(varExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<AddressOfExpression>(
+        variableExpr ? variableExpr->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
-class BlockItemNode : public ASTNode {
+class BlockItemNode : public ASTNode
+{
 public:
   ASTNodePtr block_item = nullptr;
 
@@ -514,9 +764,15 @@ public:
   ~BlockItemNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<BlockItemNode>(block_item ? block_item->clone() : nullptr);
+  }
 };
 
-class DeclarationNode : public ASTNode {
+class DeclarationNode : public ASTNode
+{
 public:
   ASTNodePtr declaration = nullptr; // var_decl or fun_decl
   DeclarationNode() = default;
@@ -525,26 +781,40 @@ public:
   ~DeclarationNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<DeclarationNode>(declaration ? declaration->clone() : nullptr);
+  }
 };
 
-class DeclaratorNode : public ASTNode {
+class DeclaratorNode : public ASTNode
+{
 public:
   virtual ~DeclaratorNode() = default;
   DeclaratorNode(DeclaratorNode &&other) = default;
   DeclaratorNode() = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override = 0;
 };
 
-class Ident : public DeclaratorNode {
+class Ident : public DeclaratorNode
+{
 public:
   std::string identifier;
 
   Ident(std::string identifier) : identifier(std::move(identifier)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<Ident>(identifier);
+  }
 };
 
-class PointerDeclarator : public DeclaratorNode {
+class PointerDeclarator : public DeclaratorNode
+{
 public:
   ASTNodePtr declarator;
 
@@ -552,9 +822,30 @@ public:
       : declarator(std::move(declarator)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<PointerDeclarator>(declarator ? declarator->clone() : nullptr);
+  }
 };
 
-class FunDeclarator : public DeclaratorNode {
+class paraminfo : public ASTNode
+{
+public:
+  Type type; // parameter type
+  ASTNodePtr declarator;
+  paraminfo(Type type, ASTNodePtr declarator)
+      : type(std::move(type)), declarator(std::move(declarator)) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<paraminfo>(type, declarator ? declarator->clone() : nullptr);
+  }
+};
+
+class FunDeclarator : public DeclaratorNode
+{
 public:
   std::vector<paraminfo> params;
   ASTNodePtr declarator;
@@ -563,35 +854,52 @@ public:
       : params(std::move(params)), declarator(std::move(declarator)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    std::vector<paraminfo> clonedParams;
+    for (const auto &param : params)
+    {
+      clonedParams.push_back(paraminfo(param.type, param.declarator ? param.declarator->clone() : nullptr));
+    }
+    return std::make_unique<FunDeclarator>(std::move(clonedParams), declarator ? declarator->clone() : nullptr);
+  }
 };
 
-class AbstractDeclarator : public ASTNode {
+class AbstractDeclarator : public ASTNode
+{
 public:
   virtual ~AbstractDeclarator() = default;
+  std::unique_ptr<ASTNode> clone() const override = 0;
 };
 
-class AbstractBase : public AbstractDeclarator {
+class AbstractBase : public AbstractDeclarator
+{
 public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<AbstractBase>();
+  }
 };
 
-class AbstractPointer : public AbstractDeclarator {
+class AbstractPointer : public AbstractDeclarator
+{
 public:
   ASTNodePtr base; // AbstractDeclarator type
   AbstractPointer(ASTNodePtr base) : base(std::move(base)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<AbstractPointer>(base ? base->clone() : nullptr);
+  }
 };
 
-class paraminfo : public ASTNode {
-public:
-  Type type; // parameter type
-  ASTNodePtr declarator;
-  paraminfo(Type type, ASTNodePtr declarator)
-      : type(std::move(type)), declarator(std::move(declarator)) {}
-  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
-};
 
-class FunDeclNode : public ASTNode {
+class FunDeclNode : public ASTNode
+{
 public:
   std::string name;
   std::vector<std::string> param_names;
@@ -610,9 +918,22 @@ public:
   ~FunDeclNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<FunDeclNode>();
+    cloned->name = name;
+    cloned->param_names = param_names;
+    cloned->body = body.has_value() && body.value() ? std::optional<ASTNodePtr>(body.value()->clone()) : std::nullopt;
+    cloned->type = type;
+    cloned->storage_class = storage_class;
+    cloned->param_types = param_types;
+    return cloned;
+  }
 };
 
-class VarDeclNode : public ASTNode {
+class VarDeclNode : public ASTNode
+{
 public:
   std::string name;
   std::optional<ASTNodePtr> init;         // optional initializer expression
@@ -627,9 +948,20 @@ public:
   ~VarDeclNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    auto cloned = std::make_unique<VarDeclNode>();
+    cloned->name = name;
+    cloned->init = init.has_value() && init.value() ? std::optional<ASTNodePtr>(init.value()->clone()) : std::nullopt;
+    cloned->type = type;
+    cloned->storage_class = storage_class;
+    return cloned;
+  }
 };
 
-class BlockNode : public ASTNode {
+class BlockNode : public ASTNode
+{
 public:
   std::vector<ASTNodePtr> block_items;
 
@@ -638,9 +970,20 @@ public:
   ~BlockNode() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    std::vector<ASTNodePtr> clonedItems;
+    for (const auto &item : block_items)
+    {
+      clonedItems.push_back(item ? item->clone() : nullptr);
+    }
+    return std::make_unique<BlockNode>(std::move(clonedItems));
+  }
 };
 
-class ForInit : public ASTNode {
+class ForInit : public ASTNode
+{
 public:
   ASTNodePtr init;
   ForInit() = default;
@@ -649,9 +992,15 @@ public:
   ~ForInit() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<ForInit>(init ? init->clone() : nullptr);
+  }
 };
 
-class InitDecl : public ForInit {
+class InitDecl : public ForInit
+{
 public:
   ASTNodePtr init; // var_decl
   InitDecl(ASTNodePtr init) : init(std::move(init)) {}
@@ -659,35 +1008,60 @@ public:
   ~InitDecl() override = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<InitDecl>(init ? init->clone() : nullptr);
+  }
 };
 
-class InitExp : public ForInit {
+class InitExp : public ForInit
+{
 public:
   std::optional<ASTNodePtr> init;
   InitExp(std::optional<ASTNodePtr> init) : init(std::move(init)) {}
   ~InitExp() override = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<InitExp>(
+        init.has_value() && init.value() ? std::optional<ASTNodePtr>(init.value()->clone()) : std::nullopt);
+  }
 };
 
-class BreakNode : public StatementNode {
+class BreakNode : public StatementNode
+{
 public:
   std::string label;
   BreakNode() = default;
   BreakNode(std::string label) : label(std::move(label)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<BreakNode>(label);
+  }
 };
 
-class ContinueNode : public StatementNode {
+class ContinueNode : public StatementNode
+{
 public:
   std::string label;
   ContinueNode() = default;
   ContinueNode(std::string label) : label(std::move(label)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<ContinueNode>(label);
+  }
 };
 
-class WhileNode : public StatementNode {
+class WhileNode : public StatementNode
+{
 public:
   ASTNodePtr condition; // exp
   ASTNodePtr body;      // statement
@@ -699,9 +1073,18 @@ public:
   WhileNode() = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<WhileNode>(
+        condition ? condition->clone() : nullptr,
+        body ? body->clone() : nullptr,
+        label);
+  }
 };
 
-class DoWhileNode : public StatementNode {
+class DoWhileNode : public StatementNode
+{
 public:
   ASTNodePtr condition; // exp
   ASTNodePtr body;      // statement
@@ -713,9 +1096,18 @@ public:
   DoWhileNode() = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<DoWhileNode>(
+        condition ? condition->clone() : nullptr,
+        body ? body->clone() : nullptr,
+        label);
+  }
 };
 
-class ForNode : public StatementNode {
+class ForNode : public StatementNode
+{
 public:
   ASTNodePtr init;                     // for_init
   std::optional<ASTNodePtr> condition; // exp
@@ -729,9 +1121,20 @@ public:
         post(std::move(post)), body(std::move(body)), label(std::move(label)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    return std::make_unique<ForNode>(
+        init ? init->clone() : nullptr,
+        condition.has_value() && condition.value() ? std::optional<ASTNodePtr>(condition.value()->clone()) : std::nullopt,
+        post.has_value() && post.value() ? std::optional<ASTNodePtr>(post.value()->clone()) : std::nullopt,
+        body ? body->clone() : nullptr,
+        label);
+  }
 };
 
-class FunctionCallNode : public ExpressionNode {
+class FunctionCallNode : public ExpressionNode
+{
 public:
   std::string name;
   std::vector<ASTNodePtr> args;
@@ -740,4 +1143,21 @@ public:
       : name(std::move(name)), args(std::move(args)) {}
   ~FunctionCallNode() override = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+
+  std::unique_ptr<ASTNode> clone() const override
+  {
+    std::vector<ASTNodePtr> clonedArgs;
+    for (const auto &arg : args)
+    {
+      clonedArgs.push_back(arg ? arg->clone() : nullptr);
+    }
+    auto cloned = std::make_unique<FunctionCallNode>(name, std::move(clonedArgs));
+    // Clone param_types
+    for (const auto &paramType : param_types)
+    {
+      cloned->param_types.push_back(paramType ? std::make_shared<Type>(*paramType) : nullptr);
+    }
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };

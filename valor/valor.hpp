@@ -41,6 +41,7 @@ enum class IROpType
   // Type conversion operations
   SIGN_EXTEND,
   TRUNCATE,
+  ZERO_EXTEND, // for unsigned types
   // Binary operations
   ADD,
   SUBTRACT,
@@ -218,6 +219,15 @@ public:
   {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::TRUNCATE;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeZeroExtend(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::ZERO_EXTEND;
     inst->src1 = std::move(src);
     inst->dst = std::move(dst);
     return inst;

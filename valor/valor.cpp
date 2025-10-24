@@ -103,6 +103,9 @@ std::string IRInstructionNode::toString() const
   case IROpType::TRUNCATE:
     ss << dst->toString() << " = truncate(" << src1->toString() << ")";
     break;
+  case IROpType::ZERO_EXTEND:
+    ss << dst->toString() << " = zero_extend(" << src1->toString() << ")";
+    break;
   case IROpType::JUMP:
     ss << "jump " << label;
     break;
@@ -352,14 +355,21 @@ void IRGenerator::visit(PostfixExpression &node)
 
     // Create constant value of 1
     IRValuePtr one = IRValueNode::makeConstant(1);
-
+    IRValuePtr operandcopytemp = makeTackyVariable(*node.type);
+    auto copyinst = IRInstructionNode::makeCopy(
+        std::make_shared<IRValueNode>(*operand), operandcopytemp);
+    currentFunction->addInstruction(std::move(copyinst));
     // Create postfix instruction
     auto inst = IRInstructionNode::makeBinary(
-        irOp, result, std::move(operand), std::move(one));
+        irOp, result, operand, std::move(one));
     currentFunction->addInstruction(std::move(inst));
-
-    // Update current value to the result
-    currentValue = result;
+    
+    inst = IRInstructionNode::makeCopy(
+      std::make_shared<IRValueNode>(*result), (operand)
+    );
+    currentFunction->addInstruction(std::move(inst));
+    // Update current value to the operand value before assignment
+    currentValue = operandcopytemp;
   }
 }
 void IRGenerator::visit(
@@ -570,10 +580,26 @@ void IRGenerator::visit(UnaryExpression &node)
   // Convert token type to IR operation
   IROpType irOp = tokenTypeToUnaryIR(node.op);
 
-  // Create unary instruction
-  auto inst = IRInstructionNode::makeUnary(irOp, result, std::move(operand));
-  currentFunction->addInstruction(std::move(inst));
+  if (node.op == INCREMENT_OPERATOR || node.op == DECREMENT_OPERATOR)
+  {
+    // Create unary instruction
+    // Create constant value of 1
+    IRValuePtr one = IRValueNode::makeConstant(1);
 
+    // Create postfix instruction
+    auto inst = IRInstructionNode::makeBinary(
+        node.op == INCREMENT_OPERATOR ? IROpType::ADD : IROpType::SUBTRACT, result, operand, std::move(one));
+    currentFunction->addInstruction(std::move(inst));
+    inst = IRInstructionNode::makeCopy(
+        std::make_shared<IRValueNode>(*result), std::move(operand));
+    currentFunction->addInstruction(std::move(inst));
+  }
+  else
+  {
+    // Create unary instruction
+    auto inst = IRInstructionNode::makeUnary(irOp, result, operand);
+    currentFunction->addInstruction(std::move(inst));
+  }
   currentValue = std::move(result);
 }
 
@@ -995,7 +1021,7 @@ void IRGenerator::visit(CastExpression &node)
   IRValuePtr result = std::make_shared<IRValueNode>(*currentValue);
 
   // Get the type we're casting from (the inner expression's type)
-  auto exp = dynamic_cast<ExpressionNode*>(node.expression.get());
+  auto exp = dynamic_cast<ExpressionNode *>(node.expression.get());
   Type innerType = *exp->type;
 
   // If already the correct type, no cast needed
@@ -1008,26 +1034,34 @@ void IRGenerator::visit(CastExpression &node)
   // Create destination variable with the target type
   IRValuePtr dst = makeTackyVariable(node.targetType);
 
-  // Determine if we need SignExtend (int to long) or Truncate (long to int)
-  if (node.targetType.kind == TypeKind::LONG)
+  if (size(node.targetType.kind) == size(exp->type->kind))
   {
-    // Cast from int to long - sign extend
-    auto signExtendInst = IRInstructionNode::makeSignExtend(result, dst);
-    currentFunction->addInstruction(std::move(signExtendInst));
+    // Same size cast - use copy
+    auto copyInst = IRInstructionNode::makeCopy(
+        std::move(result), std::make_shared<IRValueNode>(*dst));
+    currentFunction->addInstruction(std::move(copyInst));
   }
-  else if (node.targetType.kind == TypeKind::INT)
+  else if (size(node.targetType.kind) < size(exp->type->kind))
   {
-    // Cast from long to int - truncate
-    auto truncateInst = IRInstructionNode::makeTruncate(result, dst);
-    currentFunction->addInstruction(std::move(truncateInst));
+    // Truncation
+    auto truncInst = IRInstructionNode::makeTruncate(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(truncInst));
+  }
+  else if (exp->type->kind == TypeKind::INT || exp->type->kind == TypeKind::LONG || exp->type->kind == TypeKind::DOUBLE)
+  {
+    // Sign extension
+    auto signExtInst = IRInstructionNode::makeSignExtend(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(signExtInst));
   }
   else
   {
-    // For other types, just copy
-    auto copyInst = IRInstructionNode::makeCopy(result, dst);
-    currentFunction->addInstruction(std::move(copyInst));
+    // Zero extension
+    auto zeroExtInst = IRInstructionNode::makeZeroExtend(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(zeroExtInst));
   }
-
   currentValue = dst;
 }
 
