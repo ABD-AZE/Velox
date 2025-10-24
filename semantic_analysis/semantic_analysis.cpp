@@ -294,7 +294,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
       if (initType == InitType::INITIALIZED)
       {
         // update value if initialized
-        global_symbol_table[node.name].value = constInit->value;
+        global_symbol_table[node.name].setValue(constInit->value);
       }
     }
     else
@@ -303,7 +303,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
       global_symbol_table[node.name].linkage = global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
       if (initType == InitType::INITIALIZED)
       {
-        global_symbol_table[node.name].value = constInit->value;
+        global_symbol_table[node.name].setValue(constInit->value);
       }
     }
     return;
@@ -382,7 +382,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
       global_symbol_table[uniqueName] = SymbolTableEntry(uniqueName, SymbolType::VARIABLE, InitType::INITIALIZED, node.type);
       global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
-      global_symbol_table[uniqueName].value = constInit->value;
+      global_symbol_table[uniqueName].setValue(constInit->value);
       return;
     }
     else if (initType == InitType::UNINITIALIZED)
@@ -871,6 +871,12 @@ void SemanticAnalyzer::visit(AssignmentExpression &node)
     return;
   }
 
+  auto binexp = std::make_unique<BinaryExpression>();
+  if(node.assignment_type != TokenType::ASSIGNMENT)
+  {
+    binexp->left = node.left->clone();
+    binexp->right = std::move(node.right);
+  }
   if (node.left)
   {
     node.left->accept(*this);
@@ -880,9 +886,73 @@ void SemanticAnalyzer::visit(AssignmentExpression &node)
     node.right->accept(*this);
   }
 
+  switch (node.assignment_type)
+  {
+    case TokenType::ASSIGNMENT:
+      break;
+    case TokenType::COMPOUND_SUM:
+    {
+      binexp->op = TokenType::PLUS;
+      break;
+    }
+    case TokenType::COMPOUND_DIFFERENCE:
+    {
+      binexp->op = TokenType::HYPHEN;
+      break;
+    }
+    case TokenType::COMPOUND_PRODUCT:
+    {
+      binexp->op = TokenType::ASTERISK;
+      break;
+    }
+    case TokenType::COMPOUND_DIVISION:
+    {
+      binexp->op = TokenType::FORWARD_SLASH;
+      break;
+    }
+    case TokenType::COMPOUND_REMAINDER:
+    {
+      binexp->op = TokenType::PERCENT_SIGN;
+      break;
+    }
+    case TokenType::COMPOUND_AND:
+    {
+      binexp->op = TokenType::AAND;
+      break;
+    }
+    case TokenType::COMPOUND_OR:
+    {
+      binexp->op = TokenType::AOR;
+      break;
+    }
+    case TokenType::COMPOUND_XOR:
+    {
+      binexp->op = TokenType::XOR;
+      break;
+    }
+    case TokenType::COMPOUND_LEFTSHIFT:
+    {
+      binexp->op = TokenType::LEFT_SHIFT;
+      break;
+    }
+    case TokenType::COMPOUND_RIGHTSHIFT:
+    {
+      binexp->op = TokenType::RIGHT_SHIFT;
+      break;
+    }
+    default:
+    {
+      success = 0;
+      errors.push_back("Unknown assignment operator");
+      break;
+    }  
+  }
+  binexp->accept(*this);
+  if(node.assignment_type != TokenType::ASSIGNMENT){
+    node.right = std::move(binexp);
+  }
   auto leftExp = dynamic_cast<ExpressionNode *>(node.left.get());
   auto rightExp = dynamic_cast<ExpressionNode *>(node.right.get());
-
   if (leftExp && leftExp->type)
   {
     // Result of assignment has the type of the left-hand side

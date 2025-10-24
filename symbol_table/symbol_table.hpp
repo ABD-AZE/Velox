@@ -44,6 +44,30 @@ public:
   Type type;
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name,SymbolType symbolType, InitType initType, Type type, std::vector<Type> param_types = {}): name(name),symbolType(symbolType), initType(initType),type(type), param_types(param_types) {}
+  void setValue(const std::variant<int, long int, long unsigned int, unsigned int, double>& val){
+    std::visit([this](auto&& extracted_val) {
+      switch (type.kind){
+        case TypeKind::INT:
+          value = static_cast<int>(extracted_val);
+          break;
+        case TypeKind::LONG:
+          value = static_cast<long int>(extracted_val);
+          break;
+        case TypeKind::UINT:
+          value = static_cast<unsigned int>(extracted_val);
+          break;
+        case TypeKind::ULONG:
+          value = static_cast<long unsigned int>(extracted_val);
+          break;
+        case TypeKind::DOUBLE:
+          value = static_cast<double>(extracted_val);
+          break;
+        default:
+          // handle error
+          break;
+      }
+    }, val);
+  }
 };
 
 extern std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
