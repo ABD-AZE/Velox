@@ -1066,3 +1066,28 @@ void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
     DeclarationNode &node) { /* Handle declarations if needed */ }
 void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
+void IRGenerator::visit(ArrayDeclarator &node) { (void)node; }
+void IRGenerator::visit(AbstractArray &node) { (void)node; }
+void IRGenerator::visit(InitializerNode &node) { 
+   if(node.kind == InitializerKind::SINGLE_INIT) {
+       auto &singleInit = std::get<SingleInit>(node.data);
+       if(singleInit.expression) {
+           singleInit.expression->accept(*this);
+       }
+   } else if(node.kind == InitializerKind::COMPOUND_INIT) {
+       auto &initList = std::get<CompoundInit>(node.data);
+       for(auto &init : initList.initializers) {
+          init.accept(*this);
+       }
+    }
+}
+void IRGenerator::visit(SubscriptExpression &node) { 
+  if (node.arrayExpr)
+  {
+    node.arrayExpr->accept(*this);
+  }
+  if (node.indexExpr)
+  {
+    node.indexExpr->accept(*this);
+  }
+}

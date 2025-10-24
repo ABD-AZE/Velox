@@ -425,6 +425,10 @@ public:
   void visit(WhileNode &node) override;
   void visit(DoWhileNode &node) override;
   void visit(ForNode &node) override;
+  void visit(ArrayDeclarator &node) override;
+  void visit(AbstractArray &node) override;
+  void visit(InitializerNode &node) override;
+  void visit(SubscriptExpression &node) override;
 
 private:
   IRProgramPtr program;

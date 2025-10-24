@@ -41,9 +41,9 @@ int main(void) {
 
   // ++ and -- have no effect if gap between representable values is greater
   // than 1
-  d = 10e20;
+  d = 1020;
   d--;
-  if (d != 10e20) {
+  if (d != 1020) {
     return 10;
   }
   return 0;

@@ -48,13 +48,17 @@ class DeclaratorNode;
 class Ident;
 class PointerDeclarator;
 class FunDeclarator;
+class ArrayDeclarator;
 class AbstractDeclarator;
 class AbstractPointer;
 class AbstractBase;
+class AbstractArray;
 class paraminfo;
 enum class TypeKind;
 class FunType;
 class PointerType;
+class InitializerNode;
+class SubscriptExpression;
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
 using ProgramNodePtr = std::unique_ptr<ProgramNode>;
@@ -87,11 +91,14 @@ public:
   virtual void visit(PointerDeclarator &node) = 0;
   virtual void visit(FunDeclarator &node) = 0;
   virtual void visit(BlockNode &node) = 0;
+  virtual void visit(ArrayDeclarator &node) = 0;
   virtual void visit(FunDeclNode &node) = 0;
+  virtual void visit(InitializerNode &node) = 0;
   virtual void visit(VarDeclNode &node) = 0;
   virtual void visit(FunctionCallNode &node) = 0;
   virtual void visit(AbstractPointer &node) = 0;
   virtual void visit(AbstractBase &node) = 0;
+  virtual void visit(AbstractArray &node) = 0;
   virtual void visit(paraminfo &node) = 0;
 
   // Statement visitors
@@ -114,6 +121,7 @@ public:
   virtual void visit(CastExpression &node) = 0;
   virtual void visit(DereferenceExpression &node) = 0;
   virtual void visit(AddressOfExpression &node) = 0;
+  virtual void visit(SubscriptExpression &node) = 0;
 
   // loop
   virtual void visit(ForInit &node) = 0;
@@ -157,7 +165,14 @@ struct PointerType {
   PointerType(std::shared_ptr<Type> base) : base(base) {}
 };
 
-enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ERROR };
+struct ArrayType {
+  std::unique_ptr<Type> element;
+  int size;
+  ArrayType(std::unique_ptr<Type> Element, int Size) :size(Size), element(std::move(Element)) {}
+};
+
+enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, ERROR };
+enum class InitializerKind { SINGLE_INIT, COMPOUND_INIT };
 constexpr int size(TypeKind &kind) {
   switch (kind) {
   case TypeKind::INT:
@@ -178,13 +193,13 @@ constexpr int size(TypeKind &kind) {
 class Type : public ASTNode {
 public:
   TypeKind kind;
-  std::variant<std::monostate, FunType, PointerType> data;
+  std::variant<std::monostate, FunType, PointerType, ArrayType> data;
   // default constructor for int type
   Type() : kind(TypeKind::INT), data(std::move(std::monostate{})) {}
   // constructor for other types
-  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType> d)
+  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType, ArrayType> d,
+       std::string id = "")
       : kind(k), data(std::move(d)) {}
-  // remove this
   // copy constructor
   Type(const Type &other) : kind(other.kind) {
     switch (other.kind) {
@@ -199,6 +214,12 @@ public:
       const auto &ptrType = std::get<PointerType>(other.data);
       auto base_copy = ptrType.base;
       data = PointerType{base_copy};
+      break;
+    }
+    case TypeKind::ARRAY: {
+      const auto& arrayType = std::get<ArrayType>(other.data);
+      std::unique_ptr<Type> element_copy = std::make_unique<Type>(*arrayType.element);
+      data = ArrayType(std::move(element_copy), (std::get<ArrayType>(other.data)).size);
       break;
     }
     default:
@@ -254,6 +275,10 @@ public:
   static Type Pointer(std::unique_ptr<Type> base) {
     PointerType ptype{std::move(base)};
     return Type{TypeKind::POINTER, std::move(ptype)};
+  }
+  static Type Array(std::unique_ptr<Type> element, int size) {
+    ArrayType atype{std::move(element), size};
+    return Type{TypeKind::ARRAY, std::move(atype)};
   }
   static Type Error() { return Type{TypeKind::ERROR, std::monostate{}}; }
 
@@ -653,6 +678,16 @@ public:
   }
 };
 
+class SubscriptExpression : public ExpressionNode {
+public:
+  ASTNodePtr arrayExpr;
+  ASTNodePtr indexExpr;
+  SubscriptExpression(ASTNodePtr arrayExpr, ASTNodePtr indexExpr)
+    : arrayExpr(std::move(arrayExpr)), indexExpr(std::move(indexExpr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+};
+
 class BlockItemNode : public ASTNode {
 public:
   ASTNodePtr block_item = nullptr;
@@ -736,6 +771,20 @@ public:
   }
 };
 
+class ArrayDeclarator : public DeclaratorNode {
+public:
+  ASTNodePtr declarator; //type DeclaratorNode
+  int size;
+  ArrayDeclarator(ASTNodePtr declarator, int size)
+      : declarator(std::move(declarator)), size(size) {}
+    
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    return std::make_unique<ArrayDeclarator>(
+        declarator ? declarator->clone() : nullptr, size);
+  }
+};
+
 class FunDeclarator : public DeclaratorNode {
 public:
   std::vector<paraminfo> params;
@@ -777,9 +826,18 @@ public:
   ASTNodePtr base; // AbstractDeclarator type
   AbstractPointer(ASTNodePtr base) : base(std::move(base)) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
-
   std::unique_ptr<ASTNode> clone() const override {
     return std::make_unique<AbstractPointer>(base ? base->clone() : nullptr);
+  }
+};
+class AbstractArray : public AbstractDeclarator {
+public:
+  ASTNodePtr base; // AbstractDeclarator type
+  int size;
+  AbstractArray(ASTNodePtr base, int size) : base(std::move(base)), size(size) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    return std::make_unique<AbstractArray>(base ? base->clone() : nullptr, size);
   }
 };
 
@@ -814,6 +872,55 @@ public:
     cloned->storage_class = storage_class;
     cloned->param_types = param_types;
     return cloned;
+  }
+};
+
+struct SingleInit {
+  std::unique_ptr<ASTNode> expression; //ExpressionNode type
+  SingleInit(ASTNodePtr expr) : expression(std::move(expr)) {}
+};
+
+struct CompoundInit {
+  std::vector<InitializerNode> initializers;
+  CompoundInit(std::vector<InitializerNode> inits)
+      : initializers(std::move(inits)) {}
+};
+
+class InitializerNode : public ASTNode {
+public:
+  InitializerKind kind;
+  std::variant<SingleInit, CompoundInit> data;
+
+  InitializerNode(ASTNodePtr expr)
+      : kind(InitializerKind::SINGLE_INIT),
+        data(std::move(SingleInit{std::move(expr)})) {}
+
+  InitializerNode(std::vector<InitializerNode> inits)
+      : kind(InitializerKind::COMPOUND_INIT),
+        data(std::move(CompoundInit{std::move(inits)})) {}
+
+  ~InitializerNode() override = default;
+
+  InitializerNode(const InitializerNode&) = default;
+  InitializerNode(InitializerNode&&) noexcept = default;
+
+  InitializerNode& operator=(const InitializerNode&) = default;
+  InitializerNode& operator=(InitializerNode&&) noexcept = default;
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    if (kind == InitializerKind::SINGLE_INIT) {
+      const auto &singleInit = std::get<SingleInit>(data);
+      return std::make_unique<InitializerNode>(
+          singleInit.expression ? singleInit.expression->clone() : nullptr);
+    } else {
+      const auto &compoundInit = std::get<CompoundInit>(data);
+      std::vector<InitializerNode> clonedInits;
+      for (const auto &init : compoundInit.initializers) {
+        clonedInits.push_back(init.clone());
+      }
+      return std::make_unique<InitializerNode>(std::move(clonedInits));
+    }
   }
 };
 

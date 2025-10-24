@@ -23,15 +23,18 @@ public:
   void visit(DeclarationNode &node) override;
   void visit(BlockNode &node) override;
   void visit(FunDeclNode &node) override;
+  void visit(InitializerNode &node) override;
   void visit(VarDeclNode &node) override;
   void visit(FunctionCallNode &node) override;
   void visit(Ident &node) override;
   void visit(DeclaratorNode &node) override;
   void visit(PointerDeclarator &node) override;
+  void visit(ArrayDeclarator &node) override;
   void visit(FunDeclarator &node) override;
   void visit(paraminfo &node) override;
   void visit(AbstractPointer &node) override;
   void visit(AbstractBase &node) override;
+  void visit(AbstractArray &node) override;
 
   // Statement visitors
   void visit(ReturnStatement &node) override;
@@ -53,6 +56,7 @@ public:
   void visit(CastExpression &node) override;
   void visit(DereferenceExpression &node) override;
   void visit(AddressOfExpression &node) override;
+  void visit(SubscriptExpression &node) override;
 
   // loop
   void visit(ForInit &node) override;
