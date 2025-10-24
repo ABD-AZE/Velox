@@ -71,6 +71,7 @@ private:
   ASTNodePtr parseWhile();
   ASTNodePtr parseFor();
   ASTNodePtr parseVariableDeclaration();
+  std::unique_ptr<InitializerNode> parseInitializer();
   /* returns {name, type, param names}
   name: Identifier
   Type: type of the declarator

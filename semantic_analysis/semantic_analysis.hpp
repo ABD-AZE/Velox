@@ -24,6 +24,7 @@ public:
   void visit(BlockItemNode &node) override;
   void visit(DeclarationNode &node) override;
   void visit(FunctionCallNode &node) override;
+  void visit(InitializerNode &node) override;
 
   // Statement visitors
   void visit(ReturnStatement &node) override;
@@ -53,6 +54,7 @@ public:
   void visit(CastExpression &node) override;
   void visit(DereferenceExpression &node) override;
   void visit(AddressOfExpression &node) override;
+  void visit(SubscriptExpression &node) override;
 
   // Type and declarator visitors (no-ops for variable resolution)
   void visit(Type &node) override;
@@ -63,6 +65,8 @@ public:
   void visit(paraminfo &node) override;
   void visit(AbstractPointer &node) override;
   void visit(AbstractBase &node) override;
+  void visit(AbstractArray &node) override;
+  void visit(ArrayDeclarator &node) override;
 
   bool success;
   int label_counter = 0;

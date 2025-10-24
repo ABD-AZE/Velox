@@ -340,6 +340,28 @@ void ASTPrinter::visit(AddressOfExpression &node) {
   print_close(indent_);
 }
 
+void ASTPrinter::visit(SubscriptExpression &node) {
+  print_open("Subscript", indent_);
+  increaseIndent();
+
+  print_label("arrayExpr", indent_);
+  if (node.arrayExpr) {
+    increaseIndent();
+    node.arrayExpr->accept(*this);
+    decreaseIndent();
+  }
+
+  print_label("indexExpr", indent_);
+  if (node.indexExpr) {
+    increaseIndent();
+    node.indexExpr->accept(*this);
+    decreaseIndent();
+  }
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
 void ASTPrinter::visit(BlockItemNode &node) {
   print_open("BlockItem", indent_);
   if (node.block_item) {
@@ -511,6 +533,23 @@ void ASTPrinter::visit(ForNode &node) {
   print_close(indent_);
 }
 
+void ASTPrinter::visit(ArrayDeclarator &node) {
+  print_open("ArrayDeclarator", indent_);
+  increaseIndent();
+
+  print_kv("size", node.size, indent_);
+
+  print_label("declarator", indent_);
+  if (node.declarator) {
+    increaseIndent();
+    node.declarator->accept(*this);
+    decreaseIndent();
+  }
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
 void ASTPrinter::visit(FunDeclNode &node) {
   print_open("FunDecl", indent_);
   increaseIndent();
@@ -547,6 +586,40 @@ void ASTPrinter::visit(FunDeclNode &node) {
     decreaseIndent();
   } else {
     print_kv("body", "null", indent_);
+  }
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(InitializerNode &node) {
+  print_open("Initializer", indent_);
+  increaseIndent();
+
+  print_kv("kind", (node.kind == InitializerKind::SINGLE_INIT) ? "Single" : "Compound", indent_);
+
+  if (node.kind == InitializerKind::SINGLE_INIT) {
+    const SingleInit &singleInit = std::get<SingleInit>(node.data);
+    print_label("expression", indent_);
+    if (singleInit.expression) {
+      increaseIndent();
+      singleInit.expression->accept(*this);
+      decreaseIndent();
+    }
+  } else if (node.kind == InitializerKind::COMPOUND_INIT) {
+    CompoundInit &compoundInit = std::get<CompoundInit>(node.data);
+    print_label("initializers", indent_);
+    indent_spaces(indent_);
+    std::cout << "[" << std::endl;
+    if (!compoundInit.initializers.empty()) {
+      increaseIndent();
+      for (InitializerNode &init : compoundInit.initializers) {
+        init.accept(*this);
+      }
+      decreaseIndent();
+    }
+    indent_spaces(indent_);
+    std::cout << "]" << std::endl;
   }
 
   decreaseIndent();
@@ -707,6 +780,23 @@ void ASTPrinter::visit(AbstractPointer &node) {
   increaseIndent();
   if (node.base)
     node.base->accept(*this);
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(AbstractArray &node) {
+  print_open("AbstractArray", indent_);
+  increaseIndent();
+
+  print_kv("size", node.size, indent_);
+
+  print_label("declarator", indent_);
+  if (node.base) {
+    increaseIndent();
+    node.base->accept(*this);
+    decreaseIndent();
+  }
+
   decreaseIndent();
   print_close(indent_);
 }

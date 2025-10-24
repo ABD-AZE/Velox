@@ -619,7 +619,7 @@ ASTNodePtr Parser::parseExpression(int minPrecedence) {
 
 // intermediate declaration node not required in ast
 ASTNodePtr Parser::parseDeclaration() {
-  DeclarationNodePtr declarationNode = std::make_unique<DeclarationNode>();
+  // DeclarationNodePtr declarationNode = std::make_unique<DeclarationNode>();
 
   std::vector<TokenType> specifier_list;
   if (!isSpecifier(peek().GetType())) {
@@ -658,14 +658,27 @@ ASTNodePtr Parser::parseDeclaration() {
     // function definition with body
     functionDeclNode->body = parseBlock();
     return functionDeclNode;
-  } else {
+  } 
+  else if(type.kind == TypeKind::ARRAY) {
     VarDeclNodePtr varDeclNode = std::make_unique<VarDeclNode>();
     varDeclNode->name = name;
     varDeclNode->type = std::move(type);
     varDeclNode->storage_class = storage_class;
     if (peek().GetType() == TokenType::ASSIGNMENT) {
       consume(); // consume '='
-      varDeclNode->init = parseExpression(0);
+      varDeclNode->init = parseInitializer();
+    }
+    expect(consume().GetType(), TokenType::SEMICOLON);
+    return varDeclNode;
+  }
+  else {
+    VarDeclNodePtr varDeclNode = std::make_unique<VarDeclNode>();
+    varDeclNode->name = name;
+    varDeclNode->type = std::move(type);
+    varDeclNode->storage_class = storage_class;
+    if (peek().GetType() == TokenType::ASSIGNMENT) {
+      consume(); // consume '='
+      varDeclNode->init = parseInitializer();
     }
     expect(consume().GetType(), TokenType::SEMICOLON);
     // resolve_declaration(varDeclNode, variable_map);
@@ -686,6 +699,16 @@ ASTNodePtr Parser::parseDeclarator() {
                                                      std::move(declaratorNode));
       declaratorNode = std::move(funDecl);
     }
+    else{
+      //one or more array declarators
+      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
+        consume(); //consume '['
+        expect(peek().GetType(), TokenType::INT_CONSTANT);
+        int size = std::stoi(consume().GetLexeme());
+        expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+        declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
+      }
+    }
     break;
   case TokenType::OPEN_PARENTHESES: {
     // simple declarator
@@ -699,9 +722,19 @@ ASTNodePtr Parser::parseDeclarator() {
                                                      std::move(declaratorNode));
       declaratorNode = std::move(funDecl);
     }
+    else{
+      //one or more array declarators
+      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
+        consume(); //consume '['
+        expect(peek().GetType(), TokenType::INT_CONSTANT);
+        int size = std::stoi(consume().GetLexeme());
+        expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+        declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
+      }
+    }
     return declaratorNode;
   }
-  case TokenType::ASTERISK:
+  case TokenType::ASTERISK: 
     // pointer declarator
     consume();
     declaratorNode = std::make_unique<PointerDeclarator>(parseDeclarator());
@@ -733,6 +766,15 @@ ASTNodePtr Parser::parseAbstractDeclarator() {
     auto inner = parseAbstractDeclarator();
     expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
     return inner;
+  }
+  case TokenType::OPEN_BRACKET: {
+    // array abstract declarator
+    consume(); // consume '['
+    expect(peek().GetType(), TokenType::INT_CONSTANT);
+    int size = std::stoi(consume().GetLexeme());
+    expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+    auto inner = parseAbstractDeclarator();
+    return std::make_unique<AbstractArray>(std::move(inner), size);
   }
   default:
     return std::make_unique<AbstractBase>();
@@ -779,6 +821,12 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
       // error: function declarator must have an identifier
       return std::make_tuple("", type, param_names);
     }
+  } else if (auto arrayDecl =
+                 dynamic_cast<ArrayDeclarator *>(declaratorNode.get())) {
+    type = Type(TypeKind::ARRAY,
+                ArrayType(std::make_unique<Type>(type), arrayDecl->size));
+    return processDeclarator(arrayDecl->declarator,
+                             type);
   }
   success = 0;
   errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
@@ -796,7 +844,16 @@ Type Parser::processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
         Type(TypeKind::POINTER, PointerType(std::make_unique<Type>(baseType)));
     return processAbstractDeclarator(std::move(pointerDecl->base),
                                      std::move(type));
-  } else if (dynamic_cast<AbstractBase *>(abstractDeclaratorNode.get())) {
+  }
+  else if( dynamic_cast<AbstractArray *>(abstractDeclaratorNode.get())) {
+    auto arrayDecl =
+        dynamic_cast<AbstractArray *>(abstractDeclaratorNode.get());
+    Type type = Type(TypeKind::ARRAY,
+                     ArrayType(std::make_unique<Type>(baseType), arrayDecl->size));
+    return processAbstractDeclarator(std::move(arrayDecl->base),
+                                     std::move(type));
+  }
+  else if (dynamic_cast<AbstractBase *>(abstractDeclaratorNode.get())) {
     return baseType;
   }
   success = 0;
@@ -861,6 +918,31 @@ std::vector<paraminfo> Parser::parseParams() {
   }
   expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
   return params;
+}
+
+std::unique_ptr<InitializerNode> Parser::parseInitializer() {
+  std::unique_ptr<InitializerNode> initializerNode;
+  if (peek().GetType() == TokenType::OPEN_BRACE) {
+    consume(); // consume '{'
+    std::vector<InitializerNode> initializers;
+    while (peek().GetType() != TokenType::CLOSE_BRACE &&
+           peek().GetType() != TokenType::END_OF_FILE) {
+      initializers.push_back(std::move(*parseInitializer()));
+      if (peek().GetType() == TokenType::COMMA) {
+        consume(); // consume ','
+        continue;  // parse next initializer
+      } else {
+        break; // end of initializer list
+      }
+    }
+    expect(consume().GetType(), TokenType::CLOSE_BRACE);
+    initializerNode = std::make_unique<InitializerNode>(std::move(initializers));
+  }
+  else {
+    ASTNodePtr expr = parseExpression(0);
+    initializerNode = std::make_unique<InitializerNode>(std::move(expr));
+  }
+  return initializerNode;
 }
 
 ASTNodePtr Parser::parseBlockItem() {
