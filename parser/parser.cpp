@@ -895,7 +895,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
       paramtypes.push_back(param_type);
       param_types.push_back(param_type);
     }
-    type = Type::Function(std::move(paramtypes), type);
+    type = Type::Function(paramtypes, type);
     Ident *ident = dynamic_cast<Ident *>(funDecl->declarator.get());
     if (ident) {
       return std::make_tuple(ident->identifier, type, param_names, param_types);
@@ -910,7 +910,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
   } else if (auto arrayDecl =
                  dynamic_cast<ArrayDeclarator *>(declaratorNode.get())) {
     type = Type(TypeKind::ARRAY,
-                ArrayType(std::make_unique<Type>(type), arrayDecl->size));
+                ArrayType(std::make_shared<Type>(type), arrayDecl->size));
     return processDeclarator(arrayDecl->declarator,
                              type);
   }
@@ -987,7 +987,7 @@ std::vector<paraminfo> Parser::parseParams() {
           "storage class specifier not allowed in parameter declaration"));
     }
     auto declarator = parseDeclarator();
-    paraminfo param(std::move(param_type), std::move(declarator));
+    paraminfo param(param_type, std::move(declarator));
     params.push_back(std::move(param));
     if (peek().GetType() == TokenType::COMMA) {
       consume(); // consume ','

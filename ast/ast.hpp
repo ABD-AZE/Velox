@@ -166,9 +166,9 @@ struct PointerType {
 };
 
 struct ArrayType {
-  std::unique_ptr<Type> element;
+  std::shared_ptr<Type> element;
   int size;
-  ArrayType(std::unique_ptr<Type> Element, int Size) :size(Size), element(std::move(Element)) {}
+  ArrayType(std::shared_ptr<Type> Element, int Size) :size(Size), element(std::move(Element)) {}
 };
 
 enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, ERROR };
