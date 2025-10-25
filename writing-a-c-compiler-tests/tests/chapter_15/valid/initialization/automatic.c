@@ -12,11 +12,11 @@ int test_simple(void) {
  * explicitly initialized should be zero.
  */
 int test_partial(void) {
-  double arr[5] = {1.0, 123e4};
+  double arr[5] = {1.0, 123.000};
 
   // make sure first two elements have values from initializer and last three
   // are zero
-  return (arr[0] == 1.0 && arr[1] == 123e4 && !arr[2] && !arr[3] && !arr[4]);
+  return (arr[0] == 1.0 && arr[1] == 123.000 && !arr[2] && !arr[3] && !arr[4]);
 }
 
 /* An initializer can include non-constant expressions, including function

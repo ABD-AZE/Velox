@@ -214,7 +214,7 @@ ASTNodePtr Parser::parseVariableDeclaration() {
   varDeclNode->storage_class = storage_class;
   if (peek().GetType() == TokenType::ASSIGNMENT) {
     consume(); // consume '='
-    varDeclNode->init = parseExpression(0);
+    varDeclNode->init = parseInitializer();
   }
   expect(consume().GetType(), TokenType::SEMICOLON);
   // resolve_declaration(varDeclNode, variable_map);
@@ -321,19 +321,25 @@ ASTNodePtr Parser::parseStatement() {
 
 ASTNodePtr Parser::parsePostfixExp() {
   ASTNodePtr postfixExpNode = parsePrimaryExp();
-  // (subscript)* (increment or decrement)*
-  while (peek().GetType() == TokenType::OPEN_BRACKET) {
-    consume(); // consume '['
-    ASTNodePtr indexExp = parseExpression(0);
-    expect(consume().GetType(), TokenType::CLOSE_BRACKET);
-    postfixExpNode = std::make_unique<SubscriptExpression>(
-        std::move(postfixExpNode), std::move(indexExp));
-  }
-  while(peek().GetType() == TokenType::INCREMENT_OPERATOR ||
-        peek().GetType() == TokenType::DECREMENT_OPERATOR) {
-    TokenType op = consume().GetType();
-    postfixExpNode = std::make_unique<PostfixExpression>(
-        std::move(postfixExpNode), op);
+  // (subscript | increment | decrement)*
+  while (true) {
+    if (peek().GetType() == TokenType::OPEN_BRACKET) {
+      consume(); // consume '['
+      ASTNodePtr indexExp = parseExpression(0);
+      expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+      postfixExpNode = std::make_unique<SubscriptExpression>(
+          std::move(postfixExpNode), std::move(indexExp));
+    } else if (peek().GetType() == TokenType::INCREMENT_OPERATOR) {
+      consume(); // consume '++'
+      postfixExpNode = std::make_unique<PostfixExpression>(
+          std::move(postfixExpNode), TokenType::INCREMENT_OPERATOR);
+    } else if (peek().GetType() == TokenType::DECREMENT_OPERATOR) {
+      consume(); // consume '--'
+      postfixExpNode = std::make_unique<PostfixExpression>(
+          std::move(postfixExpNode), TokenType::DECREMENT_OPERATOR);
+    } else {
+      break;
+    }
   }
   return postfixExpNode;
 }
@@ -547,7 +553,7 @@ ASTNodePtr Parser::parseUnaryExp() {
     }
     break;
   case TokenType::OPEN_PARENTHESES:
-  if (isTypeSpecifier(peek().GetType())) {
+  if (isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
     // cast expression
       consume();
       std::vector<TokenType> type_list;
@@ -729,11 +735,20 @@ ASTNodePtr Parser::parseDeclarator() {
       declaratorNode = std::move(funDecl);
     }
     else{
-      //one or more array declarators
+      //zero or more array declarators
       while(peek().GetType() ==  TokenType::OPEN_BRACKET){
         consume(); //consume '['
         expect(peek().GetType(), TokenType::INT_CONSTANT);
-        int size = std::stoi(consume().GetLexeme());
+        int size = 0;
+        try {
+          size = std::stoi(consume().GetLexeme());
+        }
+        catch (const std::exception &e) {
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              currentToken.GetType(), "invalid array size"));
+        }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
         declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
       }
@@ -756,7 +771,16 @@ ASTNodePtr Parser::parseDeclarator() {
       while(peek().GetType() ==  TokenType::OPEN_BRACKET){
         consume(); //consume '['
         expect(peek().GetType(), TokenType::INT_CONSTANT);
-        int size = std::stoi(consume().GetLexeme());
+        int size;
+        try {
+          size = std::stoi(consume().GetLexeme());
+        }
+        catch (const std::exception &e) {
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              currentToken.GetType(), "invalid array size"));
+        }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
         declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
       }
@@ -780,6 +804,59 @@ ASTNodePtr Parser::parseDeclarator() {
   return declaratorNode;
 }
 
+ASTNodePtr Parser::parseDirectAbstractDeclarator() {
+  ASTNodePtr declaratorNode;
+  switch(peek().GetType()) {
+    case TokenType::OPEN_PARENTHESES: {
+      consume(); // consume '('
+      auto inner = parseAbstractDeclarator();
+      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+      //zero or more array declarators
+      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
+        consume(); //consume '['
+        expect(peek().GetType(), TokenType::INT_CONSTANT);
+        int size;
+        try {
+          size = std::stoi(consume().GetLexeme());
+        }
+        catch (const std::exception &e) {
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              currentToken.GetType(), "invalid array size"));
+        }
+        expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+        inner = std::make_unique<AbstractArray>(std::move(inner), size);
+        declaratorNode = std::move(inner);
+      }
+    }
+    case TokenType::OPEN_BRACKET: {
+      //one or more array declarators
+      ASTNodePtr inner = std::make_unique<AbstractBase>();
+      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
+        consume(); //consume '['
+        expect(peek().GetType(), TokenType::INT_CONSTANT);
+        int size;
+        try {
+          size = std::stoi(consume().GetLexeme());
+        }
+        catch (const std::exception &e) {
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              currentToken.GetType(), "invalid array size"));
+        }
+        expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+        inner = std::make_unique<AbstractArray>(std::move(inner), size);
+        declaratorNode = std::move(inner);
+      }
+    }
+    default:
+      declaratorNode = std::make_unique<AbstractBase>();
+  }
+  return declaratorNode;
+}
+
 ASTNodePtr Parser::parseAbstractDeclarator() {
   AbstractDeclaratorPtr declaratorNode;
   switch (peek().GetType()) {
@@ -789,24 +866,8 @@ ASTNodePtr Parser::parseAbstractDeclarator() {
         std::make_unique<AbstractPointer>(parseAbstractDeclarator());
     return declaratorNode;
   }
-  case TokenType::OPEN_PARENTHESES: {
-    // direct abstract declarator
-    consume(); // consume '('
-    auto inner = parseAbstractDeclarator();
-    expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-    return inner;
-  }
-  case TokenType::OPEN_BRACKET: {
-    // array abstract declarator
-    consume(); // consume '['
-    expect(peek().GetType(), TokenType::INT_CONSTANT);
-    int size = std::stoi(consume().GetLexeme());
-    expect(consume().GetType(), TokenType::CLOSE_BRACKET);
-    auto inner = parseAbstractDeclarator();
-    return std::make_unique<AbstractArray>(std::move(inner), size);
-  }
   default:
-    return std::make_unique<AbstractBase>();
+    return parseDirectAbstractDeclarator();
   }
 }
 
@@ -953,6 +1014,15 @@ std::unique_ptr<InitializerNode> Parser::parseInitializer() {
   std::unique_ptr<InitializerNode> initializerNode;
   if (peek().GetType() == TokenType::OPEN_BRACE) {
     consume(); // consume '{'
+
+    if( peek().GetType() == TokenType::CLOSE_BRACE) {
+      // empty initializer list is invalid
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          TokenType::WS, "non empty initializer list"));
+    }
+
     std::vector<InitializerNode> initializers;
     while (peek().GetType() != TokenType::CLOSE_BRACE &&
            peek().GetType() != TokenType::END_OF_FILE) {
