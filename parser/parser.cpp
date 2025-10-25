@@ -483,6 +483,14 @@ ASTNodePtr Parser::parsePrimaryExp() {
           currentToken.GetType(), "double constant"));
     }
     break;
+    case TokenType::CHARACTER:
+    {
+      consume();
+      std::string lexeme = currentToken.GetLexeme();
+      char value = lexeme[0];
+      primaryExpNode = std::make_unique<ConstantExpression>((int)value);
+      break;
+    }
     case TokenType::IDENTIFIER: {
       std::string identifier = consume().GetLexeme();
       if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
@@ -507,6 +515,14 @@ ASTNodePtr Parser::parsePrimaryExp() {
       } else {
         primaryExpNode = std::make_unique<VariableExpression>(identifier);
       }
+      break;
+    }
+    case TokenType::STRING: {
+      std::string str_value = consume().GetLexeme();
+      while(peek().GetType() == TokenType::STRING) {
+        str_value += consume().GetLexeme();
+      }
+      primaryExpNode = std::make_unique<StringLiteralExpression>(str_value);
       break;
     }
     case TokenType::OPEN_PARENTHESES: {
@@ -538,17 +554,23 @@ ASTNodePtr Parser::parseUnaryExp() {
   case TokenType::HYPHEN:
   case TokenType::TILDE:
   case TokenType::NOT:
-  case TokenType::ASTERISK:
   case TokenType::AAND:
   case TokenType::INCREMENT_OPERATOR:
   case TokenType::DECREMENT_OPERATOR:
+  {
     consume();
-    {
-      TokenType op = currentToken.GetType();
-      ASTNodePtr operand = parseUnaryExp();
-      unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
-    }
-    break;
+    TokenType op = currentToken.GetType();
+    ASTNodePtr operand = parseUnaryExp();
+    unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
+  }
+  break;
+  case TokenType::ASTERISK:
+  {
+    consume(); //consume ASTERISK
+    ASTNodePtr exp = parseUnaryExp();
+    unaryExpNode = std::make_unique<DereferenceExpression>(std::move(exp));
+  }
+  break;
   case TokenType::OPEN_PARENTHESES:
   if (isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
     // cast expression
@@ -732,16 +754,38 @@ ASTNodePtr Parser::parseDeclarator() {
       //zero or more array declarators
       while(peek().GetType() ==  TokenType::OPEN_BRACKET){
         consume(); //consume '['
-        expect(peek().GetType(), TokenType::INT_CONSTANT);
-        int size = 0;
-        try {
-          size = std::stoi(consume().GetLexeme());
-        }
-        catch (const std::exception &e) {
+        ASTNodePtr sizeNode = parsePrimaryExp();
+        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "invalid array size"));
+              currentToken.GetType(), "array size must be a constant expression"));
+        }
+        int size;
+        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
+        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
+          size = *ptr;
+        }
+        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else{
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              TokenType::WS, "invalid array size"));
         }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
         declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
@@ -764,16 +808,38 @@ ASTNodePtr Parser::parseDeclarator() {
       //one or more array declarators
       while(peek().GetType() ==  TokenType::OPEN_BRACKET){
         consume(); //consume '['
-        expect(peek().GetType(), TokenType::INT_CONSTANT);
-        int size;
-        try {
-          size = std::stoi(consume().GetLexeme());
-        }
-        catch (const std::exception &e) {
+        ASTNodePtr sizeNode = parsePrimaryExp();
+        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "invalid array size"));
+              currentToken.GetType(), "array size must be a constant expression"));
+        }
+        int size;
+        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
+        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
+          size = *ptr;
+        }
+        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else{
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              TokenType::WS, "invalid array size"));
         }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
         declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
@@ -808,16 +874,38 @@ ASTNodePtr Parser::parseDirectAbstractDeclarator() {
       //zero or more array declarators
       while(peek().GetType() ==  TokenType::OPEN_BRACKET){
         consume(); //consume '['
-        expect(peek().GetType(), TokenType::INT_CONSTANT);
-        int size;
-        try {
-          size = std::stoi(consume().GetLexeme());
-        }
-        catch (const std::exception &e) {
+        ASTNodePtr sizeNode = parsePrimaryExp();
+        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "invalid array size"));
+              currentToken.GetType(), "array size must be a constant expression"));
+        }
+        int size;
+        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
+        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
+          size = *ptr;
+        }
+        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else{
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              TokenType::WS, "invalid array size"));
         }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
         inner = std::make_unique<AbstractArray>(std::move(inner), size);
@@ -829,16 +917,38 @@ ASTNodePtr Parser::parseDirectAbstractDeclarator() {
       ASTNodePtr inner = std::make_unique<AbstractBase>();
       while(peek().GetType() ==  TokenType::OPEN_BRACKET){
         consume(); //consume '['
-        expect(peek().GetType(), TokenType::INT_CONSTANT);
-        int size;
-        try {
-          size = std::stoi(consume().GetLexeme());
-        }
-        catch (const std::exception &e) {
+        ASTNodePtr sizeNode = parsePrimaryExp();
+        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "invalid array size"));
+              currentToken.GetType(), "array size must be a constant expression"));
+        }
+        int size;
+        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
+        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
+          size = *ptr;
+        }
+        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
+          size = static_cast<int>(*ptr);
+        }
+        else{
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              TokenType::WS, "invalid array size"));
         }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
         inner = std::make_unique<AbstractArray>(std::move(inner), size);
@@ -883,7 +993,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
     std::vector<Type> paramtypes;
     for (auto &param : funDecl->params) {
 
-      auto [param_name, param_type, _, _] =
+      auto [param_name, param_type, _, __] =
           processDeclarator((param.declarator), (param.type));
       if (param_type.kind == TypeKind::FUNC) {
         success = 0;
@@ -1161,6 +1271,8 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list) {
       return Type::UInt();
     case TokenType::DOUBLE:
       return Type::Double();
+    case TokenType::CHAR:
+      return Type::Char();
     default:
       success = 0;
       errors.push_back(ParserErrorInfo(
@@ -1171,6 +1283,7 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list) {
   }
   if (list.size() == 2) {
     // long int or unsigned int or signed int or ul or signeld long
+    // or unsigned char or signed char
     for (int i = 0; i < 2; i++) {
       if (list[i % 2] == TokenType::INT &&
           list[(i + 1) % 2] == TokenType::LONG) {
@@ -1187,6 +1300,12 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list) {
       } else if (list[i % 2] == TokenType::SIGNED &&
                  list[(i + 1) % 2] == TokenType::LONG) {
         return Type::Long();
+      } else if (list[i % 2] == TokenType::UNSIGNED &&
+                 list[(i + 1) % 2] == TokenType::CHAR) {
+        return Type::UChar();
+      } else if (list[i % 2] == TokenType::SIGNED &&
+                 list[(i + 1) % 2] == TokenType::CHAR) {
+        return Type::SChar();
       }
     }
   }

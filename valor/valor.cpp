@@ -1047,6 +1047,7 @@ void IRGenerator::visit(
     DereferenceExpression &node) { /* TODO: Implement dereference */ }
 void IRGenerator::visit(
     AddressOfExpression &node) { /* TODO: Implement address-of */ }
+void IRGenerator::visit(StringLiteralExpression &node) { /*TODO: Implement string literal*/}
 void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
 void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }

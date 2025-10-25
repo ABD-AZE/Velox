@@ -1281,3 +1281,7 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
     return;
   }
  }
+
+void SemanticAnalyzer::visit(StringLiteralExpression &node) {
+  
+}

@@ -73,7 +73,7 @@ class IRValueNode {
 public:
   IRValueType type;
   TypeKind constType;
-  std::variant<int, long int, long unsigned int, unsigned int, double> value;
+  std::variant<int, long int, long unsigned int, unsigned int, double, char, unsigned char> value;
   std::string name;
   std::vector<IRValuePtr> args;
   // Constructors
@@ -88,7 +88,7 @@ public:
   IRValueNode() = default;
 
   static IRValuePtr makeConstant(
-      std::variant<int, long int, long unsigned int, unsigned int, double>
+      std::variant<int, long int, long unsigned int, unsigned int, double, char, unsigned char>
           value) {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
@@ -415,6 +415,7 @@ public:
   void visit(CastExpression &node) override;
   void visit(DereferenceExpression &node) override;
   void visit(AddressOfExpression &node) override;
+  void visit(StringLiteralExpression &node) override;
 
   // Loop visitors
   void visit(ForInit &node) override;
