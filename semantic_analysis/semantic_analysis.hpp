@@ -8,8 +8,7 @@
 
 extern std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
 // Semantic Analyzer using visitor pattern
-class SemanticAnalyzer : public ASTVisitor
-{
+class SemanticAnalyzer : public ASTVisitor {
 public:
   SemanticAnalyzer();
 
@@ -70,7 +69,9 @@ public:
   std::vector<std::string> errors;
 
 private:
-  // stores the updated variable names for the current scope(the bool represents linkage of the variable), the current scope being the last element in the stack
+  // stores the updated variable names for the current scope(the bool represents
+  // linkage of the variable), the current scope being the last element in the
+  // stack
   std::map<std::string, std::pair<std::string, bool>> identifier_map;
   std::string current_label;
   // Helper methods

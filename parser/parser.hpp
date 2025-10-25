@@ -1,11 +1,11 @@
 #pragma once
 
 #include "../ast/ast.hpp"
+#include "../semantic_analysis/semantic_analysis.hpp"
 #include "../token/token.hpp"
 #include "../utils/termcolor.hpp"
 #include "../utils/token_classifier.hpp"
 #include "../utils/type_utils.hpp"
-#include "../semantic_analysis/semantic_analysis.hpp"
 #include <algorithm>
 #include <format>
 #include <iostream>
@@ -78,7 +78,7 @@ private:
   non-function declarators, empty vector
   */
   std::tuple<std::string, Type, std::vector<std::string>>
-  processDeclarator(ASTNodePtr& declaratorNode, Type& baseType);
+  processDeclarator(ASTNodePtr &declaratorNode, Type &baseType);
   Type processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
                                  Type baseType);
   std::vector<paraminfo> parseParams();
