@@ -106,6 +106,18 @@ std::string IRInstructionNode::toString() const
   case IROpType::ZERO_EXTEND:
     ss << dst->toString() << " = zero_extend(" << src1->toString() << ")";
     break;
+  case IROpType::DOUBLE_TO_LONG:
+    ss << dst->toString() << " = double_to_long(" << src1->toString() << ")";
+    break;
+  case IROpType::DOUBLE_TO_ULONG:
+    ss << dst->toString() << " = double_to_ulong(" << src1->toString() << ")";
+    break;
+  case IROpType::LONG_TO_DOUBLE:
+    ss << dst->toString() << " = long_to_double(" << src1->toString() << ")";
+    break;
+  case IROpType::ULONG_TO_DOUBLE:
+    ss << dst->toString() << " = ulong_to_double(" << src1->toString() << ")";
+    break;
   case IROpType::JUMP:
     ss << "jump " << label;
     break;
@@ -1033,6 +1045,79 @@ void IRGenerator::visit(CastExpression &node)
 
   // Create destination variable with the target type
   IRValuePtr dst = makeTackyVariable(node.targetType);
+
+  if(node.targetType.kind == TypeKind::DOUBLE && (innerType.kind ==  TypeKind::INT || innerType.kind == TypeKind::LONG))
+  {
+    // Int/Long to Double
+    if(innerType.kind == TypeKind::INT)
+    {
+      // First convert Long to Int
+      IRValuePtr longTemp = makeTackyVariable(Type::Long());
+      auto intToLongInst = IRInstructionNode::makeSignExtend(
+          std::move(result), longTemp);
+      currentFunction->addInstruction(std::move(intToLongInst));
+      result = longTemp;
+    }
+    auto longToDoubleInst = IRInstructionNode::makeLongToDouble(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(longToDoubleInst));
+    currentValue = dst;
+    return;
+  }
+  else if((node.targetType.kind == TypeKind::INT || node.targetType.kind == TypeKind::LONG) && innerType.kind == TypeKind::DOUBLE)
+  {
+    // Double to Int/Long
+    auto doubleToLongInst = IRInstructionNode::makeDoubleToLong(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(doubleToLongInst));
+    if(node.targetType.kind == TypeKind::INT)
+    {
+      // Then convert Int to Long
+      IRValuePtr intTemp = makeTackyVariable(Type::Int());
+      auto longToIntInst = IRInstructionNode::makeSignExtend(
+          std::make_shared<IRValueNode>(*dst), intTemp);
+      currentFunction->addInstruction(std::move(longToIntInst));
+      dst = intTemp;
+    }
+    currentValue = dst;
+    return;
+  }
+  else if(innerType.kind == TypeKind::DOUBLE && (node.targetType.kind == TypeKind::UINT || node.targetType.kind == TypeKind::ULONG))
+  {
+    // Double to Unsigned Int/Long
+    auto doubleToLongInst = IRInstructionNode::makeDoubleToLong(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(doubleToLongInst));
+    if(node.targetType.kind == TypeKind::UINT)
+    {
+      // Then convert Int to Long
+      IRValuePtr intTemp = makeTackyVariable(Type::UInt());
+      auto longToIntInst = IRInstructionNode::makeTruncate(
+          std::make_shared<IRValueNode>(*dst), intTemp);
+      currentFunction->addInstruction(std::move(longToIntInst));
+      dst = intTemp;
+    }
+    currentValue = dst;
+    return;
+  }
+  else if((innerType.kind == TypeKind::UINT || innerType.kind == TypeKind::ULONG) && node.targetType.kind == TypeKind::DOUBLE)
+  {
+    // Unsigned Int/Long to Double
+    if(innerType.kind == TypeKind::UINT)
+    {
+      // First convert Long to Int
+      IRValuePtr longTemp = makeTackyVariable(Type::ULong());
+      auto intToLongInst = IRInstructionNode::makeSignExtend(
+          std::move(result), longTemp);
+      currentFunction->addInstruction(std::move(intToLongInst));
+      result = longTemp;
+    }
+    auto longToDoubleInst = IRInstructionNode::makeLongToDouble(
+        std::move(result), dst);
+    currentFunction->addInstruction(std::move(longToDoubleInst));
+    currentValue = dst;
+    return;
+  }
 
   if (size(node.targetType.kind) == size(exp->type->kind))
   {
