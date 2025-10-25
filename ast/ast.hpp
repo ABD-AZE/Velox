@@ -59,6 +59,7 @@ class FunType;
 class PointerType;
 class InitializerNode;
 class SubscriptExpression;
+class StringLiteralExpression;
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
 using ProgramNodePtr = std::unique_ptr<ProgramNode>;
@@ -122,6 +123,7 @@ public:
   virtual void visit(DereferenceExpression &node) = 0;
   virtual void visit(AddressOfExpression &node) = 0;
   virtual void visit(SubscriptExpression &node) = 0;
+  virtual void visit(StringLiteralExpression &node) = 0;
 
   // loop
   virtual void visit(ForInit &node) = 0;
@@ -171,10 +173,16 @@ struct ArrayType {
   ArrayType(std::shared_ptr<Type> Element, int Size) :size(Size), element(std::move(Element)) {}
 };
 
-enum class TypeKind { INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, ERROR };
+enum class TypeKind { CHAR, SCHAR, UCHAR, INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, ERROR };
 enum class InitializerKind { SINGLE_INIT, COMPOUND_INIT };
 constexpr int size(TypeKind &kind) {
   switch (kind) {
+  case TypeKind::CHAR:
+    return 1;
+  case TypeKind::SCHAR:
+    return 1;
+  case TypeKind::UCHAR:
+    return 1;
   case TypeKind::INT:
     return 4;
   case TypeKind::UINT:
@@ -245,6 +253,12 @@ public:
         data = PointerType{base_copy};
         break;
       }
+      case TypeKind::ARRAY: {
+        const auto& arrayType = std::get<ArrayType>(other.data);
+        std::unique_ptr<Type> element_copy = std::make_unique<Type>(*arrayType.element);
+        data = ArrayType(std::move(element_copy), (std::get<ArrayType>(other.data)).size);
+        break;
+      }
       default:
         data = std::monostate{};
         break;
@@ -263,6 +277,9 @@ public:
     return *this;
   }
 
+  static Type Char() { return Type{TypeKind::CHAR, std::monostate{}}; }
+  static Type SChar() { return Type{TypeKind::SCHAR, std::monostate{}}; }
+  static Type UChar() { return Type{TypeKind::UCHAR, std::monostate{}}; }
   static Type Int() { return Type{TypeKind::INT, std::monostate{}}; }
   static Type Long() { return Type{TypeKind::LONG, std::monostate{}}; }
   static Type UInt() { return Type{TypeKind::UINT, std::monostate{}}; }
@@ -317,7 +334,7 @@ public:
       return first;
     }
     if (size(first.kind) == size(second.kind)) {
-      if (first.kind == TypeKind::INT || first.kind == TypeKind::LONG) {
+      if (first.kind == TypeKind::INT || first.kind == TypeKind::LONG || first.kind == TypeKind::CHAR || first.kind == TypeKind::SCHAR) {
         return second;
       } else {
         return first;
@@ -536,16 +553,28 @@ public:
 
 class ConstantExpression : public ExpressionNode {
 public:
-  std::variant<int, long, unsigned long, unsigned int, double> value;
+  std::variant<int, long, unsigned long, unsigned int, double, char, unsigned char> value;
   // std::shared_ptr<Type> type;
   ConstantExpression(
-      std::variant<int, long, unsigned long, unsigned int, double> value)
+      std::variant<int, long, unsigned long, unsigned int, double, char, unsigned char> value)
       : value(value) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 
   std::unique_ptr<ASTNode> clone() const override {
     auto cloned = std::make_unique<ConstantExpression>(value);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
+};
+
+class StringLiteralExpression : public ExpressionNode {
+public:
+  std::string value;
+  StringLiteralExpression(std::string value) : value(std::move(value)) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    auto cloned = std::make_unique<StringLiteralExpression>(value);
     cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
     return cloned;
   }

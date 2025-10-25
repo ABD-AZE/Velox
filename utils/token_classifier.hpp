@@ -37,6 +37,12 @@ constexpr TokenType TypeKindToTokenType(TypeKind k) {
 
 constexpr std::string TypeKindToString(TypeKind k) {
   switch (k) {
+  case TypeKind::CHAR:
+    return "char";
+  case TypeKind::SCHAR:
+    return "signed char";
+  case TypeKind::UCHAR:
+    return "unsigned char";
   case TypeKind::INT:
     return "int";
   case TypeKind::LONG:

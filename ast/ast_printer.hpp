@@ -57,6 +57,7 @@ public:
   void visit(DereferenceExpression &node) override;
   void visit(AddressOfExpression &node) override;
   void visit(SubscriptExpression &node) override;
+  void visit(StringLiteralExpression &node) override;
 
   // loop
   void visit(ForInit &node) override;

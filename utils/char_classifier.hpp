@@ -31,6 +31,12 @@ constexpr std::pair<char, bool> processEscapeSequence(char c) {
     return {'\f', true};
   case 'v':
     return {'\v', true};
+  case 'b':
+    return {'\b', true};
+  case 'a':
+    return {'\a', true};
+  case '?':
+    return {'\?', true};
   case '0':
     return {'\0', true};
   default:

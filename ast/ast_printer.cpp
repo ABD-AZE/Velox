@@ -362,6 +362,14 @@ void ASTPrinter::visit(SubscriptExpression &node) {
   print_close(indent_);
 }
 
+void ASTPrinter::visit(StringLiteralExpression &node) {
+  print_open("StringLiteral", indent_);
+  increaseIndent();
+  print_string_kv("value", node.value, indent_);
+  decreaseIndent();
+  print_close(indent_);
+}
+
 void ASTPrinter::visit(BlockItemNode &node) {
   print_open("BlockItem", indent_);
   if (node.block_item) {

@@ -5,7 +5,7 @@
 constexpr bool isTypeSpecifier(TokenType type) {
   if (type == TokenType::INT || type == TokenType::LONG ||
       type == TokenType::UNSIGNED || type == TokenType::SIGNED ||
-      type == TokenType::DOUBLE) {
+      type == TokenType::DOUBLE || type == TokenType::CHAR) {
     return true;
   }
   return false;
