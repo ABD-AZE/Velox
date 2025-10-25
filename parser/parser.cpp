@@ -555,20 +555,14 @@ ASTNodePtr Parser::parseUnaryExp() {
   case TokenType::TILDE:
   case TokenType::NOT:
   case TokenType::AAND:
+  case TokenType::ASTERISK:
   case TokenType::INCREMENT_OPERATOR:
   case TokenType::DECREMENT_OPERATOR:
+  consume();
   {
-    consume();
     TokenType op = currentToken.GetType();
     ASTNodePtr operand = parseUnaryExp();
     unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
-  }
-  break;
-  case TokenType::ASTERISK:
-  {
-    consume(); //consume ASTERISK
-    ASTNodePtr exp = parseUnaryExp();
-    unaryExpNode = std::make_unique<DereferenceExpression>(std::move(exp));
   }
   break;
   case TokenType::OPEN_PARENTHESES:
