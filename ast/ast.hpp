@@ -336,6 +336,11 @@ public:
 
   static Type getCommonType(Type &first, Type &second)
   {
+    if(first.kind == TypeKind::DOUBLE || second.kind == TypeKind::DOUBLE)
+    {
+      return first.kind == TypeKind::DOUBLE ? first : second;
+    }
+
     if (first.kind == second.kind)
     {
       return first;

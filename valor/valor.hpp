@@ -42,6 +42,10 @@ enum class IROpType
   SIGN_EXTEND,
   TRUNCATE,
   ZERO_EXTEND, // for unsigned types
+  DOUBLE_TO_LONG,
+  DOUBLE_TO_ULONG,
+  LONG_TO_DOUBLE,
+  ULONG_TO_DOUBLE,
   // Binary operations
   ADD,
   SUBTRACT,
@@ -97,7 +101,8 @@ public:
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
     val->value = value;
-    val->constType = std::visit([&](auto&& val){
+    val->constType = std::visit([&](auto &&val)
+                                {
       using T = std::decay_t<decltype(val)>;
       if constexpr (std::is_same_v<T, int>)
         return TypeKind::INT;
@@ -110,8 +115,7 @@ public:
       else if constexpr (std::is_same_v<T, double>)
         return TypeKind::DOUBLE;
       else
-        return TypeKind::ERROR;
-    },val->value);
+        return TypeKind::ERROR; }, val->value);
     return val;
   }
 
@@ -144,7 +148,8 @@ public:
     switch (type)
     {
     case IRValueType::CONSTANT:
-      return std::visit([](auto &&arg) { return std::to_string(arg); }, value);
+      return std::visit([](auto &&arg)
+                        { return std::to_string(arg); }, value);
     case IRValueType::VARIABLE:
     case IRValueType::TEMPORARY:
       return name;
@@ -228,6 +233,42 @@ public:
   {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::ZERO_EXTEND;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeDoubleToLong(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::DOUBLE_TO_LONG;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeDoubleToULong(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::DOUBLE_TO_ULONG;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeLongToDouble(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::LONG_TO_DOUBLE;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeULongToDouble(IRValuePtr src, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::ULONG_TO_DOUBLE;
     inst->src1 = std::move(src);
     inst->dst = std::move(dst);
     return inst;

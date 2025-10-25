@@ -760,16 +760,14 @@ void SemanticAnalyzer::visit(BinaryExpression &node)
     node.right->accept(*this);
   }
 
-  auto leftExp = dynamic_cast<ExpressionNode *>(node.left.get());
-  auto rightExp = dynamic_cast<ExpressionNode *>(node.right.get());
-
   // Logical AND and OR don't perform type conversions
   if (node.op == TokenType::LAND || node.op == TokenType::LOR)
   {
     node.type = std::make_shared<Type>(Type::Int());
     return;
   }
-
+  auto leftExp = dynamic_cast<ExpressionNode *>(node.left.get());
+  auto rightExp = dynamic_cast<ExpressionNode *>(node.right.get());
   // For other binary operations, perform usual arithmetic conversions
   if (leftExp && rightExp && leftExp->type && rightExp->type)
   {
@@ -793,7 +791,12 @@ void SemanticAnalyzer::visit(BinaryExpression &node)
       castExpr->type = std::make_shared<Type>(commonType);
       node.right = std::move(castExpr);
     }
-
+    if(node.op == TokenType::PERCENT_SIGN && commonType.kind == TypeKind::DOUBLE)
+    {
+      success = 0;
+      errors.push_back("Modulo operator '%' cannot be applied to type 'double'");
+      return;
+    }
     // Determine result type based on operator
     switch (node.op)
     {
@@ -849,6 +852,12 @@ void SemanticAnalyzer::visit(UnaryExpression &node)
   if (exp)
   {
     node.type = exp->type;
+  }
+  if(node.op == TokenType::TILDE && (node.type)->kind == TypeKind::DOUBLE)
+  {
+    success = 0;
+    errors.push_back("Bitwise NOT operator '~' cannot be applied to type 'double'");
+    return;
   }
   switch (node.op)
   {
@@ -1008,7 +1017,7 @@ void SemanticAnalyzer::visit(ConstantExpression &node)
                {
                  node.type = std::make_shared<Type>(Type::Long());
                }
-               else if constexpr (std::is_same_v<T, float>)
+               else if constexpr (std::is_same_v<T, double>)
                {
                  node.type = std::make_shared<Type>(Type::Double());
                }
