@@ -686,6 +686,13 @@ public:
     : arrayExpr(std::move(arrayExpr)), indexExpr(std::move(indexExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    auto cloned = std::make_unique<SubscriptExpression>(
+        arrayExpr ? arrayExpr->clone() : nullptr,
+        indexExpr ? indexExpr->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
 };
 
 class BlockItemNode : public ASTNode {
