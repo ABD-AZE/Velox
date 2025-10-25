@@ -319,8 +319,27 @@ ASTNodePtr Parser::parseStatement() {
   return statementNode;
 }
 
-ASTNodePtr Parser::parseFactor() {
-  ASTNodePtr factorNode;
+ASTNodePtr Parser::parsePostfixExp() {
+  ASTNodePtr postfixExpNode = parsePrimaryExp();
+  // (subscript)* (increment or decrement)*
+  while (peek().GetType() == TokenType::OPEN_BRACKET) {
+    consume(); // consume '['
+    ASTNodePtr indexExp = parseExpression(0);
+    expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+    postfixExpNode = std::make_unique<SubscriptExpression>(
+        std::move(postfixExpNode), std::move(indexExp));
+  }
+  while(peek().GetType() == TokenType::INCREMENT_OPERATOR ||
+        peek().GetType() == TokenType::DECREMENT_OPERATOR) {
+    TokenType op = consume().GetType();
+    postfixExpNode = std::make_unique<PostfixExpression>(
+        std::move(postfixExpNode), op);
+  }
+  return postfixExpNode;
+}
+
+ASTNodePtr Parser::parsePrimaryExp() {
+  ASTNodePtr primaryExpNode;
   switch (peek().GetType()) {
   case TokenType::INT_CONSTANT:
     consume();
@@ -331,7 +350,7 @@ ASTNodePtr Parser::parseFactor() {
       if (!lexeme.empty()) {
         value = std::stoi(lexeme);
       }
-      factorNode = std::make_unique<ConstantExpression>(value);
+      primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {
       // If int parsing fails, try parsing as unsigned int
       try {
@@ -340,7 +359,7 @@ ASTNodePtr Parser::parseFactor() {
         if (!lexeme.empty()) {
           value = (unsigned int)std::stoul(lexeme);
         }
-        factorNode = std::make_unique<ConstantExpression>(value);
+        primaryExpNode = std::make_unique<ConstantExpression>(value);
       } catch (const std::exception &e1) {
         // If uint parsing fails, try as long
         try {
@@ -349,7 +368,7 @@ ASTNodePtr Parser::parseFactor() {
           if (!lexeme.empty()) {
             value = std::stol(lexeme);
           }
-          factorNode = std::make_unique<ConstantExpression>(value);
+          primaryExpNode = std::make_unique<ConstantExpression>(value);
         } catch (const std::exception &e2) {
           // If long parsing fails, try as unsigned long
           try {
@@ -358,10 +377,10 @@ ASTNodePtr Parser::parseFactor() {
             if (!lexeme.empty()) {
               value = std::stoul(lexeme);
             }
-            factorNode = std::make_unique<ConstantExpression>(value);
+            primaryExpNode = std::make_unique<ConstantExpression>(value);
           } catch (const std::exception &e3) {
             // All parsing attempts failed
-            factorNode = std::make_unique<ConstantExpression>(0);
+            primaryExpNode = std::make_unique<ConstantExpression>(0);
             success = 0;
             errors.push_back(ParserErrorInfo(
                 currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -380,7 +399,7 @@ ASTNodePtr Parser::parseFactor() {
       if (!lexeme.empty()) {
         value = std::stol(lexeme);
       }
-      factorNode = std::make_unique<ConstantExpression>(value);
+      primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {
       try {
         std::string lexeme = currentToken.GetLexeme();
@@ -388,10 +407,10 @@ ASTNodePtr Parser::parseFactor() {
         if (!lexeme.empty()) {
           value = std::stoul(lexeme);
         }
-        factorNode = std::make_unique<ConstantExpression>(value);
+        primaryExpNode = std::make_unique<ConstantExpression>(value);
       } catch (const std::exception &e1) {
 
-        factorNode = std::make_unique<ConstantExpression>(0L);
+        primaryExpNode = std::make_unique<ConstantExpression>(0L);
         success = 0;
         errors.push_back(ParserErrorInfo(
             currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -408,7 +427,7 @@ ASTNodePtr Parser::parseFactor() {
       if (!lexeme.empty()) {
         value = (unsigned int)std::stoul(lexeme);
       }
-      factorNode = std::make_unique<ConstantExpression>(value);
+      primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {
       try {
         std::string lexeme = currentToken.GetLexeme();
@@ -416,10 +435,10 @@ ASTNodePtr Parser::parseFactor() {
         if (!lexeme.empty()) {
           value = std::stoul(lexeme);
         }
-        factorNode = std::make_unique<ConstantExpression>(value);
+        primaryExpNode = std::make_unique<ConstantExpression>(value);
       } catch (const std::exception &e1) {
 
-        factorNode = std::make_unique<ConstantExpression>((unsigned int)0);
+        primaryExpNode = std::make_unique<ConstantExpression>((unsigned int)0);
         success = 0;
         errors.push_back(ParserErrorInfo(
             currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -435,9 +454,9 @@ ASTNodePtr Parser::parseFactor() {
       if (!lexeme.empty()) {
         value = std::stoul(lexeme);
       }
-      factorNode = std::make_unique<ConstantExpression>(value);
+      primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {
-      factorNode = std::make_unique<ConstantExpression>((unsigned int)0);
+      primaryExpNode = std::make_unique<ConstantExpression>((unsigned int)0);
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -452,15 +471,67 @@ ASTNodePtr Parser::parseFactor() {
       if (!lexeme.empty()) {
         value = std::stod(lexeme);
       }
-      factorNode = std::make_unique<ConstantExpression>(value);
+      primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {
-      factorNode = std::make_unique<ConstantExpression>((unsigned int)0);
+      primaryExpNode = std::make_unique<ConstantExpression>((unsigned int)0);
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
           currentToken.GetType(), "double constant"));
     }
     break;
+    case TokenType::IDENTIFIER: {
+      std::string identifier = consume().GetLexeme();
+      if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+        // function call
+        consume(); // consume '('
+        std::vector<ASTNodePtr> args;
+        if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+          while (true) {
+            ASTNodePtr arg = parseExpression(0);
+            args.push_back(std::move(arg));
+            if (peek().GetType() == TokenType::COMMA) {
+              consume(); // consume ','
+              continue;  // parse next argument
+            } else {
+              break; // end of argument list
+            }
+          }
+        }
+        expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+        primaryExpNode =
+            std::make_unique<FunctionCallNode>(identifier, std::move(args));
+      } else {
+        primaryExpNode = std::make_unique<VariableExpression>(identifier);
+      }
+      break;
+    }
+    case TokenType::OPEN_PARENTHESES: {
+      consume(); // consume '('
+      primaryExpNode = parseExpression(0);
+      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+      break;
+    }
+  default:
+    success = 0;
+    while (currentToken.GetType() != TokenType::SEMICOLON &&
+           currentToken.GetType() != TokenType::END_OF_FILE &&
+           currentToken.GetType() != TokenType::CLOSE_PARENTHESES) {
+      consume();
+           }
+    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
+                                     currentToken.GetColumnNumber(),
+                                     currentToken.GetType(), "primary expression"));
+    // Create a dummy constant expression for error recovery
+    primaryExpNode = std::make_unique<ConstantExpression>(0);
+    break;
+  }
+  return primaryExpNode;
+}
+
+ASTNodePtr Parser::parseUnaryExp() {
+  ASTNodePtr unaryExpNode;
+  switch (peek().GetType()) {
   case TokenType::HYPHEN:
   case TokenType::TILDE:
   case TokenType::NOT:
@@ -471,85 +542,43 @@ ASTNodePtr Parser::parseFactor() {
     consume();
     {
       TokenType op = currentToken.GetType();
-      ASTNodePtr operand = parseFactor();
-      factorNode = std::make_unique<UnaryExpression>(op, std::move(operand));
+      ASTNodePtr operand = parseUnaryExp();
+      unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
     }
     break;
   case TokenType::OPEN_PARENTHESES:
-    // cast expression or parenthesized expression
-    consume();
-    if (isTypeSpecifier(peek().GetType())) {
-      // cast expression
+  if (isTypeSpecifier(peek().GetType())) {
+    // cast expression
+      consume();
       std::vector<TokenType> type_list;
       while (isTypeSpecifier(peek().GetType()))
         type_list.push_back(consume().GetType());
       // abstract declarator
       Type baseType = parseTypeSpecifierList(type_list);
-      auto abstractDeclarator = parseAbstractDeclarator();
-      Type targetType = processAbstractDeclarator(std::move(abstractDeclarator),
-                                                  std::move(baseType));
+      Type targetType;
+      if(peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+        auto abstractDeclarator = parseAbstractDeclarator();
+        targetType = processAbstractDeclarator(std::move(abstractDeclarator),
+                                                    std::move(baseType));
+      }
+      else{
+        targetType = std::move(baseType);
+      }
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-      ASTNodePtr expr = parseFactor();
-      factorNode = std::make_unique<CastExpression>(std::move(targetType),
+      ASTNodePtr expr = parseUnaryExp();
+      unaryExpNode = std::make_unique<CastExpression>(std::move(targetType),
                                                     std::move(expr));
-    } else {
-      // parenthesized expression
-      factorNode = parseExpression(0);
-      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+      break;
     }
-    break;
-  case TokenType::IDENTIFIER: {
-    std::string identifier = consume().GetLexeme();
-    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
-      // function call
-      consume(); // consume '('
-      std::vector<ASTNodePtr> args;
-      if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
-        while (true) {
-          ASTNodePtr arg = parseExpression(0);
-          args.push_back(std::move(arg));
-          if (peek().GetType() == TokenType::COMMA) {
-            consume(); // consume ','
-            continue;  // parse next argument
-          } else {
-            break; // end of argument list
-          }
-        }
-      }
-      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-      factorNode =
-          std::make_unique<FunctionCallNode>(identifier, std::move(args));
-    } else {
-      factorNode = std::make_unique<VariableExpression>(identifier);
-      // postfix can only be applied to a variable in velox
-      if (peek().GetType() == TokenType::INCREMENT_OPERATOR ||
-          peek().GetType() == TokenType::DECREMENT_OPERATOR) {
-        TokenType op = consume().GetType();
-        factorNode =
-            std::make_unique<PostfixExpression>(std::move(factorNode), op);
-      }
-    }
-    break;
-  }
   default:
-    success = 0;
-    while (currentToken.GetType() != TokenType::SEMICOLON &&
-           currentToken.GetType() != TokenType::END_OF_FILE &&
-           currentToken.GetType() != TokenType::CLOSE_PARENTHESES) {
-      consume();
-    }
-    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
-                                     currentToken.GetColumnNumber(),
-                                     currentToken.GetType(), "factor"));
-    // Create a dummy constant expression for error recovery
-    factorNode = std::make_unique<ConstantExpression>(0);
+    unaryExpNode = parsePostfixExp();
     break;
   }
-  return factorNode;
+  return unaryExpNode;
 }
 
 ASTNodePtr Parser::parseExpression(int minPrecedence) {
-  ASTNodePtr left = parseFactor();
+  ASTNodePtr left = parseUnaryExp();
   while ((peek().GetType() == TokenType::ASSIGNMENT ||
           peek().GetType() == TokenType::PLUS ||
           peek().GetType() == TokenType::HYPHEN ||
