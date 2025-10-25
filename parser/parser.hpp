@@ -61,6 +61,7 @@ private:
   ASTNodePtr parseFunctionDeclaration();
   ASTNodePtr parseStatement();
   ASTNodePtr parseExpression(int minPrecedence);
+  ASTNodePtr parseCastExp();
   ASTNodePtr parseUnaryExp();
   ASTNodePtr parsePostfixExp();
   ASTNodePtr parsePrimaryExp();

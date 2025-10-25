@@ -416,6 +416,8 @@ public:
   void visit(DereferenceExpression &node) override;
   void visit(AddressOfExpression &node) override;
   void visit(StringLiteralExpression &node) override;
+  void visit(SizeofExpression &node) override;
+  void visit(SizeofTypeExpression &node) override;
 
   // Loop visitors
   void visit(ForInit &node) override;

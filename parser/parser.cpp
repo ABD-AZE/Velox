@@ -227,6 +227,11 @@ ASTNodePtr Parser::parseStatement() {
     break;
   case TokenType::RETURN:
     expect(consume().GetType(), TokenType::RETURN);
+    if(peek().GetType() == TokenType::SEMICOLON) {
+      statementNode = std::make_unique<ReturnStatement>();
+      expect(consume().GetType(), TokenType::SEMICOLON);
+      break;
+    }
     statementNode = std::make_unique<ReturnStatement>(parseExpression(0));
     expect(consume().GetType(), TokenType::SEMICOLON);
     break;
@@ -548,26 +553,12 @@ ASTNodePtr Parser::parsePrimaryExp() {
   return primaryExpNode;
 }
 
-ASTNodePtr Parser::parseUnaryExp() {
-  ASTNodePtr unaryExpNode;
-  switch (peek().GetType()) {
-  case TokenType::HYPHEN:
-  case TokenType::TILDE:
-  case TokenType::NOT:
-  case TokenType::AAND:
-  case TokenType::ASTERISK:
-  case TokenType::INCREMENT_OPERATOR:
-  case TokenType::DECREMENT_OPERATOR:
-  consume();
-  {
-    TokenType op = currentToken.GetType();
-    ASTNodePtr operand = parseUnaryExp();
-    unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
-  }
-  break;
-  case TokenType::OPEN_PARENTHESES:
-  if (isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
-    // cast expression
+ASTNodePtr Parser::parseCastExp() {
+  ASTNodePtr castExpNode;
+  switch(peek().GetType()) {
+    case TokenType::OPEN_PARENTHESES:
+    if(isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
+      // cast expression
       consume();
       std::vector<TokenType> type_list;
       while (isTypeSpecifier(peek().GetType()))
@@ -584,11 +575,66 @@ ASTNodePtr Parser::parseUnaryExp() {
         targetType = std::move(baseType);
       }
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-      ASTNodePtr expr = parseUnaryExp();
-      unaryExpNode = std::make_unique<CastExpression>(std::move(targetType),
+      ASTNodePtr expr = parseCastExp();
+      castExpNode = std::make_unique<CastExpression>(std::move(targetType),
                                                     std::move(expr));
       break;
     }
+    default:
+      {
+        castExpNode = parseUnaryExp();
+        break;
+      }
+  }
+  return castExpNode;
+}
+
+ASTNodePtr Parser::parseUnaryExp() {
+  ASTNodePtr unaryExpNode;
+  switch (peek().GetType()) {
+  case TokenType::HYPHEN:
+  case TokenType::TILDE:
+  case TokenType::NOT:
+  case TokenType::AAND:
+  case TokenType::ASTERISK:
+  case TokenType::INCREMENT_OPERATOR:
+  case TokenType::DECREMENT_OPERATOR:
+  consume();
+  {
+    TokenType op = currentToken.GetType();
+    ASTNodePtr operand = parseCastExp();
+    unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
+  }
+  break;
+  case TokenType::SIZEOF:
+  {
+    consume();
+    if(peek().GetType() == TokenType::OPEN_PARENTHESES && isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
+      // sizeof(type)
+      consume(); // consume '('
+      std::vector<TokenType> type_list;
+      while (isTypeSpecifier(peek().GetType()))
+        type_list.push_back(consume().GetType());
+      Type baseType = parseTypeSpecifierList(type_list);
+      Type targetType;
+      if(peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+        auto abstractDeclarator = parseAbstractDeclarator();
+        targetType = processAbstractDeclarator(std::move(abstractDeclarator),
+                                                    std::move(baseType));
+      }
+      else{
+        targetType = std::move(baseType);
+      }
+      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+      unaryExpNode = std::make_unique<SizeofTypeExpression>(std::move(std::make_unique<Type>(targetType)));
+    }
+    else {
+      // sizeof expression
+      ASTNodePtr expr = parseUnaryExp();
+      unaryExpNode = std::make_unique<SizeofExpression>(std::move(expr));
+    }
+    break;
+  }
   default:
     unaryExpNode = parsePostfixExp();
     break;
@@ -597,7 +643,7 @@ ASTNodePtr Parser::parseUnaryExp() {
 }
 
 ASTNodePtr Parser::parseExpression(int minPrecedence) {
-  ASTNodePtr left = parseUnaryExp();
+  ASTNodePtr left = parseCastExp();
   while ((peek().GetType() == TokenType::ASSIGNMENT ||
           peek().GetType() == TokenType::PLUS ||
           peek().GetType() == TokenType::HYPHEN ||
@@ -1057,7 +1103,8 @@ std::vector<paraminfo> Parser::parseParams() {
   // {type-specifier}+ <declarator>
   expect(consume().GetType(), TokenType::OPEN_PARENTHESES);
   std::vector<paraminfo> params;
-  if (peek().GetType() == TokenType::VOID) {
+  if (peek().GetType() == TokenType::VOID && currentIndex >= 1 &&
+      tokens[currentIndex - 1].GetType() == TokenType::CLOSE_PARENTHESES) {
     consume(); // consume 'void'
     expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
     return params; // no parameters
@@ -1267,6 +1314,8 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list) {
       return Type::Double();
     case TokenType::CHAR:
       return Type::Char();
+    case TokenType::VOID:
+      return Type::Void();
     default:
       success = 0;
       errors.push_back(ParserErrorInfo(
@@ -1274,6 +1323,13 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list) {
           TokenType::WS, "invalid type specifier"));
       return Type::Error();
     }
+  }
+  if(find(list.begin(), list.end(), TokenType::VOID) != list.end()) {
+    success = 0;
+    errors.push_back(ParserErrorInfo(
+        currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+        TokenType::WS, "void type specifier cannot be combined with other type specifiers"));
+    return Type::Error();
   }
   if (list.size() == 2) {
     // long int or unsigned int or signed int or ul or signeld long

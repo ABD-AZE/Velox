@@ -1285,3 +1285,11 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
 void SemanticAnalyzer::visit(StringLiteralExpression &node) {
   
 }
+
+void SemanticAnalyzer::visit(SizeofExpression &node) {
+  
+}
+
+void SemanticAnalyzer::visit(SizeofTypeExpression &node) {
+  
+}
