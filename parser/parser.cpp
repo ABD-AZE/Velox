@@ -149,7 +149,7 @@ ASTNodePtr Parser::parseFunctionDeclaration() {
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   auto declarator = parseDeclarator();
   auto type_spec = parseTypeSpecifierList(type_list);
-  auto [name, type, param_names] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
   if (type.kind != TypeKind::FUNC) {
     success = 0;
     errors.push_back(ParserErrorInfo(
@@ -165,10 +165,7 @@ ASTNodePtr Parser::parseFunctionDeclaration() {
   functionDeclNode->storage_class = storage_class;
   functionDeclNode->name = name;
   functionDeclNode->param_names = param_names;
-  auto &paraminfo = dynamic_cast<FunDeclarator *>(declarator.get())->params;
-  for (const auto &param : paraminfo) {
-    functionDeclNode->param_types.push_back(param.type);
-  }
+  functionDeclNode->param_types = param_types;
   if (peek().GetType() == TokenType::SEMICOLON) {
     consume();               // consume ';'
     return functionDeclNode; // function declaration without body
@@ -198,7 +195,7 @@ ASTNodePtr Parser::parseVariableDeclaration() {
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   auto declarator = parseDeclarator();
   auto type_spec = parseTypeSpecifierList(type_list);
-  auto [name, type, param_names] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     success = 0;
     errors.push_back(ParserErrorInfo(
@@ -675,17 +672,14 @@ ASTNodePtr Parser::parseDeclaration() {
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   auto declarator = parseDeclarator();
   auto type_spec = parseTypeSpecifierList(type_list);
-  auto [name, type, param_names] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names,param_types] = processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     FunDeclNodePtr functionDeclNode = std::make_unique<FunDeclNode>();
     functionDeclNode->type = std::move(type);
     functionDeclNode->storage_class = storage_class;
     functionDeclNode->name = name;
     functionDeclNode->param_names = param_names;
-    for (auto &param :
-         dynamic_cast<FunDeclarator *>(declarator.get())->params) {
-      functionDeclNode->param_types.push_back(param.type);
-    }
+    functionDeclNode->param_types = param_types;
     if (peek().GetType() == TokenType::SEMICOLON) {
       consume();               // consume ';'
       return functionDeclNode; // function declaration without body
@@ -871,14 +865,15 @@ ASTNodePtr Parser::parseAbstractDeclarator() {
   }
 }
 
-std::tuple<std::string, Type, std::vector<std::string>>
+std::tuple<std::string, Type, std::vector<std::string>, std::vector<Type>>
 Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
   std::string name;
   std::vector<std::string> param_names;
+  std::vector<Type> param_types;
   Type type = std::move(baseType);
   if (auto ident = dynamic_cast<Ident *>(declaratorNode.get())) {
     name = ident->identifier;
-    return std::make_tuple(name, type, param_names);
+    return std::make_tuple(name, type, param_names, param_types);
   } else if (auto pointerDecl =
                  dynamic_cast<PointerDeclarator *>(declaratorNode.get())) {
     type = Type(TypeKind::POINTER, PointerType(std::make_unique<Type>(type)));
@@ -888,7 +883,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
     std::vector<Type> paramtypes;
     for (auto &param : funDecl->params) {
 
-      auto [param_name, param_type, _] =
+      auto [param_name, param_type, _, _] =
           processDeclarator((param.declarator), (param.type));
       if (param_type.kind == TypeKind::FUNC) {
         success = 0;
@@ -898,18 +893,19 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
       }
       param_names.push_back(param_name);
       paramtypes.push_back(param_type);
+      param_types.push_back(param_type);
     }
     type = Type::Function(std::move(paramtypes), type);
     Ident *ident = dynamic_cast<Ident *>(funDecl->declarator.get());
     if (ident) {
-      return std::make_tuple(ident->identifier, type, param_names);
+      return std::make_tuple(ident->identifier, type, param_names, param_types);
     } else {
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
           TokenType::WS, "function declarator must have an identifier"));
       // error: function declarator must have an identifier
-      return std::make_tuple("", type, param_names);
+      return std::make_tuple("", type, param_names, param_types);
     }
   } else if (auto arrayDecl =
                  dynamic_cast<ArrayDeclarator *>(declaratorNode.get())) {
@@ -922,7 +918,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
   errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
                                    currentToken.GetColumnNumber(),
                                    TokenType::WS, "unknown declarator type"));
-  return std::make_tuple("", Type::Int(), param_names);
+  return std::make_tuple("", Type::Int(), param_names, param_types);
 }
 
 Type Parser::processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
