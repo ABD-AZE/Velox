@@ -67,6 +67,8 @@ private:
   ASTNodePtr parseDeclaration();
   ASTNodePtr parseDeclarator();
   ASTNodePtr parseAbstractDeclarator();
+  ASTNodePtr parseDirectDeclarator();
+  ASTNodePtr parseDirectAbstractDeclarator();
   ASTNodePtr parseBlockItem();
   ASTNodePtr parseBlock();
   ASTNodePtr parseDoWhile();

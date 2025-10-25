@@ -51,6 +51,8 @@ constexpr std::string TypeKindToString(TypeKind k) {
     return "function";
   case TypeKind::POINTER:
     return "pointer";
+  case TypeKind::ARRAY:
+    return "array";
   default:
     return "error"; // using ws as error token
   }
