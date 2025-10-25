@@ -56,6 +56,8 @@ public:
   void visit(AddressOfExpression &node) override;
   void visit(SubscriptExpression &node) override;
   void visit(StringLiteralExpression &node) override;
+  void visit(SizeofExpression &node) override;
+  void visit(SizeofTypeExpression &node) override;
 
   // Type and declarator visitors (no-ops for variable resolution)
   void visit(Type &node) override;

@@ -94,7 +94,9 @@ void ASTPrinter::visit(ReturnStatement &node) {
   print_open("Return", indent_);
   if (node.expression) {
     increaseIndent();
-    node.expression->accept(*this);
+    if(node.expression) {
+      node.expression->accept(*this);
+    }
     decreaseIndent();
   }
   print_close(indent_);
@@ -366,6 +368,30 @@ void ASTPrinter::visit(StringLiteralExpression &node) {
   print_open("StringLiteral", indent_);
   increaseIndent();
   print_string_kv("value", node.value, indent_);
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(SizeofExpression &node) {
+  print_open("SizeofExpression", indent_);
+  increaseIndent();
+  if (node.expr) {
+    print_label("expression", indent_);
+    increaseIndent();
+    node.expr->accept(*this);
+    decreaseIndent();
+  }
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(SizeofTypeExpression &node) {
+  print_open("SizeofTypeExpression", indent_);
+  increaseIndent();
+  print_label("type", indent_);
+  increaseIndent();
+  node.typeOperand->accept(*this);
+  decreaseIndent();
   decreaseIndent();
   print_close(indent_);
 }

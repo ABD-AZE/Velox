@@ -1048,6 +1048,8 @@ void IRGenerator::visit(
 void IRGenerator::visit(
     AddressOfExpression &node) { /* TODO: Implement address-of */ }
 void IRGenerator::visit(StringLiteralExpression &node) { /*TODO: Implement string literal*/}
+void IRGenerator::visit(SizeofExpression &node) { /* TODO: Implement sizeof */}
+void IRGenerator::visit(SizeofTypeExpression &node) { /* TODO: Implement sizeof type */}
 void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
 void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }

@@ -60,6 +60,8 @@ class PointerType;
 class InitializerNode;
 class SubscriptExpression;
 class StringLiteralExpression;
+class SizeofExpression;
+class SizeofTypeExpression;
 
 using ASTNodePtr = std::unique_ptr<ASTNode>;
 using ProgramNodePtr = std::unique_ptr<ProgramNode>;
@@ -124,6 +126,8 @@ public:
   virtual void visit(AddressOfExpression &node) = 0;
   virtual void visit(SubscriptExpression &node) = 0;
   virtual void visit(StringLiteralExpression &node) = 0;
+  virtual void visit(SizeofExpression &node) = 0;
+  virtual void visit(SizeofTypeExpression &node) = 0;
 
   // loop
   virtual void visit(ForInit &node) = 0;
@@ -173,7 +177,7 @@ struct ArrayType {
   ArrayType(std::shared_ptr<Type> Element, int Size) :size(Size), element(std::move(Element)) {}
 };
 
-enum class TypeKind { CHAR, SCHAR, UCHAR, INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, ERROR };
+enum class TypeKind { CHAR, SCHAR, UCHAR, INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, VOID, ERROR };
 enum class InitializerKind { SINGLE_INIT, COMPOUND_INIT };
 constexpr int size(TypeKind &kind) {
   switch (kind) {
@@ -285,6 +289,7 @@ public:
   static Type UInt() { return Type{TypeKind::UINT, std::monostate{}}; }
   static Type ULong() { return Type{TypeKind::ULONG, std::monostate{}}; }
   static Type Double() { return Type{TypeKind::DOUBLE, std::monostate{}}; }
+  static Type Void() { return Type{TypeKind::VOID, std::monostate{}}; }
   static Type Function(std::vector<Type> params, Type ret) {
     FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
     return Type{TypeKind::FUNC, std::move(ftype)};
@@ -408,16 +413,14 @@ class ReturnStatement : public StatementNode {
 public:
   ASTNodePtr expression;
   std::shared_ptr<Type> type;
+  ReturnStatement() : expression(nullptr) {}
   ReturnStatement(ASTNodePtr expr) : expression(std::move(expr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 
   std::unique_ptr<ASTNode> clone() const override {
-    auto cloned = std::make_unique<ReturnStatement>(
+    return std::make_unique<ReturnStatement>(
         expression ? expression->clone() : nullptr);
-    if (type)
-      cloned->type = std::make_shared<Type>(*type);
-    return cloned;
   }
 };
 
@@ -719,6 +722,33 @@ public:
     auto cloned = std::make_unique<SubscriptExpression>(
         arrayExpr ? arrayExpr->clone() : nullptr,
         indexExpr ? indexExpr->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
+};
+
+class SizeofExpression : public ExpressionNode {
+public:
+  ASTNodePtr expr;
+  SizeofExpression(ASTNodePtr expr) : expr(std::move(expr)) {}
+
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    auto cloned = std::make_unique<SizeofExpression>(
+        expr ? expr->clone() : nullptr);
+    cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
+    return cloned;
+  }
+};
+
+class SizeofTypeExpression : public ExpressionNode {
+public:
+  std::shared_ptr<Type> typeOperand;
+  SizeofTypeExpression(std::shared_ptr<Type> typeOperand)
+      : typeOperand(std::move(typeOperand)) {}
+  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  std::unique_ptr<ASTNode> clone() const override {
+    auto cloned = std::make_unique<SizeofTypeExpression>(typeOperand);
     cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
     return cloned;
   }

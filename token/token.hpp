@@ -102,8 +102,6 @@ enum TokenType {
   FWRITE,
   FPRINTF,
   FSCANF,
-  MALLOC,
-  FREE,
   UNTIL,
   CONST,
   END_OF_FILE,
