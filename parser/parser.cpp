@@ -129,7 +129,7 @@ ASTNodePtr &Parser::parseProgram() {
 }
 
 // parses both function declarations and definitions
-//redundant function
+// redundant function
 ASTNodePtr Parser::parseFunctionDeclaration() {
   std::vector<TokenType> specifier_list;
   if (!isSpecifier(peek().GetType())) {
@@ -147,7 +147,7 @@ ASTNodePtr Parser::parseFunctionDeclaration() {
   std::string structName;
   while (isSpecifier(peek().GetType())) {
     consume();
-    if(currentToken.GetType() == TokenType::STRUCT) {
+    if (currentToken.GetType() == TokenType::STRUCT) {
       expect(consume().GetType(), TokenType::IDENTIFIER);
       specifier_list.push_back(TokenType::STRUCT);
       isStruct = 1;
@@ -158,9 +158,9 @@ ASTNodePtr Parser::parseFunctionDeclaration() {
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   Type type_spec;
-  if(isStruct) {
+  if (isStruct) {
     type_spec = Type(TypeKind::STRUCT, StructType(structName));
-    if(type_list.size() > 1) {
+    if (type_list.size() > 1) {
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -170,12 +170,12 @@ ASTNodePtr Parser::parseFunctionDeclaration() {
         consume();
       }
     }
-  }
-  else{
+  } else {
     type_spec = parseTypeSpecifierList(type_list);
   }
   auto declarator = parseDeclarator();
-  auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names, param_types] =
+      processDeclarator((declarator), (type_spec));
   if (type.kind != TypeKind::FUNC) {
     success = 0;
     errors.push_back(ParserErrorInfo(
@@ -220,7 +220,7 @@ ASTNodePtr Parser::parseVariableDeclaration() {
 
   while (isSpecifier(peek().GetType())) {
     consume();
-    if(currentToken.GetType() == TokenType::STRUCT) {
+    if (currentToken.GetType() == TokenType::STRUCT) {
       expect(consume().GetType(), TokenType::IDENTIFIER);
       specifier_list.push_back(TokenType::STRUCT);
       isStruct = 1;
@@ -231,9 +231,9 @@ ASTNodePtr Parser::parseVariableDeclaration() {
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   Type type_spec;
-  if(isStruct) {
+  if (isStruct) {
     type_spec = Type(TypeKind::STRUCT, StructType(structName));
-    if(type_list.size() > 1) {
+    if (type_list.size() > 1) {
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -243,12 +243,12 @@ ASTNodePtr Parser::parseVariableDeclaration() {
         consume();
       }
     }
-  }
-  else{
+  } else {
     type_spec = parseTypeSpecifierList(type_list);
   }
   auto declarator = parseDeclarator();
-  auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names, param_types] =
+      processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     success = 0;
     errors.push_back(ParserErrorInfo(
@@ -291,7 +291,7 @@ ASTNodePtr Parser::parseMemberDeclaration() {
 
   while (isSpecifier(peek().GetType())) {
     consume();
-    if(currentToken.GetType() == TokenType::STRUCT) {
+    if (currentToken.GetType() == TokenType::STRUCT) {
       expect(consume().GetType(), TokenType::IDENTIFIER);
       specifier_list.push_back(TokenType::STRUCT);
       isStruct = 1;
@@ -302,9 +302,9 @@ ASTNodePtr Parser::parseMemberDeclaration() {
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   Type type_spec;
-  if(isStruct) {
+  if (isStruct) {
     type_spec = Type(TypeKind::STRUCT, StructType(structName));
-    if(type_list.size() > 1) {
+    if (type_list.size() > 1) {
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -314,16 +314,16 @@ ASTNodePtr Parser::parseMemberDeclaration() {
         consume();
       }
     }
-  }
-  else{
+  } else {
     type_spec = parseTypeSpecifierList(type_list);
   }
 
-  if(storage_class.has_value()) {
+  if (storage_class.has_value()) {
     success = 0;
     errors.push_back(ParserErrorInfo(
         currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-        peek().GetType(), "storage class specifier not allowed in member declaration"));
+        peek().GetType(),
+        "storage class specifier not allowed in member declaration"));
     while (peek().GetType() != TokenType::SEMICOLON &&
            peek().GetType() != TokenType::END_OF_FILE) {
       consume();
@@ -331,7 +331,8 @@ ASTNodePtr Parser::parseMemberDeclaration() {
   }
 
   auto declarator = parseDeclarator();
-  auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names, param_types] =
+      processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     success = 0;
     errors.push_back(ParserErrorInfo(
@@ -345,36 +346,39 @@ ASTNodePtr Parser::parseMemberDeclaration() {
 
   expect(consume().GetType(), TokenType::SEMICOLON);
   std::unique_ptr<MemberDeclarationNode> memberDeclNode =
-      std::make_unique<MemberDeclarationNode>(std::move(std::make_unique<Type>(type)), name);
+      std::make_unique<MemberDeclarationNode>(
+          std::move(std::make_unique<Type>(type)), name);
 
   return memberDeclNode;
 }
 
-//redundant function
+// redundant function
 ASTNodePtr Parser::parseStructDeclaration() {
   expect(consume().GetType(), TokenType::STRUCT);
   expect(consume().GetType(), TokenType::IDENTIFIER);
   std::string struct_name = currentToken.GetLexeme();
 
-  if(peek().GetType() == TokenType::SEMICOLON) {
+  if (peek().GetType() == TokenType::SEMICOLON) {
     consume(); // consume ';'
     std::unique_ptr<StructDeclarationNode> structDeclNode =
-        std::make_unique<StructDeclarationNode>(struct_name, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+        std::make_unique<StructDeclarationNode>(
+            struct_name, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
     return structDeclNode; // forward declaration
   }
 
   expect(consume().GetType(), TokenType::OPEN_BRACE);
   std::vector<ASTNodePtr> members;
 
-  if(peek().GetType() == TokenType::CLOSE_BRACE) {
-    //empty struct not allowed
+  if (peek().GetType() == TokenType::CLOSE_BRACE) {
+    // empty struct not allowed
     success = 0;
     errors.push_back(ParserErrorInfo(
         currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
         peek().GetType(), "struct must have at least one member"));
     expect(consume().GetType(), TokenType::CLOSE_BRACE);
     std::unique_ptr<StructDeclarationNode> structDeclNode =
-        std::make_unique<StructDeclarationNode>(struct_name, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+        std::make_unique<StructDeclarationNode>(
+            struct_name, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
     return structDeclNode;
   }
 
@@ -385,11 +389,13 @@ ASTNodePtr Parser::parseStructDeclaration() {
   expect(consume().GetType(), TokenType::CLOSE_BRACE);
 
   std::vector<std::unique_ptr<MemberDeclarationNode>> member_nodes;
-  for(auto& member : members) {
-    member_nodes.push_back(std::unique_ptr<MemberDeclarationNode>(dynamic_cast<MemberDeclarationNode*>(member.release())));
+  for (auto &member : members) {
+    member_nodes.push_back(std::unique_ptr<MemberDeclarationNode>(
+        dynamic_cast<MemberDeclarationNode *>(member.release())));
   }
 
-  return std::make_unique<StructDeclarationNode>(struct_name, std::move(member_nodes));
+  return std::make_unique<StructDeclarationNode>(struct_name,
+                                                 std::move(member_nodes));
 }
 
 ASTNodePtr Parser::parseStatement() {
@@ -401,7 +407,7 @@ ASTNodePtr Parser::parseStatement() {
     break;
   case TokenType::RETURN:
     expect(consume().GetType(), TokenType::RETURN);
-    if(peek().GetType() == TokenType::SEMICOLON) {
+    if (peek().GetType() == TokenType::SEMICOLON) {
       statementNode = std::make_unique<ReturnStatement>();
       expect(consume().GetType(), TokenType::SEMICOLON);
       break;
@@ -513,21 +519,21 @@ ASTNodePtr Parser::parsePostfixExp() {
       consume(); // consume '--'
       postfixExpNode = std::make_unique<PostfixExpression>(
           std::move(postfixExpNode), TokenType::DECREMENT_OPERATOR);
-    } else if( peek().GetType() == TokenType::DOT) {
+    } else if (peek().GetType() == TokenType::DOT) {
       consume(); // consume '.'
       expect(consume().GetType(), TokenType::IDENTIFIER);
       std::string memberName = currentToken.GetLexeme();
       postfixExpNode = std::make_unique<DotExpression>(
           std::move(postfixExpNode), memberName);
-    } else if( peek().GetType() == TokenType::ARROW_OPERATOR) {
+    } else if (peek().GetType() == TokenType::ARROW_OPERATOR) {
       consume(); // consume '->'
       expect(consume().GetType(), TokenType::IDENTIFIER);
       std::string memberName = currentToken.GetLexeme();
       // a->b is equivalent to (*(a)).b
       ASTNodePtr derefNode = std::make_unique<UnaryExpression>(
           TokenType::ASTERISK, std::move(postfixExpNode));
-      postfixExpNode = std::make_unique<DotExpression>(
-          std::move(derefNode), memberName);
+      postfixExpNode =
+          std::make_unique<DotExpression>(std::move(derefNode), memberName);
     } else {
       break;
     }
@@ -677,64 +683,63 @@ ASTNodePtr Parser::parsePrimaryExp() {
           currentToken.GetType(), "double constant"));
     }
     break;
-    case TokenType::CHARACTER:
-    {
-      consume();
-      std::string lexeme = currentToken.GetLexeme();
-      char value = lexeme[0];
-      primaryExpNode = std::make_unique<ConstantExpression>((int)value);
-      break;
-    }
-    case TokenType::IDENTIFIER: {
-      std::string identifier = consume().GetLexeme();
-      if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
-        // function call
-        consume(); // consume '('
-        std::vector<ASTNodePtr> args;
-        if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
-          while (true) {
-            ASTNodePtr arg = parseExpression(0);
-            args.push_back(std::move(arg));
-            if (peek().GetType() == TokenType::COMMA) {
-              consume(); // consume ','
-              continue;  // parse next argument
-            } else {
-              break; // end of argument list
-            }
+  case TokenType::CHARACTER: {
+    consume();
+    std::string lexeme = currentToken.GetLexeme();
+    char value = lexeme[0];
+    primaryExpNode = std::make_unique<ConstantExpression>((int)value);
+    break;
+  }
+  case TokenType::IDENTIFIER: {
+    std::string identifier = consume().GetLexeme();
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES) {
+      // function call
+      consume(); // consume '('
+      std::vector<ASTNodePtr> args;
+      if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+        while (true) {
+          ASTNodePtr arg = parseExpression(0);
+          args.push_back(std::move(arg));
+          if (peek().GetType() == TokenType::COMMA) {
+            consume(); // consume ','
+            continue;  // parse next argument
+          } else {
+            break; // end of argument list
           }
         }
-        expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-        primaryExpNode =
-            std::make_unique<FunctionCallNode>(identifier, std::move(args));
-      } else {
-        primaryExpNode = std::make_unique<VariableExpression>(identifier);
       }
-      break;
-    }
-    case TokenType::STRING: {
-      std::string str_value = consume().GetLexeme();
-      while(peek().GetType() == TokenType::STRING) {
-        str_value += consume().GetLexeme();
-      }
-      primaryExpNode = std::make_unique<StringLiteralExpression>(str_value);
-      break;
-    }
-    case TokenType::OPEN_PARENTHESES: {
-      consume(); // consume '('
-      primaryExpNode = parseExpression(0);
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-      break;
+      primaryExpNode =
+          std::make_unique<FunctionCallNode>(identifier, std::move(args));
+    } else {
+      primaryExpNode = std::make_unique<VariableExpression>(identifier);
     }
+    break;
+  }
+  case TokenType::STRING: {
+    std::string str_value = consume().GetLexeme();
+    while (peek().GetType() == TokenType::STRING) {
+      str_value += consume().GetLexeme();
+    }
+    primaryExpNode = std::make_unique<StringLiteralExpression>(str_value);
+    break;
+  }
+  case TokenType::OPEN_PARENTHESES: {
+    consume(); // consume '('
+    primaryExpNode = parseExpression(0);
+    expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+    break;
+  }
   default:
     success = 0;
     while (currentToken.GetType() != TokenType::SEMICOLON &&
            currentToken.GetType() != TokenType::END_OF_FILE &&
            currentToken.GetType() != TokenType::CLOSE_PARENTHESES) {
       consume();
-           }
-    errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
-                                     currentToken.GetColumnNumber(),
-                                     currentToken.GetType(), "primary expression"));
+    }
+    errors.push_back(ParserErrorInfo(
+        currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+        currentToken.GetType(), "primary expression"));
     // Create a dummy constant expression for error recovery
     primaryExpNode = std::make_unique<ConstantExpression>(0);
     break;
@@ -744,9 +749,9 @@ ASTNodePtr Parser::parsePrimaryExp() {
 
 ASTNodePtr Parser::parseCastExp() {
   ASTNodePtr castExpNode;
-  switch(peek().GetType()) {
-    case TokenType::OPEN_PARENTHESES:
-    if(isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
+  switch (peek().GetType()) {
+  case TokenType::OPEN_PARENTHESES:
+    if (isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
       // cast expression
       consume();
 
@@ -755,7 +760,7 @@ ASTNodePtr Parser::parseCastExp() {
 
       std::vector<TokenType> type_list;
       while (isTypeSpecifier(peek().GetType())) {
-        if(peek().GetType() == TokenType::STRUCT) {
+        if (peek().GetType() == TokenType::STRUCT) {
           consume();
           expect(consume().GetType(), TokenType::IDENTIFIER);
           type_list.push_back(TokenType::STRUCT);
@@ -766,43 +771,40 @@ ASTNodePtr Parser::parseCastExp() {
         type_list.push_back(consume().GetType());
       }
       Type baseType;
-      if(isStruct) {
+      if (isStruct) {
         baseType = Type(TypeKind::STRUCT, StructType(structName));
-        if(type_list.size() > 1) {
+        if (type_list.size() > 1) {
           success = 0;
           errors.push_back(ParserErrorInfo(
-            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-            peek().GetType(), "invalid struct type specifier"));
-            while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
-            peek().GetType() != TokenType::END_OF_FILE) {
-              consume();
-            }
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              peek().GetType(), "invalid struct type specifier"));
+          while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
+                 peek().GetType() != TokenType::END_OF_FILE) {
+            consume();
+          }
         }
-      }
-      else{
+      } else {
         baseType = parseTypeSpecifierList(type_list);
       }
       Type targetType;
       // abstract declarator
-      if(peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+      if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
         auto abstractDeclarator = parseAbstractDeclarator();
         targetType = processAbstractDeclarator(std::move(abstractDeclarator),
-        std::move(baseType));
-      }
-      else{
+                                               std::move(baseType));
+      } else {
         targetType = std::move(baseType);
       }
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
       ASTNodePtr expr = parseCastExp();
       castExpNode = std::make_unique<CastExpression>(std::move(targetType),
-                                                  std::move(expr));
+                                                     std::move(expr));
       break;
     }
-    default:
-      {
-        castExpNode = parseUnaryExp();
-        break;
-      }
+  default: {
+    castExpNode = parseUnaryExp();
+    break;
+  }
   }
   return castExpNode;
 }
@@ -817,26 +819,26 @@ ASTNodePtr Parser::parseUnaryExp() {
   case TokenType::ASTERISK:
   case TokenType::INCREMENT_OPERATOR:
   case TokenType::DECREMENT_OPERATOR:
-  consume();
-  {
-    TokenType op = currentToken.GetType();
-    ASTNodePtr operand = parseCastExp();
-    unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
-  }
-  break;
-  case TokenType::SIZEOF:
-  {
     consume();
-    if(peek().GetType() == TokenType::OPEN_PARENTHESES && isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
+    {
+      TokenType op = currentToken.GetType();
+      ASTNodePtr operand = parseCastExp();
+      unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
+    }
+    break;
+  case TokenType::SIZEOF: {
+    consume();
+    if (peek().GetType() == TokenType::OPEN_PARENTHESES &&
+        isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
       // sizeof(type)
       consume(); // consume '('
       std::vector<TokenType> type_list;
-      
+
       bool isStruct = false;
       std::string structName;
 
       while (isTypeSpecifier(peek().GetType())) {
-        if(peek().GetType() == TokenType::STRUCT) {
+        if (peek().GetType() == TokenType::STRUCT) {
           consume();
           expect(consume().GetType(), TokenType::IDENTIFIER);
           type_list.push_back(TokenType::STRUCT);
@@ -847,35 +849,33 @@ ASTNodePtr Parser::parseUnaryExp() {
         type_list.push_back(consume().GetType());
       }
       Type baseType;
-      if(isStruct) {
+      if (isStruct) {
         baseType = Type(TypeKind::STRUCT, StructType(structName));
-        if(type_list.size() > 1) {
+        if (type_list.size() > 1) {
           success = 0;
           errors.push_back(ParserErrorInfo(
-            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-            peek().GetType(), "invalid struct type specifier"));
-            while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
-            peek().GetType() != TokenType::END_OF_FILE) {
-              consume();
-            }
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              peek().GetType(), "invalid struct type specifier"));
+          while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
+                 peek().GetType() != TokenType::END_OF_FILE) {
+            consume();
+          }
         }
-      }
-      else{
+      } else {
         baseType = parseTypeSpecifierList(type_list);
       }
       Type targetType;
-      if(peek().GetType() != TokenType::CLOSE_PARENTHESES) {
+      if (peek().GetType() != TokenType::CLOSE_PARENTHESES) {
         auto abstractDeclarator = parseAbstractDeclarator();
         targetType = processAbstractDeclarator(std::move(abstractDeclarator),
-                                                    std::move(baseType));
-      }
-      else{
+                                               std::move(baseType));
+      } else {
         targetType = std::move(baseType);
       }
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-      unaryExpNode = std::make_unique<SizeofTypeExpression>(std::move(std::make_unique<Type>(targetType)));
-    }
-    else {
+      unaryExpNode = std::make_unique<SizeofTypeExpression>(
+          std::move(std::make_unique<Type>(targetType)));
+    } else {
       // sizeof expression
       ASTNodePtr expr = parseUnaryExp();
       unaryExpNode = std::make_unique<SizeofExpression>(std::move(expr));
@@ -980,7 +980,7 @@ ASTNodePtr Parser::parseDeclaration() {
 
   while (isSpecifier(peek().GetType())) {
     consume();
-    if(currentToken.GetType() == TokenType::STRUCT) {
+    if (currentToken.GetType() == TokenType::STRUCT) {
       expect(consume().GetType(), TokenType::IDENTIFIER);
       specifier_list.push_back(TokenType::STRUCT);
       isStruct = 1;
@@ -991,9 +991,9 @@ ASTNodePtr Parser::parseDeclaration() {
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
   Type type_spec;
-  if(isStruct) {
+  if (isStruct) {
     type_spec = Type(TypeKind::STRUCT, StructType(structName));
-    if(type_list.size() > 1) {
+    if (type_list.size() > 1) {
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -1003,32 +1003,33 @@ ASTNodePtr Parser::parseDeclaration() {
         consume();
       }
     }
-  }
-  else{
+  } else {
     type_spec = parseTypeSpecifierList(type_list);
   }
-  if(peek().GetType() == TokenType::SEMICOLON && isStruct) {
-    //struct declaration without members
+  if (peek().GetType() == TokenType::SEMICOLON && isStruct) {
+    // struct declaration without members
     consume(); // consume ';'
     std::unique_ptr<StructDeclarationNode> structDeclNode =
-        std::make_unique<StructDeclarationNode>(structName, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+        std::make_unique<StructDeclarationNode>(
+            structName, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
 
     return structDeclNode;
-  }
-  else if(peek().GetType() == TokenType::OPEN_BRACE && isStruct) {
-    //struct declaration with members
+  } else if (peek().GetType() == TokenType::OPEN_BRACE && isStruct) {
+    // struct declaration with members
     consume(); // consume '{'
     std::vector<ASTNodePtr> members;
 
-    if(peek().GetType() == TokenType::CLOSE_BRACE) {
-      //empty struct not allowed
+    if (peek().GetType() == TokenType::CLOSE_BRACE) {
+      // empty struct not allowed
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
           peek().GetType(), "struct must have at least one member"));
       expect(consume().GetType(), TokenType::CLOSE_BRACE);
       std::unique_ptr<StructDeclarationNode> structDeclNode =
-          std::make_unique<StructDeclarationNode>(structName, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+          std::make_unique<StructDeclarationNode>(
+              structName,
+              std::vector<std::unique_ptr<MemberDeclarationNode>>{});
     }
 
     while (peek().GetType() != TokenType::CLOSE_BRACE &&
@@ -1038,15 +1039,18 @@ ASTNodePtr Parser::parseDeclaration() {
     expect(consume().GetType(), TokenType::CLOSE_BRACE);
     expect(consume().GetType(), TokenType::SEMICOLON);
     std::vector<std::unique_ptr<MemberDeclarationNode>> member_nodes;
-    for(auto& member : members) {
-      member_nodes.push_back(std::unique_ptr<MemberDeclarationNode>(dynamic_cast<MemberDeclarationNode*>(member.release())));
+    for (auto &member : members) {
+      member_nodes.push_back(std::unique_ptr<MemberDeclarationNode>(
+          dynamic_cast<MemberDeclarationNode *>(member.release())));
     }
     std::unique_ptr<StructDeclarationNode> structDeclNode =
-        std::make_unique<StructDeclarationNode>(structName, std::move(member_nodes));
+        std::make_unique<StructDeclarationNode>(structName,
+                                                std::move(member_nodes));
     return structDeclNode;
   }
   auto declarator = parseDeclarator();
-  auto [name, type, param_names,param_types] = processDeclarator((declarator), (type_spec));
+  auto [name, type, param_names, param_types] =
+      processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     FunDeclNodePtr functionDeclNode = std::make_unique<FunDeclNode>();
     functionDeclNode->type = std::move(type);
@@ -1061,8 +1065,7 @@ ASTNodePtr Parser::parseDeclaration() {
     // function definition with body
     functionDeclNode->body = parseBlock();
     return functionDeclNode;
-  } 
-  else if(type.kind == TypeKind::ARRAY) {
+  } else if (type.kind == TypeKind::ARRAY) {
     VarDeclNodePtr varDeclNode = std::make_unique<VarDeclNode>();
     varDeclNode->name = name;
     varDeclNode->type = std::move(type);
@@ -1073,8 +1076,7 @@ ASTNodePtr Parser::parseDeclaration() {
     }
     expect(consume().GetType(), TokenType::SEMICOLON);
     return varDeclNode;
-  }
-  else {
+  } else {
     VarDeclNodePtr varDeclNode = std::make_unique<VarDeclNode>();
     varDeclNode->name = name;
     varDeclNode->type = std::move(type);
@@ -1101,46 +1103,45 @@ ASTNodePtr Parser::parseDeclarator() {
       auto funDecl = std::make_unique<FunDeclarator>(std::move(params),
                                                      std::move(declaratorNode));
       declaratorNode = std::move(funDecl);
-    }
-    else{
-      //zero or more array declarators
-      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
-        consume(); //consume '['
+    } else {
+      // zero or more array declarators
+      while (peek().GetType() == TokenType::OPEN_BRACKET) {
+        consume(); // consume '['
         ASTNodePtr sizeNode = parsePrimaryExp();
-        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
+        if (!dynamic_cast<ConstantExpression *>(sizeNode.get())) {
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "array size must be a constant expression"));
+              currentToken.GetType(),
+              "array size must be a constant expression"));
         }
         int size;
-        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
-        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
+        ConstantExpression *constExpr =
+            dynamic_cast<ConstantExpression *>(sizeNode.get());
+        if (int *ptr = std::get_if<int>(&(constExpr->value))) {
           size = *ptr;
-        }
-        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
+        } else if (unsigned int *ptr =
+                       std::get_if<unsigned int>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
+        } else if (long *ptr = std::get_if<long>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
+        } else if (unsigned long *ptr =
+                       std::get_if<unsigned long>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
+        } else if (char *ptr = std::get_if<char>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
+        } else if (unsigned char *ptr =
+                       std::get_if<unsigned char>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else{
+        } else {
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
               TokenType::WS, "invalid array size"));
         }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
-        declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
+        declaratorNode =
+            std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
       }
     }
     break;
@@ -1155,51 +1156,50 @@ ASTNodePtr Parser::parseDeclarator() {
       auto funDecl = std::make_unique<FunDeclarator>(std::move(params),
                                                      std::move(declaratorNode));
       declaratorNode = std::move(funDecl);
-    }
-    else{
-      //one or more array declarators
-      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
-        consume(); //consume '['
+    } else {
+      // one or more array declarators
+      while (peek().GetType() == TokenType::OPEN_BRACKET) {
+        consume(); // consume '['
         ASTNodePtr sizeNode = parsePrimaryExp();
-        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
+        if (!dynamic_cast<ConstantExpression *>(sizeNode.get())) {
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "array size must be a constant expression"));
+              currentToken.GetType(),
+              "array size must be a constant expression"));
         }
         int size;
-        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
-        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
+        ConstantExpression *constExpr =
+            dynamic_cast<ConstantExpression *>(sizeNode.get());
+        if (int *ptr = std::get_if<int>(&(constExpr->value))) {
           size = *ptr;
-        }
-        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
+        } else if (unsigned int *ptr =
+                       std::get_if<unsigned int>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
+        } else if (long *ptr = std::get_if<long>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
+        } else if (unsigned long *ptr =
+                       std::get_if<unsigned long>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
+        } else if (char *ptr = std::get_if<char>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
+        } else if (unsigned char *ptr =
+                       std::get_if<unsigned char>(&(constExpr->value))) {
           size = static_cast<int>(*ptr);
-        }
-        else{
+        } else {
           success = 0;
           errors.push_back(ParserErrorInfo(
               currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
               TokenType::WS, "invalid array size"));
         }
         expect(consume().GetType(), TokenType::CLOSE_BRACKET);
-        declaratorNode = std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
+        declaratorNode =
+            std::make_unique<ArrayDeclarator>(std::move(declaratorNode), size);
       }
     }
     return declaratorNode;
   }
-  case TokenType::ASTERISK: 
+  case TokenType::ASTERISK:
     // pointer declarator
     consume();
     declaratorNode = std::make_unique<PointerDeclarator>(parseDeclarator());
@@ -1218,97 +1218,97 @@ ASTNodePtr Parser::parseDeclarator() {
 
 ASTNodePtr Parser::parseDirectAbstractDeclarator() {
   ASTNodePtr declaratorNode;
-  switch(peek().GetType()) {
-    case TokenType::OPEN_PARENTHESES: {
-      consume(); // consume '('
-      auto inner = parseAbstractDeclarator();
-      expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
-      //zero or more array declarators
-      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
-        consume(); //consume '['
-        ASTNodePtr sizeNode = parsePrimaryExp();
-        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
-          success = 0;
-          errors.push_back(ParserErrorInfo(
-              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "array size must be a constant expression"));
-        }
-        int size;
-        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
-        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
-          size = *ptr;
-        }
-        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else{
-          success = 0;
-          errors.push_back(ParserErrorInfo(
-              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              TokenType::WS, "invalid array size"));
-        }
-        expect(consume().GetType(), TokenType::CLOSE_BRACKET);
-        inner = std::make_unique<AbstractArray>(std::move(inner), size);
-        declaratorNode = std::move(inner);
+  switch (peek().GetType()) {
+  case TokenType::OPEN_PARENTHESES: {
+    consume(); // consume '('
+    auto inner = parseAbstractDeclarator();
+    expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
+    // zero or more array declarators
+    while (peek().GetType() == TokenType::OPEN_BRACKET) {
+      consume(); // consume '['
+      ASTNodePtr sizeNode = parsePrimaryExp();
+      if (!dynamic_cast<ConstantExpression *>(sizeNode.get())) {
+        success = 0;
+        errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            currentToken.GetType(),
+            "array size must be a constant expression"));
       }
-    }
-    case TokenType::OPEN_BRACKET: {
-      //one or more array declarators
-      ASTNodePtr inner = std::make_unique<AbstractBase>();
-      while(peek().GetType() ==  TokenType::OPEN_BRACKET){
-        consume(); //consume '['
-        ASTNodePtr sizeNode = parsePrimaryExp();
-        if(!dynamic_cast<ConstantExpression*>(sizeNode.get())){
-          success = 0;
-          errors.push_back(ParserErrorInfo(
-              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              currentToken.GetType(), "array size must be a constant expression"));
-        }
-        int size;
-        ConstantExpression* constExpr = dynamic_cast<ConstantExpression*>(sizeNode.get());
-        if(int* ptr = std::get_if<int>(&(constExpr->value))) {
-          size = *ptr;
-        }
-        else if(unsigned int* ptr = std::get_if<unsigned int>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(long* ptr = std::get_if<long>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(unsigned long* ptr = std::get_if<unsigned long>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(char* ptr = std::get_if<char>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else if(unsigned char* ptr = std::get_if<unsigned char>(&(constExpr->value))) {
-          size = static_cast<int>(*ptr);
-        }
-        else{
-          success = 0;
-          errors.push_back(ParserErrorInfo(
-              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-              TokenType::WS, "invalid array size"));
-        }
-        expect(consume().GetType(), TokenType::CLOSE_BRACKET);
-        inner = std::make_unique<AbstractArray>(std::move(inner), size);
-        declaratorNode = std::move(inner);
+      int size;
+      ConstantExpression *constExpr =
+          dynamic_cast<ConstantExpression *>(sizeNode.get());
+      if (int *ptr = std::get_if<int>(&(constExpr->value))) {
+        size = *ptr;
+      } else if (unsigned int *ptr =
+                     std::get_if<unsigned int>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (long *ptr = std::get_if<long>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (unsigned long *ptr =
+                     std::get_if<unsigned long>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (char *ptr = std::get_if<char>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (unsigned char *ptr =
+                     std::get_if<unsigned char>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else {
+        success = 0;
+        errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
+                                         currentToken.GetColumnNumber(),
+                                         TokenType::WS, "invalid array size"));
       }
+      expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+      inner = std::make_unique<AbstractArray>(std::move(inner), size);
     }
-    default:
-      declaratorNode = std::make_unique<AbstractBase>();
+    declaratorNode = std::move(inner);
+    break;
+  }
+  case TokenType::OPEN_BRACKET: {
+    // one or more array declarators
+    ASTNodePtr inner = std::make_unique<AbstractBase>();
+    while (peek().GetType() == TokenType::OPEN_BRACKET) {
+      consume(); // consume '['
+      ASTNodePtr sizeNode = parsePrimaryExp();
+      if (!dynamic_cast<ConstantExpression *>(sizeNode.get())) {
+        success = 0;
+        errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            currentToken.GetType(),
+            "array size must be a constant expression"));
+      }
+      int size;
+      ConstantExpression *constExpr =
+          dynamic_cast<ConstantExpression *>(sizeNode.get());
+      if (int *ptr = std::get_if<int>(&(constExpr->value))) {
+        size = *ptr;
+      } else if (unsigned int *ptr =
+                     std::get_if<unsigned int>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (long *ptr = std::get_if<long>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (unsigned long *ptr =
+                     std::get_if<unsigned long>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (char *ptr = std::get_if<char>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else if (unsigned char *ptr =
+                     std::get_if<unsigned char>(&(constExpr->value))) {
+        size = static_cast<int>(*ptr);
+      } else {
+        success = 0;
+        errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
+                                         currentToken.GetColumnNumber(),
+                                         TokenType::WS, "invalid array size"));
+      }
+      expect(consume().GetType(), TokenType::CLOSE_BRACKET);
+      inner = std::make_unique<AbstractArray>(std::move(inner), size);
+    }
+    declaratorNode = std::move(inner);
+    break;
+  }
+  default:
+    declaratorNode = std::make_unique<AbstractBase>();
   }
   return declaratorNode;
 }
@@ -1373,8 +1373,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
                  dynamic_cast<ArrayDeclarator *>(declaratorNode.get())) {
     type = Type(TypeKind::ARRAY,
                 ArrayType(std::make_shared<Type>(type), arrayDecl->size));
-    return processDeclarator(arrayDecl->declarator,
-                             type);
+    return processDeclarator(arrayDecl->declarator, type);
   }
   success = 0;
   errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
@@ -1392,16 +1391,15 @@ Type Parser::processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
         Type(TypeKind::POINTER, PointerType(std::make_unique<Type>(baseType)));
     return processAbstractDeclarator(std::move(pointerDecl->base),
                                      std::move(type));
-  }
-  else if( dynamic_cast<AbstractArray *>(abstractDeclaratorNode.get())) {
+  } else if (dynamic_cast<AbstractArray *>(abstractDeclaratorNode.get())) {
     auto arrayDecl =
         dynamic_cast<AbstractArray *>(abstractDeclaratorNode.get());
-    Type type = Type(TypeKind::ARRAY,
-                     ArrayType(std::make_unique<Type>(baseType), arrayDecl->size));
+    Type type =
+        Type(TypeKind::ARRAY,
+             ArrayType(std::make_unique<Type>(baseType), arrayDecl->size));
     return processAbstractDeclarator(std::move(arrayDecl->base),
                                      std::move(type));
-  }
-  else if (dynamic_cast<AbstractBase *>(abstractDeclaratorNode.get())) {
+  } else if (dynamic_cast<AbstractBase *>(abstractDeclaratorNode.get())) {
     return baseType;
   }
   success = 0;
@@ -1442,7 +1440,7 @@ std::vector<paraminfo> Parser::parseParams() {
 
     while (isSpecifier(peek().GetType())) {
       consume();
-      if(currentToken.GetType() == TokenType::STRUCT) {
+      if (currentToken.GetType() == TokenType::STRUCT) {
         expect(consume().GetType(), TokenType::IDENTIFIER);
         specifier_list.push_back(TokenType::STRUCT);
         isStruct = 1;
@@ -1453,9 +1451,9 @@ std::vector<paraminfo> Parser::parseParams() {
     }
     auto [type_list, storage_class] = parseSpecifierList(specifier_list);
     Type param_type;
-    if(isStruct) {
+    if (isStruct) {
       param_type = Type(TypeKind::STRUCT, StructType(structName));
-      if(type_list.size() > 1) {
+      if (type_list.size() > 1) {
         success = 0;
         errors.push_back(ParserErrorInfo(
             currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
@@ -1466,8 +1464,7 @@ std::vector<paraminfo> Parser::parseParams() {
           consume();
         }
       }
-    }
-    else{
+    } else {
       param_type = parseTypeSpecifierList(type_list);
     }
     if (storage_class.has_value()) {
@@ -1502,7 +1499,7 @@ std::unique_ptr<InitializerNode> Parser::parseInitializer() {
   if (peek().GetType() == TokenType::OPEN_BRACE) {
     consume(); // consume '{'
 
-    if( peek().GetType() == TokenType::CLOSE_BRACE) {
+    if (peek().GetType() == TokenType::CLOSE_BRACE) {
       // empty initializer list is invalid
       success = 0;
       errors.push_back(ParserErrorInfo(
@@ -1522,9 +1519,9 @@ std::unique_ptr<InitializerNode> Parser::parseInitializer() {
       }
     }
     expect(consume().GetType(), TokenType::CLOSE_BRACE);
-    initializerNode = std::make_unique<InitializerNode>(std::move(initializers));
-  }
-  else {
+    initializerNode =
+        std::make_unique<InitializerNode>(std::move(initializers));
+  } else {
     ASTNodePtr expr = parseExpression(0);
     initializerNode = std::make_unique<InitializerNode>(std::move(expr));
   }
@@ -1664,11 +1661,12 @@ Type Parser::parseTypeSpecifierList(std::vector<TokenType> list) {
       return Type::Error();
     }
   }
-  if(find(list.begin(), list.end(), TokenType::VOID) != list.end()) {
+  if (find(list.begin(), list.end(), TokenType::VOID) != list.end()) {
     success = 0;
     errors.push_back(ParserErrorInfo(
         currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-        TokenType::WS, "void type specifier cannot be combined with other type specifiers"));
+        TokenType::WS,
+        "void type specifier cannot be combined with other type specifiers"));
     return Type::Error();
   }
   if (list.size() == 2) {

@@ -182,7 +182,8 @@ struct PointerType {
 struct ArrayType {
   std::shared_ptr<Type> element;
   int size;
-  ArrayType(std::shared_ptr<Type> Element, int Size) :size(Size), element(std::move(Element)) {}
+  ArrayType(std::shared_ptr<Type> Element, int Size)
+      : size(Size), element(std::move(Element)) {}
 };
 
 struct StructType {
@@ -190,7 +191,22 @@ struct StructType {
   StructType(std::string name) : name(std::move(name)) {}
 };
 
-enum class TypeKind { CHAR, SCHAR, UCHAR, INT, LONG, UINT, ULONG, DOUBLE, FUNC, POINTER, ARRAY, STRUCT, VOID, ERROR };
+enum class TypeKind {
+  CHAR,
+  SCHAR,
+  UCHAR,
+  INT,
+  LONG,
+  UINT,
+  ULONG,
+  DOUBLE,
+  FUNC,
+  POINTER,
+  ARRAY,
+  STRUCT,
+  VOID,
+  ERROR
+};
 enum class InitializerKind { SINGLE_INIT, COMPOUND_INIT };
 constexpr int size(TypeKind &kind) {
   switch (kind) {
@@ -218,11 +234,14 @@ constexpr int size(TypeKind &kind) {
 class Type : public ASTNode {
 public:
   TypeKind kind;
-  std::variant<std::monostate, FunType, PointerType, ArrayType, StructType> data;
+  std::variant<std::monostate, FunType, PointerType, ArrayType, StructType>
+      data;
   // default constructor for int type
   Type() : kind(TypeKind::INT), data(std::move(std::monostate{})) {}
   // constructor for other types
-  Type(TypeKind k, std::variant<std::monostate, FunType, PointerType, ArrayType, StructType> d,
+  Type(TypeKind k,
+       std::variant<std::monostate, FunType, PointerType, ArrayType, StructType>
+           d,
        std::string id = "")
       : kind(k), data(std::move(d)) {}
   // copy constructor
@@ -242,13 +261,15 @@ public:
       break;
     }
     case TypeKind::ARRAY: {
-      const auto& arrayType = std::get<ArrayType>(other.data);
-      std::unique_ptr<Type> element_copy = std::make_unique<Type>(*arrayType.element);
-      data = ArrayType(std::move(element_copy), (std::get<ArrayType>(other.data)).size);
+      const auto &arrayType = std::get<ArrayType>(other.data);
+      std::unique_ptr<Type> element_copy =
+          std::make_unique<Type>(*arrayType.element);
+      data = ArrayType(std::move(element_copy),
+                       (std::get<ArrayType>(other.data)).size);
       break;
     }
     case TypeKind::STRUCT: {
-      const auto& structType = std::get<StructType>(other.data);
+      const auto &structType = std::get<StructType>(other.data);
       data = StructType(structType.name);
       break;
     }
@@ -276,13 +297,15 @@ public:
         break;
       }
       case TypeKind::ARRAY: {
-        const auto& arrayType = std::get<ArrayType>(other.data);
-        std::unique_ptr<Type> element_copy = std::make_unique<Type>(*arrayType.element);
-        data = ArrayType(std::move(element_copy), (std::get<ArrayType>(other.data)).size);
+        const auto &arrayType = std::get<ArrayType>(other.data);
+        std::unique_ptr<Type> element_copy =
+            std::make_unique<Type>(*arrayType.element);
+        data = ArrayType(std::move(element_copy),
+                         (std::get<ArrayType>(other.data)).size);
         break;
       }
       case TypeKind::STRUCT: {
-        const auto& structType = std::get<StructType>(other.data);
+        const auto &structType = std::get<StructType>(other.data);
         data = StructType(structType.name);
         break;
       }
@@ -351,7 +374,7 @@ public:
       auto &this_ptr = std::get<PointerType>(this->data);
       auto &other_ptr = std::get<PointerType>(other.data);
       return *(this_ptr.base) == *(other_ptr.base);
-    } else if( this->kind == TypeKind::ARRAY) {
+    } else if (this->kind == TypeKind::ARRAY) {
       auto &this_arr = std::get<ArrayType>(this->data);
       auto &other_arr = std::get<ArrayType>(other.data);
       return (this_arr.size == other_arr.size) &&
@@ -375,7 +398,8 @@ public:
       return first;
     }
     if (size(first.kind) == size(second.kind)) {
-      if (first.kind == TypeKind::INT || first.kind == TypeKind::LONG || first.kind == TypeKind::CHAR || first.kind == TypeKind::SCHAR) {
+      if (first.kind == TypeKind::INT || first.kind == TypeKind::LONG ||
+          first.kind == TypeKind::CHAR || first.kind == TypeKind::SCHAR) {
         return second;
       } else {
         return first;
@@ -455,8 +479,8 @@ public:
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
 
   std::unique_ptr<ASTNode> clone() const override {
-    return std::make_unique<ReturnStatement>(
-        expression ? expression->clone() : nullptr);
+    return std::make_unique<ReturnStatement>(expression ? expression->clone()
+                                                        : nullptr);
   }
 };
 
@@ -592,10 +616,13 @@ public:
 
 class ConstantExpression : public ExpressionNode {
 public:
-  std::variant<int, long, unsigned long, unsigned int, double, char, unsigned char> value;
+  std::variant<int, long, unsigned long, unsigned int, double, char,
+               unsigned char>
+      value;
   // std::shared_ptr<Type> type;
-  ConstantExpression(
-      std::variant<int, long, unsigned long, unsigned int, double, char, unsigned char> value)
+  ConstantExpression(std::variant<int, long, unsigned long, unsigned int,
+                                  double, char, unsigned char>
+                         value)
       : value(value) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
@@ -751,7 +778,7 @@ public:
   ASTNodePtr arrayExpr;
   ASTNodePtr indexExpr;
   SubscriptExpression(ASTNodePtr arrayExpr, ASTNodePtr indexExpr)
-    : arrayExpr(std::move(arrayExpr)), indexExpr(std::move(indexExpr)) {}
+      : arrayExpr(std::move(arrayExpr)), indexExpr(std::move(indexExpr)) {}
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {
@@ -770,8 +797,8 @@ public:
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {
-    auto cloned = std::make_unique<SizeofExpression>(
-        expr ? expr->clone() : nullptr);
+    auto cloned =
+        std::make_unique<SizeofExpression>(expr ? expr->clone() : nullptr);
     cloned->type = type ? std::make_shared<Type>(*type) : nullptr;
     return cloned;
   }
@@ -811,7 +838,8 @@ public:
   ASTNodePtr pointerExpr;
   std::string memberName;
   ArrowExpression(ASTNodePtr pointerExpr, std::string memberName)
-      : pointerExpr(std::move(pointerExpr)), memberName(std::move(memberName)) {}
+      : pointerExpr(std::move(pointerExpr)), memberName(std::move(memberName)) {
+  }
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {
@@ -907,11 +935,11 @@ public:
 
 class ArrayDeclarator : public DeclaratorNode {
 public:
-  ASTNodePtr declarator; //type DeclaratorNode
+  ASTNodePtr declarator; // type DeclaratorNode
   int size;
   ArrayDeclarator(ASTNodePtr declarator, int size)
       : declarator(std::move(declarator)), size(size) {}
-    
+
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {
     return std::make_unique<ArrayDeclarator>(
@@ -968,10 +996,12 @@ class AbstractArray : public AbstractDeclarator {
 public:
   ASTNodePtr base; // AbstractDeclarator type
   int size;
-  AbstractArray(ASTNodePtr base, int size) : base(std::move(base)), size(size) {}
+  AbstractArray(ASTNodePtr base, int size)
+      : base(std::move(base)), size(size) {}
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {
-    return std::make_unique<AbstractArray>(base ? base->clone() : nullptr, size);
+    return std::make_unique<AbstractArray>(base ? base->clone() : nullptr,
+                                           size);
   }
 };
 
@@ -1011,8 +1041,8 @@ public:
 
 class MemberDeclarationNode : public ASTNode {
 public:
-  std::unique_ptr<Type> type;                              // type specifier
-  std::string name;                       // member name
+  std::unique_ptr<Type> type; // type specifier
+  std::string name;           // member name
 
   MemberDeclarationNode(std::unique_ptr<Type> type, std::string name)
       : type(std::move(type)), name(std::move(name)) {}
@@ -1026,27 +1056,29 @@ public:
 
 class StructDeclarationNode : public ASTNode {
 public:
-  std::string name;                                       // struct name
-  std::vector<std::unique_ptr<MemberDeclarationNode>> members; // member declarations
+  std::string name; // struct name
+  std::vector<std::unique_ptr<MemberDeclarationNode>>
+      members; // member declarations
 
-  StructDeclarationNode(std::string name,
-                        std::vector<std::unique_ptr<MemberDeclarationNode>> members)
+  StructDeclarationNode(
+      std::string name,
+      std::vector<std::unique_ptr<MemberDeclarationNode>> members)
       : name(std::move(name)), members(std::move(members)) {}
   ~StructDeclarationNode() override = default;
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {
     std::vector<std::unique_ptr<MemberDeclarationNode>> clonedMembers;
     for (const auto &member : members) {
-      clonedMembers.push_back(
-          std::unique_ptr<MemberDeclarationNode>(
-              static_cast<MemberDeclarationNode*>(member->clone().release())));
+      clonedMembers.push_back(std::unique_ptr<MemberDeclarationNode>(
+          static_cast<MemberDeclarationNode *>(member->clone().release())));
     }
-    return std::make_unique<StructDeclarationNode>(name, std::move(clonedMembers));
+    return std::make_unique<StructDeclarationNode>(name,
+                                                   std::move(clonedMembers));
   }
 };
 
 struct SingleInit {
-  std::unique_ptr<ASTNode> expression; //ExpressionNode type
+  std::unique_ptr<ASTNode> expression; // ExpressionNode type
   SingleInit(ASTNodePtr expr) : expression(std::move(expr)) {}
 };
 
@@ -1071,11 +1103,11 @@ public:
 
   ~InitializerNode() override = default;
 
-  InitializerNode(const InitializerNode&) = default;
-  InitializerNode(InitializerNode&&) noexcept = default;
+  InitializerNode(const InitializerNode &) = default;
+  InitializerNode(InitializerNode &&) noexcept = default;
 
-  InitializerNode& operator=(const InitializerNode&) = default;
-  InitializerNode& operator=(InitializerNode&&) noexcept = default;
+  InitializerNode &operator=(const InitializerNode &) = default;
+  InitializerNode &operator=(InitializerNode &&) noexcept = default;
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
   std::unique_ptr<ASTNode> clone() const override {

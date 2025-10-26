@@ -1047,9 +1047,11 @@ void IRGenerator::visit(
     DereferenceExpression &node) { /* TODO: Implement dereference */ }
 void IRGenerator::visit(
     AddressOfExpression &node) { /* TODO: Implement address-of */ }
-void IRGenerator::visit(StringLiteralExpression &node) { /*TODO: Implement string literal*/}
-void IRGenerator::visit(SizeofExpression &node) { /* TODO: Implement sizeof */}
-void IRGenerator::visit(SizeofTypeExpression &node) { /* TODO: Implement sizeof type */}
+void IRGenerator::visit(
+    StringLiteralExpression &node) { /*TODO: Implement string literal*/ }
+void IRGenerator::visit(SizeofExpression &node) { /* TODO: Implement sizeof */ }
+void IRGenerator::visit(
+    SizeofTypeExpression &node) { /* TODO: Implement sizeof type */ }
 void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
 void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
 void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
@@ -1071,42 +1073,32 @@ void IRGenerator::visit(
 void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
 void IRGenerator::visit(ArrayDeclarator &node) { (void)node; }
 void IRGenerator::visit(AbstractArray &node) { (void)node; }
-void IRGenerator::visit(InitializerNode &node) { 
-   if(node.kind == InitializerKind::SINGLE_INIT) {
-       auto &singleInit = std::get<SingleInit>(node.data);
-       if(singleInit.expression) {
-           singleInit.expression->accept(*this);
-       }
-   } else if(node.kind == InitializerKind::COMPOUND_INIT) {
-       auto &initList = std::get<CompoundInit>(node.data);
-       for(auto &init : initList.initializers) {
-          init.accept(*this);
-       }
+void IRGenerator::visit(InitializerNode &node) {
+  if (node.kind == InitializerKind::SINGLE_INIT) {
+    auto &singleInit = std::get<SingleInit>(node.data);
+    if (singleInit.expression) {
+      singleInit.expression->accept(*this);
     }
+  } else if (node.kind == InitializerKind::COMPOUND_INIT) {
+    auto &initList = std::get<CompoundInit>(node.data);
+    for (auto &init : initList.initializers) {
+      init.accept(*this);
+    }
+  }
 }
-void IRGenerator::visit(SubscriptExpression &node) { 
-  if (node.arrayExpr)
-  {
+void IRGenerator::visit(SubscriptExpression &node) {
+  if (node.arrayExpr) {
     node.arrayExpr->accept(*this);
   }
-  if (node.indexExpr)
-  {
+  if (node.indexExpr) {
     node.indexExpr->accept(*this);
   }
 }
 
-void IRGenerator::visit(StructDeclarationNode &node) {
+void IRGenerator::visit(StructDeclarationNode &node) {}
 
-}
+void IRGenerator::visit(MemberDeclarationNode &node) {}
 
-void IRGenerator::visit(MemberDeclarationNode &node) {
+void IRGenerator::visit(DotExpression &node) {}
 
-}
-
-void IRGenerator::visit(DotExpression &node) {
-
-}
-
-void IRGenerator::visit(ArrowExpression &node) {
-
-}
+void IRGenerator::visit(ArrowExpression &node) {}

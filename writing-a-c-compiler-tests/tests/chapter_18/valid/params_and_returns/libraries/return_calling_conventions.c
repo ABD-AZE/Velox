@@ -24,7 +24,7 @@ struct xmm_and_int return_mixed(void) {
   return retval;
 }
 struct int_and_xmm return_mixed2(void) {
-  struct int_and_xmm retval = {127, 34e43};
+  struct int_and_xmm retval = {127, 34.43};
   return retval;
 }
 struct memory return_on_stack(void) {

@@ -94,7 +94,7 @@ void ASTPrinter::visit(ReturnStatement &node) {
   print_open("Return", indent_);
   if (node.expression) {
     increaseIndent();
-    if(node.expression) {
+    if (node.expression) {
       node.expression->accept(*this);
     }
     decreaseIndent();
@@ -664,7 +664,9 @@ void ASTPrinter::visit(InitializerNode &node) {
   print_open("Initializer", indent_);
   increaseIndent();
 
-  print_kv("kind", (node.kind == InitializerKind::SINGLE_INIT) ? "Single" : "Compound", indent_);
+  print_kv("kind",
+           (node.kind == InitializerKind::SINGLE_INIT) ? "Single" : "Compound",
+           indent_);
 
   if (node.kind == InitializerKind::SINGLE_INIT) {
     const SingleInit &singleInit = std::get<SingleInit>(node.data);
@@ -787,6 +789,51 @@ void ASTPrinter::visit(Type &node) {
   print_open("Type", indent_);
   increaseIndent();
   print_kv("kind", TypeKindToString(node.kind), indent_);
+  std::visit(
+      [&](auto &value) {
+        using T = std::decay_t<decltype(value)>;
+        if constexpr (std::is_same_v<T, FunType>) {
+          print_label("function_type", indent_);
+          increaseIndent();
+          print_label("return_type", indent_);
+          increaseIndent();
+          (*value.ret).accept(*this);
+          decreaseIndent();
+          print_label("param_types", indent_);
+          indent_spaces(indent_);
+          std::cout << "[" << std::endl;
+          if (!value.params.empty()) {
+            increaseIndent();
+            for (auto &param_type : value.params) {
+              param_type.accept(*this);
+            }
+            decreaseIndent();
+          }
+          indent_spaces(indent_);
+          std::cout << "]" << std::endl;
+          decreaseIndent();
+        } else if constexpr (std::is_same_v<T, StructType>) {
+          print_string_kv("struct_name", value.name, indent_);
+        } else if constexpr (std::is_same_v<T, ArrayType>) {
+          print_label("array_type", indent_);
+          increaseIndent();
+          print_kv("size", value.size, indent_);
+          print_label("element_type", indent_);
+          increaseIndent();
+          value.element->accept(*this);
+          decreaseIndent();
+          decreaseIndent();
+        } else if constexpr (std::is_same_v<T, PointerType>) {
+          print_label("pointer_type", indent_);
+          increaseIndent();
+          print_label("pointed_type", indent_);
+          increaseIndent();
+          value.base->accept(*this);
+          decreaseIndent();
+          decreaseIndent();
+        }
+      },
+      node.data);
   decreaseIndent();
   print_close(indent_);
 }
