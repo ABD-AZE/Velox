@@ -20,6 +20,8 @@ public:
   void visit(FunctionDefinitionNode &node) override;
   void visit(FunDeclNode &node) override;
   void visit(VarDeclNode &node) override;
+  void visit(StructDeclarationNode &node) override;
+  void visit(MemberDeclarationNode &node) override;
   void visit(BlockNode &node) override;
   void visit(BlockItemNode &node) override;
   void visit(DeclarationNode &node) override;
@@ -58,6 +60,8 @@ public:
   void visit(StringLiteralExpression &node) override;
   void visit(SizeofExpression &node) override;
   void visit(SizeofTypeExpression &node) override;
+  void visit(DotExpression &node) override;
+  void visit(ArrowExpression &node) override;
 
   // Type and declarator visitors (no-ops for variable resolution)
   void visit(Type &node) override;

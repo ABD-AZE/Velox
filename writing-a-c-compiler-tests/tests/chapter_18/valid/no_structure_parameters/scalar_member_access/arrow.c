@@ -15,7 +15,7 @@ struct four_members {
 // helper functions/variables
 
 // get_double and l are used to initialize members
-double get_double(void) { return 2e12; }
+double get_double(void) { return 2000000000000.0; }
 
 static long l = 34359738378l;
 

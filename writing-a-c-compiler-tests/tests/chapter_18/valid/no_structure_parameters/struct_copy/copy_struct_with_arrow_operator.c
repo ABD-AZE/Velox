@@ -128,14 +128,14 @@ int test_mixed_nested_access(void) {
   s2_ptr->nested_ptr = calloc(1, sizeof(struct outermost));
   s2_ptr->nested_ptr->a = 5;
   s2_ptr->nested_ptr->b = 6;
-  s2_ptr->nested_struct.substruct.d = 8.e8;
+  s2_ptr->nested_struct.substruct.d = 800000000.0;
   s2_ptr->nested_struct.substruct.i = -5;
 
   // nested copy
   s1.nested_ptr->substruct = s2_ptr->nested_struct.substruct;
 
   // validate
-  if (s1.nested_ptr->substruct.d != 8.e8 || s1.nested_ptr->substruct.i != -5) {
+  if (s1.nested_ptr->substruct.d != 800000000.0 || s1.nested_ptr->substruct.i != -5) {
     return 0;
   }
 

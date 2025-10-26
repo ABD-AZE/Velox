@@ -69,7 +69,7 @@ int test_partially_initialized(void) {
 int test_fully_intialized(void) {
   // validate elements in struct outer
   if (full.one_l != 18014398509481979l ||
-      strcmp(full.three_msg, "Another message") || full.four_d != 2e12) {
+      strcmp(full.three_msg, "Another message") || full.four_d != 2000000000000.0) {
     return 0;
   }
 

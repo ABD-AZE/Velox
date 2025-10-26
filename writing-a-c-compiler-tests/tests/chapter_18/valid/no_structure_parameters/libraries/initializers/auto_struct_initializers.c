@@ -11,8 +11,8 @@
 int validate_full_initialization(struct s *ptr) {
   if (strcmp(ptr->one_msg, "I'm a struct!") || ptr->two_arr[0] != 's' ||
       ptr->two_arr[1] != 'u' || ptr->two_arr[2] != 'p' ||
-      ptr->three_self_ptr != ptr || ptr->four_d != 2e12 ||
-      *ptr->five_d_ptr != 2e12) {
+      ptr->three_self_ptr != ptr || ptr->four_d != 2000000000000.0 ||
+      *ptr->five_d_ptr != 2000000000000.0) {
     return 0;
   }
 

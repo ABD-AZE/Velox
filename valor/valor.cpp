@@ -1094,3 +1094,19 @@ void IRGenerator::visit(SubscriptExpression &node) {
     node.indexExpr->accept(*this);
   }
 }
+
+void IRGenerator::visit(StructDeclarationNode &node) {
+
+}
+
+void IRGenerator::visit(MemberDeclarationNode &node) {
+
+}
+
+void IRGenerator::visit(DotExpression &node) {
+
+}
+
+void IRGenerator::visit(ArrowExpression &node) {
+
+}

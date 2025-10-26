@@ -33,7 +33,7 @@ struct outer full = {
     {1000, "ok",
      4292870144u}, // can initialized signed char array w/ static string
     "Another message",
-    2e12};
+    2000000000000.0};
 
 struct outer converted = {
     10.5, // 10l

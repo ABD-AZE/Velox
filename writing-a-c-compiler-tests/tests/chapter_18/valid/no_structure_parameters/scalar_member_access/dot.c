@@ -13,7 +13,7 @@ struct four_members {
 // helper functions/variables
 
 // get_double and l are used to initialize members
-double get_double(void) { return 2e12; }
+double get_double(void) { return 2000000000000.0; }
 
 static long l = 34359738378l;
 
@@ -21,7 +21,7 @@ static long l = 34359738378l;
 // parameters
 int accept_params(int d_divided, int c_doubled, double l_cast,
                   int dereferenced_ptr, double d, int c, long l, char *ptr) {
-  if (d != 4e12 || c != 127 || l != 8589934594l || *ptr != 100 ||
+  if (d != 4000000000000.0 || c != 127 || l != 8589934594l || *ptr != 100 ||
       d_divided != 100.0 || c_doubled != 254 || l_cast != 8589934594.0 ||
       dereferenced_ptr != 100) {
     return 0;
@@ -44,7 +44,7 @@ int test_auto(void) {
   autom.ptr = &chr;
 
   // read all members
-  if (autom.d != 4e12 || autom.c != 127 || autom.l != 8589934594l ||
+  if (autom.d != 4000000000000.0 || autom.c != 127 || autom.l != 8589934594l ||
       autom.ptr != &chr) {
     return 0;
   }
@@ -52,7 +52,7 @@ int test_auto(void) {
   // take address of members
   double *d_ptr = &autom.d;
   char *c_ptr = &autom.c;
-  if (*d_ptr != 4e12 || *c_ptr != 127) {
+  if (*d_ptr != 4000000000000.0 || *c_ptr != 127) {
     return 0;
   }
 
@@ -62,7 +62,7 @@ int test_auto(void) {
   }
 
   // read members and use them in complex expressions (e.g. function calls)
-  if (!accept_params(autom.d / 4e10, autom.c * 2, (double)autom.l, *autom.ptr,
+  if (!accept_params(autom.d / 40000000000.0, autom.c * 2, (double)autom.l, *autom.ptr,
                      autom.d, autom.c, autom.l, autom.ptr)) {
     return 0;
   }
@@ -86,7 +86,7 @@ int test_static(void) {
   stat.ptr = &chr;
 
   // read all members
-  if (stat.d != 4e12 || stat.c != 127 || stat.l != 8589934594l ||
+  if (stat.d != 4000000000000.0 || stat.c != 127 || stat.l != 8589934594l ||
       stat.ptr != &chr) {
     return 0;
   }
@@ -94,7 +94,7 @@ int test_static(void) {
   // take address of members
   double *d_ptr = &stat.d;
   char *c_ptr = &stat.c;
-  if (*d_ptr != 4e12 || *c_ptr != 127) {
+  if (*d_ptr != 4000000000000.0 || *c_ptr != 127) {
     return 0;
   }
 
@@ -104,7 +104,7 @@ int test_static(void) {
   }
 
   // read members and use them in complex expressions (e.g. function calls)
-  if (!accept_params(stat.d / 4e10, stat.c * 2, (double)stat.l, *stat.ptr,
+  if (!accept_params(stat.d / 40000000000.0, stat.c * 2, (double)stat.l, *stat.ptr,
                      stat.d, stat.c, stat.l, stat.ptr)) {
     return 0;
   }

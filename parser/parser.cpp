@@ -129,6 +129,7 @@ ASTNodePtr &Parser::parseProgram() {
 }
 
 // parses both function declarations and definitions
+//redundant function
 ASTNodePtr Parser::parseFunctionDeclaration() {
   std::vector<TokenType> specifier_list;
   if (!isSpecifier(peek().GetType())) {
@@ -142,13 +143,38 @@ ASTNodePtr Parser::parseFunctionDeclaration() {
       consume();
     }
   }
+  bool isStruct = false;
+  std::string structName;
   while (isSpecifier(peek().GetType())) {
     consume();
+    if(currentToken.GetType() == TokenType::STRUCT) {
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      specifier_list.push_back(TokenType::STRUCT);
+      isStruct = 1;
+      structName = currentToken.GetLexeme();
+      continue;
+    }
     specifier_list.push_back(currentToken.GetType());
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
+  Type type_spec;
+  if(isStruct) {
+    type_spec = Type(TypeKind::STRUCT, StructType(structName));
+    if(type_list.size() > 1) {
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          peek().GetType(), "invalid struct type specifier"));
+      while (peek().GetType() != TokenType::SEMICOLON &&
+             peek().GetType() != TokenType::END_OF_FILE) {
+        consume();
+      }
+    }
+  }
+  else{
+    type_spec = parseTypeSpecifierList(type_list);
+  }
   auto declarator = parseDeclarator();
-  auto type_spec = parseTypeSpecifierList(type_list);
   auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
   if (type.kind != TypeKind::FUNC) {
     success = 0;
@@ -188,13 +214,40 @@ ASTNodePtr Parser::parseVariableDeclaration() {
       consume();
     }
   }
+
+  bool isStruct = false;
+  std::string structName;
+
   while (isSpecifier(peek().GetType())) {
     consume();
+    if(currentToken.GetType() == TokenType::STRUCT) {
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      specifier_list.push_back(TokenType::STRUCT);
+      isStruct = 1;
+      structName = currentToken.GetLexeme();
+      continue;
+    }
     specifier_list.push_back(currentToken.GetType());
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
+  Type type_spec;
+  if(isStruct) {
+    type_spec = Type(TypeKind::STRUCT, StructType(structName));
+    if(type_list.size() > 1) {
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          peek().GetType(), "invalid struct type specifier"));
+      while (peek().GetType() != TokenType::SEMICOLON &&
+             peek().GetType() != TokenType::END_OF_FILE) {
+        consume();
+      }
+    }
+  }
+  else{
+    type_spec = parseTypeSpecifierList(type_list);
+  }
   auto declarator = parseDeclarator();
-  auto type_spec = parseTypeSpecifierList(type_list);
   auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     success = 0;
@@ -216,6 +269,127 @@ ASTNodePtr Parser::parseVariableDeclaration() {
   expect(consume().GetType(), TokenType::SEMICOLON);
   // resolve_declaration(varDeclNode, variable_map);
   return varDeclNode;
+}
+
+ASTNodePtr Parser::parseMemberDeclaration() {
+  // type-specifier+ declarator ';'
+  std::vector<TokenType> specifier_list;
+  if (!isSpecifier(peek().GetType())) {
+    success = 0;
+    errors.push_back(ParserErrorInfo(
+        currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+        peek().GetType(), "expected member declaration"));
+    while (peek().GetType() != TokenType::IDENTIFIER &&
+           peek().GetType() != TokenType::SEMICOLON &&
+           peek().GetType() != TokenType::END_OF_FILE) {
+      consume();
+    }
+  }
+
+  bool isStruct = false;
+  std::string structName;
+
+  while (isSpecifier(peek().GetType())) {
+    consume();
+    if(currentToken.GetType() == TokenType::STRUCT) {
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      specifier_list.push_back(TokenType::STRUCT);
+      isStruct = 1;
+      structName = currentToken.GetLexeme();
+      continue;
+    }
+    specifier_list.push_back(currentToken.GetType());
+  }
+  auto [type_list, storage_class] = parseSpecifierList(specifier_list);
+  Type type_spec;
+  if(isStruct) {
+    type_spec = Type(TypeKind::STRUCT, StructType(structName));
+    if(type_list.size() > 1) {
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          peek().GetType(), "invalid struct type specifier"));
+      while (peek().GetType() != TokenType::SEMICOLON &&
+             peek().GetType() != TokenType::END_OF_FILE) {
+        consume();
+      }
+    }
+  }
+  else{
+    type_spec = parseTypeSpecifierList(type_list);
+  }
+
+  if(storage_class.has_value()) {
+    success = 0;
+    errors.push_back(ParserErrorInfo(
+        currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+        peek().GetType(), "storage class specifier not allowed in member declaration"));
+    while (peek().GetType() != TokenType::SEMICOLON &&
+           peek().GetType() != TokenType::END_OF_FILE) {
+      consume();
+    }
+  }
+
+  auto declarator = parseDeclarator();
+  auto [name, type, param_names, param_types] = processDeclarator((declarator), (type_spec));
+  if (type.kind == TypeKind::FUNC) {
+    success = 0;
+    errors.push_back(ParserErrorInfo(
+        currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+        peek().GetType(), "function declarator not allowed here"));
+    while (peek().GetType() != TokenType::SEMICOLON &&
+           peek().GetType() != TokenType::END_OF_FILE) {
+      consume();
+    }
+  }
+
+  expect(consume().GetType(), TokenType::SEMICOLON);
+  std::unique_ptr<MemberDeclarationNode> memberDeclNode =
+      std::make_unique<MemberDeclarationNode>(std::move(std::make_unique<Type>(type)), name);
+
+  return memberDeclNode;
+}
+
+//redundant function
+ASTNodePtr Parser::parseStructDeclaration() {
+  expect(consume().GetType(), TokenType::STRUCT);
+  expect(consume().GetType(), TokenType::IDENTIFIER);
+  std::string struct_name = currentToken.GetLexeme();
+
+  if(peek().GetType() == TokenType::SEMICOLON) {
+    consume(); // consume ';'
+    std::unique_ptr<StructDeclarationNode> structDeclNode =
+        std::make_unique<StructDeclarationNode>(struct_name, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+    return structDeclNode; // forward declaration
+  }
+
+  expect(consume().GetType(), TokenType::OPEN_BRACE);
+  std::vector<ASTNodePtr> members;
+
+  if(peek().GetType() == TokenType::CLOSE_BRACE) {
+    //empty struct not allowed
+    success = 0;
+    errors.push_back(ParserErrorInfo(
+        currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+        peek().GetType(), "struct must have at least one member"));
+    expect(consume().GetType(), TokenType::CLOSE_BRACE);
+    std::unique_ptr<StructDeclarationNode> structDeclNode =
+        std::make_unique<StructDeclarationNode>(struct_name, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+    return structDeclNode;
+  }
+
+  while (peek().GetType() != TokenType::CLOSE_BRACE &&
+         peek().GetType() != TokenType::END_OF_FILE) {
+    members.push_back(parseMemberDeclaration());
+  }
+  expect(consume().GetType(), TokenType::CLOSE_BRACE);
+
+  std::vector<std::unique_ptr<MemberDeclarationNode>> member_nodes;
+  for(auto& member : members) {
+    member_nodes.push_back(std::unique_ptr<MemberDeclarationNode>(dynamic_cast<MemberDeclarationNode*>(member.release())));
+  }
+
+  return std::make_unique<StructDeclarationNode>(struct_name, std::move(member_nodes));
 }
 
 ASTNodePtr Parser::parseStatement() {
@@ -323,7 +497,7 @@ ASTNodePtr Parser::parseStatement() {
 
 ASTNodePtr Parser::parsePostfixExp() {
   ASTNodePtr postfixExpNode = parsePrimaryExp();
-  // (subscript | increment | decrement)*
+  // (subscript | increment | decrement | dot | arrow)*
   while (true) {
     if (peek().GetType() == TokenType::OPEN_BRACKET) {
       consume(); // consume '['
@@ -339,6 +513,21 @@ ASTNodePtr Parser::parsePostfixExp() {
       consume(); // consume '--'
       postfixExpNode = std::make_unique<PostfixExpression>(
           std::move(postfixExpNode), TokenType::DECREMENT_OPERATOR);
+    } else if( peek().GetType() == TokenType::DOT) {
+      consume(); // consume '.'
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      std::string memberName = currentToken.GetLexeme();
+      postfixExpNode = std::make_unique<DotExpression>(
+          std::move(postfixExpNode), memberName);
+    } else if( peek().GetType() == TokenType::ARROW_OPERATOR) {
+      consume(); // consume '->'
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      std::string memberName = currentToken.GetLexeme();
+      // a->b is equivalent to (*(a)).b
+      ASTNodePtr derefNode = std::make_unique<UnaryExpression>(
+          TokenType::ASTERISK, std::move(postfixExpNode));
+      postfixExpNode = std::make_unique<DotExpression>(
+          std::move(derefNode), memberName);
     } else {
       break;
     }
@@ -560,16 +749,45 @@ ASTNodePtr Parser::parseCastExp() {
     if(isTypeSpecifier(tokens[currentIndex - 1].GetType())) {
       // cast expression
       consume();
+
+      bool isStruct = false;
+      std::string structName;
+
       std::vector<TokenType> type_list;
-      while (isTypeSpecifier(peek().GetType()))
+      while (isTypeSpecifier(peek().GetType())) {
+        if(peek().GetType() == TokenType::STRUCT) {
+          consume();
+          expect(consume().GetType(), TokenType::IDENTIFIER);
+          type_list.push_back(TokenType::STRUCT);
+          isStruct = 1;
+          structName = currentToken.GetLexeme();
+          continue;
+        }
         type_list.push_back(consume().GetType());
-      // abstract declarator
-      Type baseType = parseTypeSpecifierList(type_list);
+      }
+      Type baseType;
+      if(isStruct) {
+        baseType = Type(TypeKind::STRUCT, StructType(structName));
+        if(type_list.size() > 1) {
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            peek().GetType(), "invalid struct type specifier"));
+            while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
+            peek().GetType() != TokenType::END_OF_FILE) {
+              consume();
+            }
+        }
+      }
+      else{
+        baseType = parseTypeSpecifierList(type_list);
+      }
       Type targetType;
+      // abstract declarator
       if(peek().GetType() != TokenType::CLOSE_PARENTHESES) {
         auto abstractDeclarator = parseAbstractDeclarator();
         targetType = processAbstractDeclarator(std::move(abstractDeclarator),
-                                                    std::move(baseType));
+        std::move(baseType));
       }
       else{
         targetType = std::move(baseType);
@@ -577,7 +795,7 @@ ASTNodePtr Parser::parseCastExp() {
       expect(consume().GetType(), TokenType::CLOSE_PARENTHESES);
       ASTNodePtr expr = parseCastExp();
       castExpNode = std::make_unique<CastExpression>(std::move(targetType),
-                                                    std::move(expr));
+                                                  std::move(expr));
       break;
     }
     default:
@@ -613,9 +831,38 @@ ASTNodePtr Parser::parseUnaryExp() {
       // sizeof(type)
       consume(); // consume '('
       std::vector<TokenType> type_list;
-      while (isTypeSpecifier(peek().GetType()))
+      
+      bool isStruct = false;
+      std::string structName;
+
+      while (isTypeSpecifier(peek().GetType())) {
+        if(peek().GetType() == TokenType::STRUCT) {
+          consume();
+          expect(consume().GetType(), TokenType::IDENTIFIER);
+          type_list.push_back(TokenType::STRUCT);
+          isStruct = 1;
+          structName = currentToken.GetLexeme();
+          continue;
+        }
         type_list.push_back(consume().GetType());
-      Type baseType = parseTypeSpecifierList(type_list);
+      }
+      Type baseType;
+      if(isStruct) {
+        baseType = Type(TypeKind::STRUCT, StructType(structName));
+        if(type_list.size() > 1) {
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            peek().GetType(), "invalid struct type specifier"));
+            while (peek().GetType() != TokenType::CLOSE_PARENTHESES &&
+            peek().GetType() != TokenType::END_OF_FILE) {
+              consume();
+            }
+        }
+      }
+      else{
+        baseType = parseTypeSpecifierList(type_list);
+      }
       Type targetType;
       if(peek().GetType() != TokenType::CLOSE_PARENTHESES) {
         auto abstractDeclarator = parseAbstractDeclarator();
@@ -727,13 +974,78 @@ ASTNodePtr Parser::parseDeclaration() {
       consume();
     }
   }
+
+  bool isStruct = false;
+  std::string structName;
+
   while (isSpecifier(peek().GetType())) {
     consume();
+    if(currentToken.GetType() == TokenType::STRUCT) {
+      expect(consume().GetType(), TokenType::IDENTIFIER);
+      specifier_list.push_back(TokenType::STRUCT);
+      isStruct = 1;
+      structName = currentToken.GetLexeme();
+      continue;
+    }
     specifier_list.push_back(currentToken.GetType());
   }
   auto [type_list, storage_class] = parseSpecifierList(specifier_list);
+  Type type_spec;
+  if(isStruct) {
+    type_spec = Type(TypeKind::STRUCT, StructType(structName));
+    if(type_list.size() > 1) {
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          peek().GetType(), "invalid struct type specifier"));
+      while (peek().GetType() != TokenType::SEMICOLON &&
+             peek().GetType() != TokenType::END_OF_FILE) {
+        consume();
+      }
+    }
+  }
+  else{
+    type_spec = parseTypeSpecifierList(type_list);
+  }
+  if(peek().GetType() == TokenType::SEMICOLON && isStruct) {
+    //struct declaration without members
+    consume(); // consume ';'
+    std::unique_ptr<StructDeclarationNode> structDeclNode =
+        std::make_unique<StructDeclarationNode>(structName, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+
+    return structDeclNode;
+  }
+  else if(peek().GetType() == TokenType::OPEN_BRACE && isStruct) {
+    //struct declaration with members
+    consume(); // consume '{'
+    std::vector<ASTNodePtr> members;
+
+    if(peek().GetType() == TokenType::CLOSE_BRACE) {
+      //empty struct not allowed
+      success = 0;
+      errors.push_back(ParserErrorInfo(
+          currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+          peek().GetType(), "struct must have at least one member"));
+      expect(consume().GetType(), TokenType::CLOSE_BRACE);
+      std::unique_ptr<StructDeclarationNode> structDeclNode =
+          std::make_unique<StructDeclarationNode>(structName, std::vector<std::unique_ptr<MemberDeclarationNode>>{});
+    }
+
+    while (peek().GetType() != TokenType::CLOSE_BRACE &&
+           peek().GetType() != TokenType::END_OF_FILE) {
+      members.push_back(parseMemberDeclaration());
+    }
+    expect(consume().GetType(), TokenType::CLOSE_BRACE);
+    expect(consume().GetType(), TokenType::SEMICOLON);
+    std::vector<std::unique_ptr<MemberDeclarationNode>> member_nodes;
+    for(auto& member : members) {
+      member_nodes.push_back(std::unique_ptr<MemberDeclarationNode>(dynamic_cast<MemberDeclarationNode*>(member.release())));
+    }
+    std::unique_ptr<StructDeclarationNode> structDeclNode =
+        std::make_unique<StructDeclarationNode>(structName, std::move(member_nodes));
+    return structDeclNode;
+  }
   auto declarator = parseDeclarator();
-  auto type_spec = parseTypeSpecifierList(type_list);
   auto [name, type, param_names,param_types] = processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     FunDeclNodePtr functionDeclNode = std::make_unique<FunDeclNode>();
@@ -1124,12 +1436,40 @@ std::vector<paraminfo> Parser::parseParams() {
         consume();
       }
     }
+
+    bool isStruct = false;
+    std::string structName;
+
     while (isSpecifier(peek().GetType())) {
       consume();
+      if(currentToken.GetType() == TokenType::STRUCT) {
+        expect(consume().GetType(), TokenType::IDENTIFIER);
+        specifier_list.push_back(TokenType::STRUCT);
+        isStruct = 1;
+        structName = currentToken.GetLexeme();
+        continue;
+      }
       specifier_list.push_back(currentToken.GetType());
     }
     auto [type_list, storage_class] = parseSpecifierList(specifier_list);
-    Type param_type = parseTypeSpecifierList(type_list);
+    Type param_type;
+    if(isStruct) {
+      param_type = Type(TypeKind::STRUCT, StructType(structName));
+      if(type_list.size() > 1) {
+        success = 0;
+        errors.push_back(ParserErrorInfo(
+            currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+            peek().GetType(), "invalid struct type specifier"));
+        while (peek().GetType() != TokenType::COMMA &&
+               peek().GetType() != TokenType::CLOSE_PARENTHESES &&
+               peek().GetType() != TokenType::END_OF_FILE) {
+          consume();
+        }
+      }
+    }
+    else{
+      param_type = parseTypeSpecifierList(type_list);
+    }
     if (storage_class.has_value()) {
       success = 0;
       errors.push_back(ParserErrorInfo(

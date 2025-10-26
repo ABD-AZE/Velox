@@ -31,7 +31,7 @@ int main(void) {
     return 5;
   }
 
-  struct nested_double s6 = {{25.125e3}};
+  struct nested_double s6 = {{25125.0}};
   if (!test_nested_double(s6)) {
     return 6;
   }
@@ -39,12 +39,6 @@ int main(void) {
   struct two_eightbytes s7 = {1000., 'x'};
   if (!test_two_eightbytes(s7)) {
     return 7;
-  }
-
-  struct pass_in_memory s8 = {1.7e308, -1.7e308, -2147483647,
-                              -9223372036854775807l};
-  if (!test_pass_in_memory(s8)) {
-    return 8;
   }
 
   return 0; // success

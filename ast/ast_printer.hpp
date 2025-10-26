@@ -25,6 +25,8 @@ public:
   void visit(FunDeclNode &node) override;
   void visit(InitializerNode &node) override;
   void visit(VarDeclNode &node) override;
+  void visit(StructDeclarationNode &node) override;
+  void visit(MemberDeclarationNode &node) override;
   void visit(FunctionCallNode &node) override;
   void visit(Ident &node) override;
   void visit(DeclaratorNode &node) override;
@@ -60,6 +62,8 @@ public:
   void visit(StringLiteralExpression &node) override;
   void visit(SizeofExpression &node) override;
   void visit(SizeofTypeExpression &node) override;
+  void visit(DotExpression &node) override;
+  void visit(ArrowExpression &node) override;
 
   // loop
   void visit(ForInit &node) override;

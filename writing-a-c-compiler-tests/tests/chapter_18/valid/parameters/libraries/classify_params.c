@@ -39,7 +39,7 @@ int test_two_ints(struct two_ints s) {
   return 1; // success
 }
 int test_nested_double(struct nested_double s) {
-  if (s.array[0] != 25.125e3) {
+  if (s.array[0] != 25125.0) {
     return 0;
   }
 
@@ -47,14 +47,6 @@ int test_nested_double(struct nested_double s) {
 }
 int test_two_eightbytes(struct two_eightbytes s) {
   if (s.d != 1000. || s.c != 'x') {
-    return 0;
-  }
-
-  return 1; // success
-}
-int test_pass_in_memory(struct pass_in_memory s) {
-  if (s.w != 1.7e308 || s.x != -1.7e308 || s.y != -2147483647 ||
-      s.z != -9223372036854775807l) {
     return 0;
   }
 

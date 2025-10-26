@@ -66,6 +66,9 @@ private:
   ASTNodePtr parsePostfixExp();
   ASTNodePtr parsePrimaryExp();
   ASTNodePtr parseDeclaration();
+  ASTNodePtr parseStructDeclaration();
+  ASTNodePtr parseMemberDeclaration();
+  ASTNodePtr parseTypeSpecifier();
   ASTNodePtr parseDeclarator();
   ASTNodePtr parseAbstractDeclarator();
   ASTNodePtr parseDirectDeclarator();
