@@ -73,7 +73,9 @@ class IRValueNode {
 public:
   IRValueType type;
   TypeKind constType;
-  std::variant<int, long int, long unsigned int, unsigned int, double, char, unsigned char> value;
+  std::variant<int, long int, long unsigned int, unsigned int, double, char,
+               unsigned char>
+      value;
   std::string name;
   std::vector<IRValuePtr> args;
   // Constructors
@@ -87,9 +89,10 @@ public:
 
   IRValueNode() = default;
 
-  static IRValuePtr makeConstant(
-      std::variant<int, long int, long unsigned int, unsigned int, double, char, unsigned char>
-          value) {
+  static IRValuePtr
+  makeConstant(std::variant<int, long int, long unsigned int, unsigned int,
+                            double, char, unsigned char>
+                   value) {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
     val->value = value;

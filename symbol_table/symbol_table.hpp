@@ -35,8 +35,9 @@ public:
                    Type type, std::vector<Type> param_types = {})
       : name(name), symbolType(symbolType), initType(initType), type(type),
         param_types(param_types) {}
-  void setValue(const std::variant<int, long int, long unsigned int,
-                                   unsigned int, double, char, unsigned char> &val) {
+  void
+  setValue(const std::variant<int, long int, long unsigned int, unsigned int,
+                              double, char, unsigned char> &val) {
     std::visit(
         [this](auto &&extracted_val) {
           switch (type.kind) {
