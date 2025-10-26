@@ -22,6 +22,22 @@ using IRStaticVariablePtr = std::shared_ptr<IRStaticVariableNode>;
 using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
 
+// Expression result types (for handling lvalue conversion)
+enum class ExpResultType { PLAIN_OPERAND, DEREFERENCED_POINTER };
+
+struct ExpResult {
+  ExpResultType type;
+  IRValuePtr value;
+
+  static ExpResult makePlainOperand(IRValuePtr val) {
+    return {ExpResultType::PLAIN_OPERAND, std::move(val)};
+  }
+
+  static ExpResult makeDereferencedPointer(IRValuePtr ptr) {
+    return {ExpResultType::DEREFERENCED_POINTER, std::move(ptr)};
+  }
+};
+
 // IR Value types
 enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
 
@@ -39,6 +55,10 @@ enum class IROpType {
   DOUBLE_TO_ULONG,
   LONG_TO_DOUBLE,
   ULONG_TO_DOUBLE,
+  // Pointer operations
+  GET_ADDRESS,
+  LOAD,
+  STORE,
   // Binary operations
   ADD,
   SUBTRACT,
@@ -252,6 +272,30 @@ public:
     return inst;
   }
 
+  static IRInstructionPtr makeGetAddress(IRValuePtr src, IRValuePtr dst) {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::GET_ADDRESS;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeLoad(IRValuePtr src_ptr, IRValuePtr dst) {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::LOAD;
+    inst->src1 = std::move(src_ptr);
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeStore(IRValuePtr src, IRValuePtr dst_ptr) {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::STORE;
+    inst->src1 = std::move(src);
+    inst->dst = std::move(dst_ptr);
+    return inst;
+  }
+
   static IRInstructionPtr makeReturn(IRValuePtr value) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::RETURN;
@@ -444,6 +488,9 @@ private:
   IRProgramPtr program;
   std::shared_ptr<IRFunctionNode> currentFunction;
   std::shared_ptr<IRValueNode> currentValue; // For expression results
+  ExpResult currentExpResult; // For tracking expression results (plain vs
+                              // dereferenced)
+  bool needsLvalueConversion; // Flag to control lvalue conversion
 
   int tempCounter;
   int labelCounter;
@@ -466,6 +513,10 @@ private:
 
   // Helper function to create temporary variables with type tracking
   IRValuePtr makeTackyVariable(Type varType);
+
+  // Helper functions for lvalue conversion
+  IRValuePtr convertExpResult(const ExpResult &result, const Type &exprType);
+  void emitLvalueConversion();
 };
 
 class Valor {
