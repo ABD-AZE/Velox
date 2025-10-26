@@ -396,6 +396,40 @@ void ASTPrinter::visit(SizeofTypeExpression &node) {
   print_close(indent_);
 }
 
+void ASTPrinter::visit(DotExpression &node) {
+  print_open("DotExpression", indent_);
+  increaseIndent();
+
+  print_label("structExpr", indent_);
+  if (node.structExpr) {
+    increaseIndent();
+    node.structExpr->accept(*this);
+    decreaseIndent();
+  }
+
+  print_string_kv("memberName", node.memberName, indent_);
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(ArrowExpression &node) {
+  print_open("ArrowExpression", indent_);
+  increaseIndent();
+
+  print_label("pointerExpr", indent_);
+  if (node.pointerExpr) {
+    increaseIndent();
+    node.pointerExpr->accept(*this);
+    decreaseIndent();
+  }
+
+  print_string_kv("memberName", node.memberName, indent_);
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
 void ASTPrinter::visit(BlockItemNode &node) {
   print_open("BlockItem", indent_);
   if (node.block_item) {
@@ -682,6 +716,44 @@ void ASTPrinter::visit(VarDeclNode &node) {
     node.init.value()->accept(*this);
     decreaseIndent();
   }
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(StructDeclarationNode &node) {
+  print_open("StructDeclaration", indent_);
+  increaseIndent();
+
+  print_string_kv("name", node.name, indent_);
+
+  print_label("members", indent_);
+  indent_spaces(indent_);
+  std::cout << "[" << std::endl;
+  if (!node.members.empty()) {
+    increaseIndent();
+    for (const auto &member : node.members) {
+      member->accept(*this);
+    }
+    decreaseIndent();
+  }
+  indent_spaces(indent_);
+  std::cout << "]" << std::endl;
+
+  decreaseIndent();
+  print_close(indent_);
+}
+
+void ASTPrinter::visit(MemberDeclarationNode &node) {
+  print_open("MemberDeclaration", indent_);
+  increaseIndent();
+
+  print_string_kv("name", node.name, indent_);
+
+  print_label("type", indent_);
+  increaseIndent();
+  node.type->accept(*this);
+  decreaseIndent();
 
   decreaseIndent();
   print_close(indent_);

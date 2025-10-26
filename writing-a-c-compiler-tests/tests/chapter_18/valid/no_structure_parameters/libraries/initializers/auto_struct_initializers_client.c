@@ -12,7 +12,7 @@
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #endif
 
-double get_double(void) { return 2e12; }
+double get_double(void) { return 2000000000000.0; }
 
 // case 1: fully initialized struct
 int test_full_initialization(void) {

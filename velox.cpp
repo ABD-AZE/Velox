@@ -6,7 +6,7 @@
 
 int main(int argc, char *argv[]) {
   bool lexflag = 0;
-  bool parseflag = 0;
+  bool parseflag = 1;
   bool irflag = 0;
   bool validateflag = 0;
   // if (argc < 2) {

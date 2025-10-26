@@ -339,7 +339,7 @@ int test_array_of_struct_pointers(void) {
 
   ptr_array[1]->in_array[2].a = 1000.5;
 
-  ptr_array[1]->in.a = 7e6;
+  ptr_array[1]->in.a = 7000000.0;
 
   // then element #0
   ptr_array[0]->in_ptr = calloc(1, sizeof(struct inner));
@@ -367,7 +367,7 @@ int test_array_of_struct_pointers(void) {
   }
 
   // then read members in element #1
-  if (ptr_array[1]->in.a != 7e6) {
+  if (ptr_array[1]->in.a != 7000000.0) {
     return 0;
   }
 

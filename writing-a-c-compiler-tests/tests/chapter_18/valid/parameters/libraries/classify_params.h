@@ -75,4 +75,3 @@ int test_large(struct large s);
 int test_two_ints(struct two_ints s);
 int test_nested_double(struct nested_double s);
 int test_two_eightbytes(struct two_eightbytes s);
-int test_pass_in_memory(struct pass_in_memory s);

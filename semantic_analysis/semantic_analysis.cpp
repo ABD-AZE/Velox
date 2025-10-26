@@ -498,6 +498,16 @@ void SemanticAnalyzer::visit(VarDeclNode &node)
   node.name = uniqueName;
 }
 
+void SemanticAnalyzer::visit(StructDeclarationNode &node)
+{
+
+}
+
+void SemanticAnalyzer::visit(MemberDeclarationNode &node)
+{
+
+}
+
 void SemanticAnalyzer::visit(BlockNode &node)
 {
   auto temp_isFunctionBlock = isFunctionBlock;
@@ -1291,5 +1301,13 @@ void SemanticAnalyzer::visit(SizeofExpression &node) {
 }
 
 void SemanticAnalyzer::visit(SizeofTypeExpression &node) {
+  
+}
+
+void SemanticAnalyzer::visit(DotExpression &node) {
+  
+}
+
+void SemanticAnalyzer::visit(ArrowExpression &node) {
   
 }
