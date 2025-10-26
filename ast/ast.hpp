@@ -337,14 +337,14 @@ public:
   static Type Double() { return Type{TypeKind::DOUBLE, std::monostate{}}; }
   static Type Void() { return Type{TypeKind::VOID, std::monostate{}}; }
   static Type Function(std::vector<Type> params, Type ret) {
-    FunType ftype{std::move(params), std::make_unique<Type>(std::move(ret))};
+    FunType ftype{std::move(params), std::make_shared<Type>(std::move(ret))};
     return Type{TypeKind::FUNC, std::move(ftype)};
   }
-  static Type Pointer(std::unique_ptr<Type> base) {
+  static Type Pointer(std::shared_ptr<Type> base) {
     PointerType ptype{std::move(base)};
     return Type{TypeKind::POINTER, std::move(ptype)};
   }
-  static Type Array(std::unique_ptr<Type> element, int size) {
+  static Type Array(std::shared_ptr<Type> element, int size) {
     ArrayType atype{std::move(element), size};
     return Type{TypeKind::ARRAY, std::move(atype)};
   }
@@ -374,6 +374,7 @@ public:
       auto &this_ptr = std::get<PointerType>(this->data);
       auto &other_ptr = std::get<PointerType>(other.data);
       return *(this_ptr.base) == *(other_ptr.base);
+<<<<<<< HEAD
     } else if (this->kind == TypeKind::ARRAY) {
       auto &this_arr = std::get<ArrayType>(this->data);
       auto &other_arr = std::get<ArrayType>(other.data);
@@ -383,6 +384,12 @@ public:
       auto &this_str = std::get<StructType>(this->data);
       auto &other_str = std::get<StructType>(other.data);
       return this_str.name == other_str.name;
+=======
+    } else if(this->kind == TypeKind::ARRAY){
+      auto &this_array = std::get<ArrayType>(this->data);
+      auto &other_array = std::get<ArrayType>(other.data);
+      return this_array.size == other_array.size && *(this_array.element) == *(other_array.element);
+>>>>>>> 017ef30 (pointer type checking)
     }
     return true;
   }
