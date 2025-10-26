@@ -8,7 +8,8 @@
 
 extern std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
 // Semantic Analyzer using visitor pattern
-class SemanticAnalyzer : public ASTVisitor {
+class SemanticAnalyzer : public ASTVisitor
+{
 public:
   SemanticAnalyzer();
 
@@ -88,14 +89,18 @@ private:
   // Helper methods
   void pushScope();
   void popScope();
+  PointerType getCommonPointerType(ExpressionNode *first,
+                                   ExpressionNode *second);
+  void validateCast(CastExpression &node);
   // Helper function for generating unique variable names
   std::string make_temp(const std::string &var_name);
   // Helper function for generating unique labels
   std::string make_label();
   // Helper function to check if expression is an lvalue
   bool isLvalue(ASTNode *expr);
+  ASTNodePtr convertByAssignment(ASTNodePtr exp, Type &targetType);
   // Helper function to make implicit type conversions explicit
-  ExpressionNodePtr convertTo(ExpressionNodePtr expr, Type &targetType);
+  ASTNodePtr convertTo(ASTNodePtr expr, Type &targetType);
   bool isFunctionBlock = false;
   bool inFunctionScope = false;
   bool inFileScope = true;
