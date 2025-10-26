@@ -8,8 +8,7 @@
 
 extern std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
 // Semantic Analyzer using visitor pattern
-class SemanticAnalyzer : public ASTVisitor
-{
+class SemanticAnalyzer : public ASTVisitor {
 public:
   SemanticAnalyzer();
 

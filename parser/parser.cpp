@@ -822,15 +822,16 @@ ASTNodePtr Parser::parseUnaryExp() {
     consume();
     {
       TokenType op = currentToken.GetType();
-      ASTNodePtr operand = parseUnaryExp();
+      ASTNodePtr operand = parseCastExp();
       if (op == TokenType::ASTERISK) {
-        unaryExpNode = std::make_unique<DereferenceExpression>(std::move(operand));
-      }
-      else if (op == TokenType::AAND) {
-        unaryExpNode = std::make_unique<AddressOfExpression>(std::move(operand));
-      }
-      else{
-        unaryExpNode = std::make_unique<UnaryExpression>(op, std::move(operand));
+        unaryExpNode =
+            std::make_unique<DereferenceExpression>(std::move(operand));
+      } else if (op == TokenType::AAND) {
+        unaryExpNode =
+            std::make_unique<AddressOfExpression>(std::move(operand));
+      } else {
+        unaryExpNode =
+            std::make_unique<UnaryExpression>(op, std::move(operand));
       }
     }
     break;

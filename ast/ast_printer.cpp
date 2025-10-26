@@ -789,7 +789,6 @@ void ASTPrinter::visit(Type &node) {
   print_open("Type", indent_);
   increaseIndent();
   print_kv("kind", TypeKindToString(node.kind), indent_);
-<<<<<<< HEAD
   std::visit(
       [&](auto &value) {
         using T = std::decay_t<decltype(value)>;
@@ -835,24 +834,6 @@ void ASTPrinter::visit(Type &node) {
         }
       },
       node.data);
-=======
-  // print other type properties
-  std::visit([&](auto &&value) {
-    using T = std::decay_t<decltype(value)>;
-    if constexpr (std::is_same_v<T, PointerType>) {
-      print_label("base", indent_);
-      increaseIndent();
-      value.base->accept(*this);
-      decreaseIndent();
-    } else if constexpr (std::is_same_v<T, ArrayType>) {
-      print_kv("size", value.size, indent_);
-      print_label("elementType", indent_);
-      increaseIndent();
-      value.element->accept(*this);
-      decreaseIndent();
-    }
-  }, node.data);
->>>>>>> 017ef30 (pointer type checking)
   decreaseIndent();
   print_close(indent_);
 }

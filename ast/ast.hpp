@@ -374,7 +374,6 @@ public:
       auto &this_ptr = std::get<PointerType>(this->data);
       auto &other_ptr = std::get<PointerType>(other.data);
       return *(this_ptr.base) == *(other_ptr.base);
-<<<<<<< HEAD
     } else if (this->kind == TypeKind::ARRAY) {
       auto &this_arr = std::get<ArrayType>(this->data);
       auto &other_arr = std::get<ArrayType>(other.data);
@@ -384,12 +383,6 @@ public:
       auto &this_str = std::get<StructType>(this->data);
       auto &other_str = std::get<StructType>(other.data);
       return this_str.name == other_str.name;
-=======
-    } else if(this->kind == TypeKind::ARRAY){
-      auto &this_array = std::get<ArrayType>(this->data);
-      auto &other_array = std::get<ArrayType>(other.data);
-      return this_array.size == other_array.size && *(this_array.element) == *(other_array.element);
->>>>>>> 017ef30 (pointer type checking)
     }
     return true;
   }
