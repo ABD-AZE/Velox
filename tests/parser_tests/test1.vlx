@@ -1,13 +1,5 @@
-
-int check_alignment(int *ptr) {
-int arr0[5] = {1,2,3};
-  unsigned long addr = (unsigned long)ptr;
-  return (addr % 16 == 0);
-}
-
 int main(void) {
-  int arr[3][4];
-  int i;
-  int j;
-  return arr[i][j];
+  // simple test of initializing and subscripting char array
+  unsigned char chars[4] = "abc";
+  return chars[2];
 }
