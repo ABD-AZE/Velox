@@ -650,9 +650,15 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
 
 void IRGenerator::visit(IfStatement &node) {
   if (node.condition) {
-    // Generate IR for condition
+    // Generate IR for condition with lvalue-to-rvalue conversion
     node.condition->accept(*this);
-    IRValuePtr conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    IRValuePtr conditionValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (condExpr && condExpr->type
+                   ? convertExpResult(currentExpResult, *condExpr->type)
+                   : currentValue);
 
     // Generate labels for branching
     std::string elseLabel = generateLabelName();
@@ -689,9 +695,15 @@ void IRGenerator::visit(IfStatement &node) {
 
 void IRGenerator::visit(PostfixExpression &node) {
   if (node.operand) {
-    // Generate IR for operand
+    // Generate IR for operand with lvalue-to-rvalue conversion
     node.operand->accept(*this);
-    IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
+    auto operandExpr = dynamic_cast<ExpressionNode *>(node.operand.get());
+    IRValuePtr operand =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (operandExpr && operandExpr->type
+                   ? convertExpResult(currentExpResult, *operandExpr->type)
+                   : currentValue);
 
     // Create temporary for result with proper type tracking
     IRValuePtr result = makeTackyVariable(*node.type);
@@ -728,9 +740,15 @@ void IRGenerator::visit(PostfixExpression &node) {
 }
 void IRGenerator::visit(ConditionalExpression &node) {
   if (node.condition) {
-    // Generate IR for condition
+    // Generate IR for condition with lvalue-to-rvalue conversion
     node.condition->accept(*this);
-    IRValuePtr conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    IRValuePtr conditionValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (condExpr && condExpr->type
+                   ? convertExpResult(currentExpResult, *condExpr->type)
+                   : currentValue);
 
     // Generate labels for branching
     std::string falseLabel = generateLabelName();
@@ -741,11 +759,17 @@ void IRGenerator::visit(ConditionalExpression &node) {
                                                       falseLabel);
     currentFunction->addInstruction(std::move(jumpInst));
 
-    // Generate IR for 'then' block
+    // Generate IR for 'then' block with lvalue-to-rvalue conversion
     if (node.trueExpr) {
       node.trueExpr->accept(*this);
     }
-    IRValuePtr trueExprValue = std::make_shared<IRValueNode>(*currentValue);
+    auto trueExprNode = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
+    IRValuePtr trueExprValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (trueExprNode && trueExprNode->type
+                   ? convertExpResult(currentExpResult, *trueExprNode->type)
+                   : currentValue);
     // Create a temporary variable to hold the result with proper type tracking
     IRValuePtr result = makeTackyVariable(*node.type);
     // Assign true expression value to result
@@ -761,12 +785,19 @@ void IRGenerator::visit(ConditionalExpression &node) {
     auto falseLabelInst = IRInstructionNode::makeLabel(falseLabel);
     currentFunction->addInstruction(std::move(falseLabelInst));
 
-    // Generate IR for 'false' block if it exists
+    // Generate IR for 'false' block if it exists with lvalue-to-rvalue
+    // conversion
     if (node.falseExpr) {
       (node.falseExpr)->accept(*this);
     }
 
-    IRValuePtr falseExprValue = std::make_shared<IRValueNode>(*currentValue);
+    auto falseExprNode = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
+    IRValuePtr falseExprValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (falseExprNode && falseExprNode->type
+                   ? convertExpResult(currentExpResult, *falseExprNode->type)
+                   : currentValue);
     // Assign false expression value to result
     auto copyFalseInst = IRInstructionNode::makeCopy(
         std::move(falseExprValue), std::make_shared<IRValueNode>(result));
@@ -941,9 +972,15 @@ void IRGenerator::visit(VariableExpression &node) {
 }
 
 void IRGenerator::visit(UnaryExpression &node) {
-  // Generate IR for operand
+  // Generate IR for operand with lvalue-to-rvalue conversion
   node.operand->accept(*this);
-  IRValuePtr operand = std::make_shared<IRValueNode>(*currentValue);
+  auto operandExpr = dynamic_cast<ExpressionNode *>(node.operand.get());
+  IRValuePtr operand =
+      currentExpResult.type == ExpResultType::PLAIN_OPERAND
+          ? currentValue
+          : (operandExpr && operandExpr->type
+                 ? convertExpResult(currentExpResult, *operandExpr->type)
+                 : currentValue);
 
   // Create temporary for result with proper type tracking
   IRValuePtr result = makeTackyVariable(*node.type);
@@ -995,17 +1032,29 @@ void IRGenerator::visit(BinaryExpression &node) {
     // Logical operators always produce int type (0 or 1)
     IRValuePtr result = makeTackyVariable(Type::Int());
 
-    // Generate IR for left operand
+    // Generate IR for left operand with lvalue-to-rvalue conversion
     node.left->accept(*this);
-    IRValuePtr leftValue = std::make_shared<IRValueNode>(*currentValue);
+    auto leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
+    IRValuePtr leftValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (leftExpr && leftExpr->type
+                   ? convertExpResult(currentExpResult, *leftExpr->type)
+                   : currentValue);
 
     // Jump to false_label if left operand is zero
     auto jumpIfZero1 = IRInstructionNode::makeJumpIfZero(leftValue, falseLabel);
     currentFunction->addInstruction(std::move(jumpIfZero1));
 
-    // Generate IR for right operand
+    // Generate IR for right operand with lvalue-to-rvalue conversion
     node.right->accept(*this);
-    IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
+    auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
+    IRValuePtr rightValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (rightExpr && rightExpr->type
+                   ? convertExpResult(currentExpResult, *rightExpr->type)
+                   : currentValue);
 
     // Jump to false_label if right operand is zero
     auto jumpIfZero2 =
@@ -1058,18 +1107,30 @@ void IRGenerator::visit(BinaryExpression &node) {
     // Logical operators always produce int type (0 or 1)
     IRValuePtr result = makeTackyVariable(Type::Int());
 
-    // Generate IR for left operand
+    // Generate IR for left operand with lvalue-to-rvalue conversion
     node.left->accept(*this);
-    IRValuePtr leftValue = std::make_shared<IRValueNode>(*currentValue);
+    auto leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
+    IRValuePtr leftValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (leftExpr && leftExpr->type
+                   ? convertExpResult(currentExpResult, *leftExpr->type)
+                   : currentValue);
 
     // Jump to true_label if left operand is non-zero
     auto jumpIfNotZero1 =
         IRInstructionNode::makeJumpIfNotZero(leftValue, trueLabel);
     currentFunction->addInstruction(std::move(jumpIfNotZero1));
 
-    // Generate IR for right operand
+    // Generate IR for right operand with lvalue-to-rvalue conversion
     node.right->accept(*this);
-    IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
+    auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
+    IRValuePtr rightValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (rightExpr && rightExpr->type
+                   ? convertExpResult(currentExpResult, *rightExpr->type)
+                   : currentValue);
 
     // Jump to true_label if right operand is non-zero
     auto jumpIfNotZero2 =
@@ -1103,13 +1164,25 @@ void IRGenerator::visit(BinaryExpression &node) {
   }
 
   // Handle regular binary operations (non-short-circuiting)
-  // Generate IR for left operand
+  // Generate IR for left operand with lvalue-to-rvalue conversion
   node.left->accept(*this);
-  IRValuePtr leftValue = std::make_shared<IRValueNode>(*currentValue);
+  auto leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
+  IRValuePtr leftValue =
+      currentExpResult.type == ExpResultType::PLAIN_OPERAND
+          ? currentValue
+          : (leftExpr && leftExpr->type
+                 ? convertExpResult(currentExpResult, *leftExpr->type)
+                 : currentValue);
 
-  // Generate IR for right operand
+  // Generate IR for right operand with lvalue-to-rvalue conversion
   node.right->accept(*this);
-  IRValuePtr rightValue = std::make_shared<IRValueNode>(*currentValue);
+  auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
+  IRValuePtr rightValue =
+      currentExpResult.type == ExpResultType::PLAIN_OPERAND
+          ? currentValue
+          : (rightExpr && rightExpr->type
+                 ? convertExpResult(currentExpResult, *rightExpr->type)
+                 : currentValue);
 
   // Create temporary for result with proper type tracking
   IRValuePtr result = makeTackyVariable(*node.type);
@@ -1192,7 +1265,13 @@ void IRGenerator::visit(DoWhileNode &node) {
   IRValuePtr conditionValue;
   if (node.condition) {
     node.condition->accept(*this);
-    conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    conditionValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (condExpr && condExpr->type
+                   ? convertExpResult(currentExpResult, *condExpr->type)
+                   : currentValue);
     // Create jump instruction based on condition
   }
   auto jumpInst = IRInstructionNode::makeJumpIfNotZero(
@@ -1214,7 +1293,13 @@ void IRGenerator::visit(WhileNode &node) {
   // always true for while and do while
   if (node.condition) {
     node.condition->accept(*this);
-    conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    conditionValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (condExpr && condExpr->type
+                   ? convertExpResult(currentExpResult, *condExpr->type)
+                   : currentValue);
   }
   IRInstructionPtr jumpInstr;
   jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue, breakLabel);
@@ -1248,7 +1333,13 @@ void IRGenerator::visit(ForNode &node) {
   // if condition is not present then no need for an additional jump instruction
   if (node.condition) {
     (*node.condition)->accept(*this);
-    conditionValue = std::make_shared<IRValueNode>(*currentValue);
+    auto condExpr = dynamic_cast<ExpressionNode *>((*node.condition).get());
+    conditionValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (condExpr && condExpr->type
+                   ? convertExpResult(currentExpResult, *condExpr->type)
+                   : currentValue);
     jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue, breakLabel);
     currentFunction->addInstruction(std::move(jumpInstr));
   }
