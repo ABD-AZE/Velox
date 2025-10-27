@@ -390,25 +390,36 @@ public:
   bool operator!=(Type &other) { return !(*this == other); }
 
   static Type getCommonType(Type &first, Type &second) {
-    if (first.kind == TypeKind::DOUBLE || second.kind == TypeKind::DOUBLE) {
-      return first.kind == TypeKind::DOUBLE ? first : second;
+    // Apply integer promotions (char types promoted to int)
+    Type type1 = first;
+    Type type2 = second;
+
+    if (type1.kind == TypeKind::CHAR || type1.kind == TypeKind::UCHAR) {
+      type1 = Type::Int();
+    }
+    if (type2.kind == TypeKind::CHAR || type2.kind == TypeKind::UCHAR) {
+      type2 = Type::Int();
     }
 
-    if (first.kind == second.kind) {
-      return first;
+    // Now perform usual arithmetic conversions on promoted types
+    if (type1.kind == TypeKind::DOUBLE || type2.kind == TypeKind::DOUBLE) {
+      return type1.kind == TypeKind::DOUBLE ? type1 : type2;
     }
-    if (size(first.kind) == size(second.kind)) {
-      if (first.kind == TypeKind::INT || first.kind == TypeKind::LONG ||
-          first.kind == TypeKind::CHAR || first.kind == TypeKind::SCHAR) {
-        return second;
+
+    if (type1.kind == type2.kind) {
+      return type1;
+    }
+    if (size(type1.kind) == size(type2.kind)) {
+      if (type1.kind == TypeKind::INT || type1.kind == TypeKind::LONG) {
+        return type2;
       } else {
-        return first;
+        return type1;
       }
     }
-    if (size(first.kind) > size(second.kind)) {
-      return first;
+    if (size(type1.kind) > size(type2.kind)) {
+      return type1;
     } else {
-      return second;
+      return type2;
     }
     return Type::Int();
   }
@@ -1092,14 +1103,15 @@ class InitializerNode : public ASTNode {
 public:
   InitializerKind kind;
   std::variant<SingleInit, CompoundInit> data;
+  std::shared_ptr<Type> type; // Type annotation for string literals
 
   InitializerNode(ASTNodePtr expr)
       : kind(InitializerKind::SINGLE_INIT),
-        data(std::move(SingleInit{std::move(expr)})) {}
+        data(std::move(SingleInit{std::move(expr)})), type(nullptr) {}
 
   InitializerNode(std::vector<InitializerNode> inits)
       : kind(InitializerKind::COMPOUND_INIT),
-        data(std::move(CompoundInit{std::move(inits)})) {}
+        data(std::move(CompoundInit{std::move(inits)})), type(nullptr) {}
 
   ~InitializerNode() override = default;
 
