@@ -359,6 +359,39 @@ void IRGenerator::convertSymbolTableToIR() {
   }
 }
 
+// Helper function to recursively pad an array (or nested arrays) with zeros
+void IRGenerator::padArrayWithZeros(const std::string &varName,
+                                    const Type &arrayType, int baseOffset) {
+  if (arrayType.kind != TypeKind::ARRAY) {
+    // Not an array - shouldn't happen, but handle gracefully
+    IRValuePtr zeroValue = IRValueNode::makeConstant(0);
+    auto copyInst = IRInstructionNode::makeCopyToOffset(std::move(zeroValue),
+                                                        varName, baseOffset);
+    currentFunction->addInstruction(std::move(copyInst));
+    return;
+  }
+
+  const auto &arrayData = std::get<ArrayType>(arrayType.data);
+  Type elemType = *arrayData.element;
+  int elemSize = getTypeSize(elemType);
+  int arraySize = arrayData.size;
+
+  int currentOffset = baseOffset;
+  for (int i = 0; i < arraySize; i++) {
+    if (elemType.kind == TypeKind::ARRAY) {
+      // Recursively pad nested array
+      padArrayWithZeros(varName, elemType, currentOffset);
+    } else {
+      // Scalar element - write zero
+      IRValuePtr zeroValue = IRValueNode::makeConstant(0);
+      auto copyInst = IRInstructionNode::makeCopyToOffset(
+          std::move(zeroValue), varName, currentOffset);
+      currentFunction->addInstruction(std::move(copyInst));
+    }
+    currentOffset += elemSize;
+  }
+}
+
 // Helper function to process compound initializers recursively
 void IRGenerator::processCompoundInitializer(InitializerNode *init,
                                              const std::string &varName,
@@ -371,6 +404,48 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
     // Single initializer - evaluate expression and copy to offset
     auto &singleInit = std::get<SingleInit>(init->data);
     if (singleInit.expression) {
+      // Check if this is a string literal initializing a char array
+      auto stringLiteral =
+          dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
+      if (stringLiteral && varType.kind == TypeKind::ARRAY) {
+        // Initialize array with string literal byte-by-byte
+        const auto &arrayType = std::get<ArrayType>(varType.data);
+        int arraySize = arrayType.size;
+        const std::string &str = stringLiteral->value;
+
+        // Copy each character from the string
+        int currentOffset = baseOffset;
+        for (size_t i = 0;
+             i < str.length() && i < static_cast<size_t>(arraySize); ++i) {
+          IRValuePtr charValue = IRValueNode::makeConstant(
+              static_cast<int>(static_cast<unsigned char>(str[i])));
+          auto copyInst = IRInstructionNode::makeCopyToOffset(
+              std::move(charValue), varName, currentOffset);
+          currentFunction->addInstruction(std::move(copyInst));
+          currentOffset += 1;
+        }
+
+        // Add null terminator if there's room
+        if (str.length() < static_cast<size_t>(arraySize)) {
+          IRValuePtr nullValue = IRValueNode::makeConstant(0);
+          auto copyInst = IRInstructionNode::makeCopyToOffset(
+              std::move(nullValue), varName, currentOffset);
+          currentFunction->addInstruction(std::move(copyInst));
+          currentOffset += 1;
+
+          // Pad remaining bytes with zeros
+          while (currentOffset < baseOffset + arraySize) {
+            IRValuePtr zeroValue = IRValueNode::makeConstant(0);
+            auto padInst = IRInstructionNode::makeCopyToOffset(
+                std::move(zeroValue), varName, currentOffset);
+            currentFunction->addInstruction(std::move(padInst));
+            currentOffset += 1;
+          }
+        }
+        return;
+      }
+
+      // Not a string literal - process normally
       singleInit.expression->accept(*this);
 
       // Get the expression node to access its type
@@ -390,14 +465,10 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
     // Compound initializer - process each element recursively
     auto &compoundInit = std::get<CompoundInit>(init->data);
 
-    // Determine element type and size based on varType
-    Type elemType;
-    int elemSize;
-
     if (varType.kind == TypeKind::ARRAY) {
       const auto &arrayType = std::get<ArrayType>(varType.data);
-      elemType = *arrayType.element;
-      elemSize = getTypeSize(elemType);
+      Type elemType = *arrayType.element;
+      int elemSize = getTypeSize(elemType);
       int arraySize = arrayType.size;
 
       // Process each initializer element
@@ -411,14 +482,39 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
 
       // Pad remaining elements with zeros (C standard requires this)
       for (int i = elementsProvided; i < arraySize; i++) {
-        // Generate CopyToOffset with zero constant
-        IRValuePtr zeroValue = IRValueNode::makeConstant(0);
-        auto copyInst = IRInstructionNode::makeCopyToOffset(
-            std::move(zeroValue), varName, currentOffset);
-        currentFunction->addInstruction(std::move(copyInst));
+        // For multidimensional arrays or structs, we need to zero-pad the
+        // entire element For scalar types, just write a single zero
+        if (elemType.kind == TypeKind::ARRAY) {
+          // Recursively zero-pad nested array
+          padArrayWithZeros(varName, elemType, currentOffset);
+        } else {
+          // Generate CopyToOffset with zero constant for scalar
+          IRValuePtr zeroValue = IRValueNode::makeConstant(0);
+          auto copyInst = IRInstructionNode::makeCopyToOffset(
+              std::move(zeroValue), varName, currentOffset);
+          currentFunction->addInstruction(std::move(copyInst));
+        }
         currentOffset += elemSize;
       }
     }
+  }
+}
+
+// Helper function to create zero-initialized StaticInit for an array type
+StaticInit IRGenerator::createZeroStaticInit(const Type &type) {
+  if (type.kind == TypeKind::ARRAY) {
+    const auto &arrayData = std::get<ArrayType>(type.data);
+    Type elemType = *arrayData.element;
+    int arraySize = arrayData.size;
+
+    std::vector<StaticInit> zeroInits;
+    for (int i = 0; i < arraySize; i++) {
+      zeroInits.push_back(createZeroStaticInit(elemType));
+    }
+    return StaticInit::makeCompound(std::move(zeroInits));
+  } else {
+    // Scalar type - return a zero constant
+    return StaticInit::makeInitial(0);
   }
 }
 
@@ -434,6 +530,60 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
     // Single initializer - extract constant value
     auto &singleInit = std::get<SingleInit>(init->data);
     if (singleInit.expression) {
+      // Check if this is a string literal (possibly wrapped in AddressOf)
+      StringLiteralExpression *stringLiteral = nullptr;
+
+      // Try direct string literal
+      stringLiteral =
+          dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
+
+      // If not direct, check if it's wrapped in AddressOf
+      if (!stringLiteral) {
+        auto addressOf =
+            dynamic_cast<AddressOfExpression *>(singleInit.expression.get());
+        if (addressOf && addressOf->variableExpr) {
+          stringLiteral = dynamic_cast<StringLiteralExpression *>(
+              addressOf->variableExpr.get());
+        }
+      }
+
+      // Handle string literal initialization for char arrays
+      if (stringLiteral && arrayType && arrayType->kind == TypeKind::ARRAY) {
+        const auto &arrayData = std::get<ArrayType>(arrayType->data);
+        Type elemType = *arrayData.element;
+
+        // Only handle char arrays
+        if (elemType.kind == TypeKind::CHAR ||
+            elemType.kind == TypeKind::UCHAR) {
+          int arraySize = arrayData.size;
+          const std::string &str = stringLiteral->value;
+          std::vector<StaticInit> charInits;
+
+          // Add each character from the string
+          size_t i = 0;
+          for (; i < str.length() && i < static_cast<size_t>(arraySize); ++i) {
+            charInits.push_back(StaticInit::makeInitial(
+                static_cast<int>(static_cast<unsigned char>(str[i]))));
+          }
+
+          // Add null terminator if there's room and string is shorter
+          if (i < static_cast<size_t>(arraySize) &&
+              str.length() < static_cast<size_t>(arraySize)) {
+            charInits.push_back(StaticInit::makeInitial(0));
+            i++;
+          }
+
+          // Pad remaining elements with zeros
+          while (i < static_cast<size_t>(arraySize)) {
+            charInits.push_back(StaticInit::makeInitial(0));
+            i++;
+          }
+
+          return StaticInit::makeCompound(std::move(charInits));
+        }
+      }
+
+      // Try constant expression
       auto constExpr =
           dynamic_cast<ConstantExpression *>(singleInit.expression.get());
       if (constExpr) {
@@ -480,12 +630,14 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
     if (arrayType && arrayType->kind == TypeKind::ARRAY) {
       int providedCount = staticInits.size();
       if (providedCount < expectedCount) {
-        // Calculate size of each element for zero-init
-        int elementSize = elementType ? getTypeSize(*elementType) : 4;
-
         // Add zero initializers for remaining elements
+        // For multidimensional arrays, we need to recursively create zero-inits
         for (int i = providedCount; i < expectedCount; i++) {
-          staticInits.push_back(StaticInit::makeInitial(0));
+          if (elementType) {
+            staticInits.push_back(createZeroStaticInit(*elementType));
+          } else {
+            staticInits.push_back(StaticInit::makeInitial(0));
+          }
         }
       }
     }
@@ -660,11 +812,31 @@ void IRGenerator::visit(VarDeclNode &node) {
   if (node.init) {
     InitializerNode *initNode =
         dynamic_cast<InitializerNode *>(node.init->get());
-    // Check if this is an array with compound initializer
-    if (initNode && node.type.kind == TypeKind::ARRAY &&
-        initNode->kind == InitializerKind::COMPOUND_INIT) {
-      // Process compound initializer with CopyToOffset instructions
-      processCompoundInitializer(initNode, node.name, node.type, 0);
+    // Check if this is an array with initializer
+    if (initNode && node.type.kind == TypeKind::ARRAY) {
+      if (initNode->kind == InitializerKind::COMPOUND_INIT) {
+        // Process compound initializer with CopyToOffset instructions
+        processCompoundInitializer(initNode, node.name, node.type, 0);
+      } else if (initNode->kind == InitializerKind::SINGLE_INIT) {
+        // Check if this is a string literal initializing an array
+        auto &singleInit = std::get<SingleInit>(initNode->data);
+        auto stringLiteral = dynamic_cast<StringLiteralExpression *>(
+            singleInit.expression.get());
+        if (stringLiteral) {
+          // Process string literal as array initializer
+          processCompoundInitializer(initNode, node.name, node.type, 0);
+        } else {
+          // Single non-string initializer for array - shouldn't happen normally
+          (*node.init)->accept(*this);
+          IRValuePtr initValue =
+              currentExpResult.type == ExpResultType::PLAIN_OPERAND
+                  ? currentValue
+                  : convertExpResult(currentExpResult, node.type);
+          auto copyInst =
+              IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
+          currentFunction->addInstruction(std::move(copyInst));
+        }
+      }
     } else {
       // Scalar or single initializer
       (*node.init)->accept(*this);
@@ -1402,8 +1574,43 @@ void IRGenerator::visit(AddressOfExpression &node) {
     }
   }
 }
-void IRGenerator::visit(
-    StringLiteralExpression &node) { /*TODO: Implement string literal*/ }
+void IRGenerator::visit(StringLiteralExpression &node) {
+  // Generate a unique identifier for this string literal
+  std::string stringName = generateStringName();
+
+  // Calculate the size including null terminator
+  int arraySize = node.value.length() + 1;
+
+  // Create the type for the string (array of char)
+  Type stringType =
+      Type::Array(std::make_shared<Type>(Type::Char()), arraySize);
+
+  // Add the string to the global symbol table as a constant
+  SymbolTableEntry entry;
+  entry.name = stringName;
+  entry.type = stringType;
+  entry.symbolType = SymbolType::VARIABLE;
+  entry.storageClass = StorageClass::STATIC;
+  entry.linkage = LinkageType::INTERNAL;
+  entry.initType = InitType::INITIALIZED;
+
+  // Store the string value for later use in convertSymbolTableToIR
+  // We'll create a special initializer to mark this as a string constant
+  // For now, just add it to the symbol table
+  global_symbol_table[stringName] = entry;
+
+  // Generate GetAddress instruction to load the string's address
+  IRValuePtr stringVar = IRValueNode::makeVariable(stringName);
+  IRValuePtr dst = createTemporary();
+
+  auto getAddrInst =
+      IRInstructionNode::makeGetAddress(std::move(stringVar), dst);
+  currentFunction->addInstruction(std::move(getAddrInst));
+
+  // Set the current value to the address we just loaded
+  currentValue = dst;
+  currentExpResult = ExpResult::makePlainOperand(dst);
+}
 void IRGenerator::visit(SizeofExpression &node) { /* TODO: Implement sizeof */ }
 void IRGenerator::visit(
     SizeofTypeExpression &node) { /* TODO: Implement sizeof type */ }

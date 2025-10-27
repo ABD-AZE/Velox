@@ -493,7 +493,8 @@ public:
 // IR Generator using visitor pattern
 class IRGenerator : public ASTVisitor {
 public:
-  IRGenerator(int labelCounter) : tempCounter(), labelCounter(labelCounter) {}
+  IRGenerator(int labelCounter)
+      : tempCounter(), labelCounter(labelCounter), stringCounter(0) {}
 
   IRProgramPtr generateIR(const ASTNodePtr &ast);
 
@@ -567,10 +568,15 @@ private:
 
   int tempCounter;
   int labelCounter;
+  int stringCounter;
 
   // Helper methods
   std::string generateTempName() {
     return "tmp." + std::to_string(tempCounter++);
+  }
+
+  std::string generateStringName() {
+    return "string." + std::to_string(stringCounter++);
   }
 
   std::string generateLabelName() {
@@ -598,6 +604,13 @@ private:
   void processCompoundInitializer(InitializerNode *init,
                                   const std::string &varName,
                                   const Type &varType, int baseOffset);
+
+  // Helper function to recursively pad arrays with zeros
+  void padArrayWithZeros(const std::string &varName, const Type &arrayType,
+                         int baseOffset);
+
+  // Helper function to create zero-initialized StaticInit for array types
+  StaticInit createZeroStaticInit(const Type &type);
 
   // Helper function to convert InitializerNode to StaticInit
   StaticInit convertToStaticInit(InitializerNode *init,
