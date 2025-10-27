@@ -118,6 +118,11 @@ bool SemanticAnalyzer::isLvalue(ASTNode *expr) {
     return true;
   }
 
+  // Array subscripts are lvalues: arr[i]
+  if (dynamic_cast<SubscriptExpression *>(expr)) {
+    return true;
+  }
+
   // All other expressions are not lvalues
   return false;
 }
@@ -138,6 +143,133 @@ ASTNodePtr SemanticAnalyzer::convertTo(ASTNodePtr expr, Type &targetType) {
   castExpr->expression = std::move(expr);
   castExpr->type = std::make_shared<Type>(targetType);
   return castExpr;
+}
+
+// Helper function to perform array-to-pointer conversion (implicit decay)
+ASTNodePtr SemanticAnalyzer::typecheckAndConvert(ASTNodePtr expr) {
+  // First, type check the expression by visiting it
+  if (expr) {
+    expr->accept(*this);
+  }
+
+  auto exprNode = dynamic_cast<ExpressionNode *>(expr.get());
+  if (!exprNode || !exprNode->type) {
+    return expr;
+  }
+
+  // If the expression has array type, convert it to pointer type
+  if (exprNode->type->kind == TypeKind::ARRAY) {
+    auto arrayType = std::get<ArrayType>(exprNode->type->data);
+
+    // Create an AddressOf expression wrapping the array
+    auto addrOf = std::make_unique<AddressOfExpression>(std::move(expr));
+
+    // Set the type to pointer to element type
+    addrOf->type = std::make_shared<Type>(TypeKind::POINTER,
+                                          PointerType{arrayType.element});
+
+    return addrOf;
+  }
+
+  // If not an array, return the expression as-is
+  return expr;
+}
+
+// Helper function to check if an initializer contains only constant expressions
+bool SemanticAnalyzer::isConstantInitializer(InitializerNode *init) {
+  if (!init) {
+    return false;
+  }
+
+  if (init->kind == InitializerKind::SINGLE_INIT) {
+    auto &singleInit = std::get<SingleInit>(init->data);
+    // Check if the expression is a constant
+    return dynamic_cast<ConstantExpression *>(singleInit.expression.get()) !=
+           nullptr;
+  } else if (init->kind == InitializerKind::COMPOUND_INIT) {
+    auto &compoundInit = std::get<CompoundInit>(init->data);
+    // Recursively check all nested initializers
+    for (auto &nestedInit : compoundInit.initializers) {
+      if (!isConstantInitializer(&nestedInit)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
+// Helper function to validate initializer type compatibility with target type
+bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
+                                               Type &targetType) {
+  if (!init) {
+    return false;
+  }
+
+  if (init->kind == InitializerKind::SINGLE_INIT) {
+    auto &singleInit = std::get<SingleInit>(init->data);
+    if (!singleInit.expression) {
+      return false;
+    }
+
+    auto expr = dynamic_cast<ExpressionNode *>(singleInit.expression.get());
+    if (!expr || !expr->type) {
+      return false;
+    }
+
+    // Check if the expression type is compatible with target type
+    // Try conversion - if it succeeds, types are compatible
+    if (*expr->type == targetType) {
+      return true;
+    }
+
+    // Check for valid conversions
+    if (targetType.kind == TypeKind::POINTER) {
+      // Null pointer constant (0) can convert to any pointer type
+      if (is_null_pointer_constant(expr)) {
+        return true;
+      }
+      // Other types cannot convert to pointer
+      return false;
+    }
+
+    // For non-pointer types, check if arithmetic conversion is possible
+    if (expr->type->kind != TypeKind::POINTER &&
+        expr->type->kind != TypeKind::FUNC &&
+        expr->type->kind != TypeKind::ARRAY &&
+        targetType.kind != TypeKind::POINTER &&
+        targetType.kind != TypeKind::FUNC &&
+        targetType.kind != TypeKind::ARRAY) {
+      return true; // Arithmetic types can convert
+    }
+
+    return false;
+  } else if (init->kind == InitializerKind::COMPOUND_INIT) {
+    // For compound initializers, we need to check against array element type
+    if (targetType.kind != TypeKind::ARRAY) {
+      return false;
+    }
+
+    auto &compoundInit = std::get<CompoundInit>(init->data);
+    auto arrayType = std::get<ArrayType>(targetType.data);
+
+    // Check if there are too many initializers
+    if (compoundInit.initializers.size() >
+        static_cast<size_t>(arrayType.size)) {
+      return false;
+    }
+
+    // Recursively validate each element against the array element type
+    for (auto &nestedInit : compoundInit.initializers) {
+      if (!validateInitializerType(&nestedInit, *arrayType.element)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  return false;
 }
 
 // Constructor
@@ -184,6 +316,33 @@ void SemanticAnalyzer::visit(FunctionDefinitionNode &node) {
 }
 
 void SemanticAnalyzer::visit(FunDeclNode &node) {
+  // First, check if function returns an array type (which is invalid)
+  auto funType = std::get<FunType>(node.type.data);
+  if (funType.ret->kind == TypeKind::ARRAY) {
+    success = 0;
+    errors.push_back("A function cannot return an array!");
+    return;
+  }
+
+  // Adjust array parameters to pointer parameters
+  std::vector<Type> adjusted_params;
+  for (auto &param_type : node.param_types) {
+    if (param_type.kind == TypeKind::ARRAY) {
+      // Convert Array(elem_t, size) to Pointer(elem_t)
+      auto arrayType = std::get<ArrayType>(param_type.data);
+      Type pointerType(TypeKind::POINTER, PointerType(arrayType.element));
+      adjusted_params.push_back(pointerType);
+    } else {
+      adjusted_params.push_back(param_type);
+    }
+  }
+
+  // Update node.param_types with adjusted parameters
+  node.param_types = adjusted_params;
+
+  // Reconstruct the function type with adjusted parameters
+  node.type = Type(TypeKind::FUNC, FunType(adjusted_params, funType.ret));
+
   if (inFunctionScope) {
     if (node.body) {
       success = 0;
@@ -317,7 +476,25 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
                   std::get<SingleInit>(InitNode->data).expression.get())
             : nullptr;
 
-    if (initType == InitType::INITIALIZED && !constInit) {
+    // For array types, compound initializers are allowed
+    // For scalar types, only constant expressions are allowed
+    bool isValidInit = false;
+    if (initType == InitType::INITIALIZED) {
+      if (node.type.kind == TypeKind::ARRAY) {
+        // Arrays can have compound initializers, but all expressions must be
+        // constant and type-compatible
+        isValidInit = (InitNode != nullptr) &&
+                      isConstantInitializer(InitNode) &&
+                      validateInitializerType(InitNode, node.type);
+      } else {
+        // Scalar types must have constant single initializers
+        isValidInit = (constInit != nullptr);
+      }
+    } else {
+      isValidInit = true; // No initializer or extern
+    }
+
+    if (!isValidInit) {
       success = 0;
       errors.push_back("File scope variable '" + node.name +
                        "' must be initialized with a constant value");
@@ -369,9 +546,12 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name].linkage =
           global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
       if (initType == InitType::INITIALIZED) {
-        // update value if initialized
-        global_symbol_table[node.name].setValue(constInit->value);
-        if (global_symbol_table[node.name].type != *constInit->type) {
+        // update value if initialized (only for scalar constants)
+        if (constInit) {
+          global_symbol_table[node.name].setValue(constInit->value);
+        }
+        if (constInit &&
+            global_symbol_table[node.name].type != *constInit->type) {
           // extracting the expression from the initializer node and converting
           // it
           std::visit(
@@ -396,8 +576,12 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name].linkage =
           global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
       if (initType == InitType::INITIALIZED) {
-        global_symbol_table[node.name].setValue(constInit->value);
-        if (global_symbol_table[node.name].type != *constInit->type) {
+        // Only set value for scalar constants
+        if (constInit) {
+          global_symbol_table[node.name].setValue(constInit->value);
+        }
+        if (constInit &&
+            global_symbol_table[node.name].type != *constInit->type) {
           // extracting the expression from the initializer node and converting
           // it
           std::visit(
@@ -493,9 +677,24 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
               ? dynamic_cast<ConstantExpression *>(
                     std::get<SingleInit>(InitNode->data).expression.get())
               : nullptr;
-      if (initType == InitType::INITIALIZED && !constInit) {
+
+      // For array types, compound initializers are allowed
+      // For scalar types, only constant expressions are allowed
+      bool isValidStaticInit = false;
+      if (node.type.kind == TypeKind::ARRAY) {
+        // Arrays can have compound initializers, but all expressions must be
+        // constant and type-compatible
+        isValidStaticInit = (InitNode != nullptr) &&
+                            isConstantInitializer(InitNode) &&
+                            validateInitializerType(InitNode, node.type);
+      } else {
+        // Scalar types must have constant single initializers
+        isValidStaticInit = (constInit != nullptr);
+      }
+
+      if (!isValidStaticInit) {
         success = 0;
-        errors.push_back("File scope variable '" + node.name +
+        errors.push_back("Static variable '" + node.name +
                          "' must be initialized with a constant value");
         return;
       }
@@ -503,23 +702,28 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
           uniqueName, SymbolType::VARIABLE, InitType::INITIALIZED, node.type);
       global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
-      global_symbol_table[uniqueName].setValue(constInit->value);
-      if (global_symbol_table[node.name].type != *constInit->type) {
-        // extracting the expression from the initializer node and converting it
-        std::visit(
-            [&](auto &&value) {
-              using T = std::decay_t<decltype(value)>;
-              if constexpr (std::is_same_v<T, SingleInit>) {
-                auto expr = std::move(value.expression);
-                auto castExp = convertByAssignment(
-                    std::move(expr), global_symbol_table[node.name].type);
-                node.init =
-                    std::make_unique<InitializerNode>(std::move(castExp));
-              } else {
-                return;
-              }
-            },
-            InitNode->data);
+
+      // Only set value for scalar constants
+      if (constInit) {
+        global_symbol_table[uniqueName].setValue(constInit->value);
+        if (global_symbol_table[uniqueName].type != *constInit->type) {
+          // extracting the expression from the initializer node and converting
+          // it
+          std::visit(
+              [&](auto &&value) {
+                using T = std::decay_t<decltype(value)>;
+                if constexpr (std::is_same_v<T, SingleInit>) {
+                  auto expr = std::move(value.expression);
+                  auto castExp = convertByAssignment(
+                      std::move(expr), global_symbol_table[uniqueName].type);
+                  node.init =
+                      std::make_unique<InitializerNode>(std::move(castExp));
+                } else {
+                  return;
+                }
+              },
+              InitNode->data);
+        }
       }
       return;
     } else if (initType == InitType::UNINITIALIZED) {
@@ -545,6 +749,32 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
   }
   // Resolve initializer if present (after adding to map)
   if (node.init) {
+    // For arrays with compound initializers, validate type compatibility
+    auto InitNode =
+        node.init.has_value()
+            ? dynamic_cast<InitializerNode *>(node.init.value().get())
+            : nullptr;
+
+    // Check for invalid compound initializer on scalar type
+    if (InitNode && InitNode->kind == InitializerKind::COMPOUND_INIT &&
+        node.type.kind != TypeKind::ARRAY) {
+      success = 0;
+      errors.push_back("Scalar variable '" + node.name +
+                       "' cannot be initialized with compound initializer");
+      return;
+    }
+
+    if (InitNode && node.type.kind == TypeKind::ARRAY &&
+        InitNode->kind == InitializerKind::COMPOUND_INIT) {
+      if (!validateInitializerType(InitNode, node.type)) {
+        success = 0;
+        errors.push_back(
+            "Array initializer has incompatible types for variable '" +
+            node.name + "'");
+        return;
+      }
+    }
+
     // Convert initializer to the variable's type if it's an expression
     if (auto *initnode =
             dynamic_cast<InitializerNode *>(node.init.value().get())) {
@@ -637,7 +867,8 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
   for (size_t i = 0; i < node.args.size(); ++i) {
     auto &arg = node.args[i];
     if (arg) {
-      arg->accept(*this);
+      // Type check and convert argument (handles array-to-pointer conversion)
+      arg = typecheckAndConvert(std::move(arg));
       auto argExp = dynamic_cast<ExpressionNode *>(arg.get());
       if (argExp && argExp->type) {
         if (i < param_types.size()) {
@@ -686,7 +917,9 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
 // Statement visitors
 void SemanticAnalyzer::visit(ReturnStatement &node) {
   if (node.expression) {
-    node.expression->accept(*this);
+    // Type check and convert return expression (handles array-to-pointer
+    // conversion)
+    node.expression = typecheckAndConvert(std::move(node.expression));
 
     // Convert return value to function's return type
     if (currentFunction && currentFunction->type.data.index() == 1) {
@@ -838,12 +1071,14 @@ void SemanticAnalyzer::visit(InitExp &node) {
 
 // Expression visitors
 void SemanticAnalyzer::visit(BinaryExpression &node) {
+  // Type check and convert both operands (handles array-to-pointer conversion)
   if (node.left) {
-    node.left->accept(*this);
+    node.left = typecheckAndConvert(std::move(node.left));
   }
   if (node.right) {
-    node.right->accept(*this);
+    node.right = typecheckAndConvert(std::move(node.right));
   }
+
   auto leftExp = dynamic_cast<ExpressionNode *>(node.left.get());
   auto rightExp = dynamic_cast<ExpressionNode *>(node.right.get());
 
@@ -853,44 +1088,160 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
     return;
   }
 
-  if (leftExp->type->kind == TypeKind::POINTER ||
-      rightExp->type->kind == TypeKind::POINTER) {
-    if (node.op != TokenType::PLUS && node.op != TokenType::HYPHEN &&
-        node.op != TokenType::EQUAL && node.op != TokenType::NOTEQUAL &&
-        node.op != TokenType::LESSTHAN && node.op != TokenType::LESSTHANEQUAL &&
-        node.op != TokenType::GREATERTHAN &&
-        node.op != TokenType::GREATERTHANEQUAL && node.op != TokenType::LAND &&
-        node.op != TokenType::LOR) {
-      success = 0;
-      errors.push_back(
-          "Invalid operator for pointer types in binary expression");
-      return;
-    }
-  }
-
   // Logical AND and OR don't perform type conversions
   if (node.op == TokenType::LAND || node.op == TokenType::LOR) {
     node.type = std::make_shared<Type>(Type::Int());
     return;
   }
-  if ((node.op == TokenType::EQUAL || node.op == TokenType::NOTEQUAL) &&
-      ((leftExp && leftExp->type->kind == TypeKind::POINTER) ||
-       (rightExp && rightExp->type->kind == TypeKind::POINTER))) {
-    // Handle pointer equality comparisons
-    PointerType commonPtrType = getCommonPointerType(leftExp, rightExp);
-    Type commonType = Type::Pointer(commonPtrType.base);
-    if (*leftExp->type != commonType) {
-      auto castExpr = convertByAssignment(std::move(node.left), commonType);
-      node.left = std::move(castExpr);
-    }
 
-    if (*rightExp->type != commonType) {
-      auto castExpr = convertByAssignment(std::move(node.right), commonType);
-      node.right = std::move(castExpr);
+  // Handle pointer arithmetic for addition
+  if (node.op == TokenType::PLUS) {
+    // Both operands are arithmetic
+    if (leftExp->type->kind != TypeKind::POINTER &&
+        rightExp->type->kind != TypeKind::POINTER) {
+      // Standard arithmetic addition
+      Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
+      if (*leftExp->type != commonType) {
+        node.left = convertTo(std::move(node.left), commonType);
+      }
+      if (*rightExp->type != commonType) {
+        node.right = convertTo(std::move(node.right), commonType);
+      }
+      node.type = std::make_shared<Type>(commonType);
+      return;
     }
-    node.type = std::make_shared<Type>(Type::Int());
+    // Pointer + integer
+    else if (leftExp->type->kind == TypeKind::POINTER &&
+             rightExp->type->kind != TypeKind::POINTER) {
+      // Convert integer operand to long
+      Type longType = Type::Long();
+      node.right = convertTo(std::move(node.right), longType);
+      // Result has pointer type
+      node.type = leftExp->type;
+      return;
+    }
+    // Integer + pointer
+    else if (rightExp->type->kind == TypeKind::POINTER &&
+             leftExp->type->kind != TypeKind::POINTER) {
+      // Convert integer operand to long
+      Type longType = Type::Long();
+      node.left = convertTo(std::move(node.left), longType);
+      // Result has pointer type
+      node.type = rightExp->type;
+      return;
+    } else {
+      success = 0;
+      errors.push_back("Invalid operands for addition");
+      return;
+    }
+  }
+
+  // Handle pointer arithmetic for subtraction
+  if (node.op == TokenType::HYPHEN) {
+    // Both operands are arithmetic
+    if (leftExp->type->kind != TypeKind::POINTER &&
+        rightExp->type->kind != TypeKind::POINTER) {
+      // Standard arithmetic subtraction
+      Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
+      if (*leftExp->type != commonType) {
+        node.left = convertTo(std::move(node.left), commonType);
+      }
+      if (*rightExp->type != commonType) {
+        node.right = convertTo(std::move(node.right), commonType);
+      }
+      node.type = std::make_shared<Type>(commonType);
+      return;
+    }
+    // Pointer - integer
+    else if (leftExp->type->kind == TypeKind::POINTER &&
+             rightExp->type->kind != TypeKind::POINTER) {
+      // Convert integer operand to long
+      Type longType = Type::Long();
+      node.right = convertTo(std::move(node.right), longType);
+      // Result has pointer type
+      node.type = leftExp->type;
+      return;
+    }
+    // Pointer - pointer (must be same type)
+    else if (leftExp->type->kind == TypeKind::POINTER &&
+             rightExp->type->kind == TypeKind::POINTER) {
+      if (*leftExp->type != *rightExp->type) {
+        success = 0;
+        errors.push_back("Cannot subtract pointers of different types");
+        return;
+      }
+      // Result is long
+      node.type = std::make_shared<Type>(Type::Long());
+      return;
+    } else {
+      success = 0;
+      errors.push_back("Invalid operands for subtraction");
+      return;
+    }
+  }
+
+  // Handle relational operators with pointers
+  if (node.op == TokenType::LESSTHAN || node.op == TokenType::LESSTHANEQUAL ||
+      node.op == TokenType::GREATERTHAN ||
+      node.op == TokenType::GREATERTHANEQUAL) {
+    // Both operands must be pointers of the same type, or both arithmetic
+    if (leftExp->type->kind == TypeKind::POINTER &&
+        rightExp->type->kind == TypeKind::POINTER) {
+      if (*leftExp->type != *rightExp->type) {
+        success = 0;
+        errors.push_back("Cannot compare pointers of different types");
+        return;
+      }
+      node.type = std::make_shared<Type>(Type::Int());
+      return;
+    } else if (leftExp->type->kind != TypeKind::POINTER &&
+               rightExp->type->kind != TypeKind::POINTER) {
+      // Standard arithmetic comparison
+      Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
+      if (*leftExp->type != commonType) {
+        node.left = convertTo(std::move(node.left), commonType);
+      }
+      if (*rightExp->type != commonType) {
+        node.right = convertTo(std::move(node.right), commonType);
+      }
+      node.type = std::make_shared<Type>(Type::Int());
+      return;
+    } else {
+      success = 0;
+      errors.push_back("Invalid operands for relational operator");
+      return;
+    }
+  }
+
+  // Handle equality operators
+  if (node.op == TokenType::EQUAL || node.op == TokenType::NOTEQUAL) {
+    if ((leftExp && leftExp->type->kind == TypeKind::POINTER) ||
+        (rightExp && rightExp->type->kind == TypeKind::POINTER)) {
+      // Handle pointer equality comparisons
+      PointerType commonPtrType = getCommonPointerType(leftExp, rightExp);
+      Type commonType = Type::Pointer(commonPtrType.base);
+      if (*leftExp->type != commonType) {
+        auto castExpr = convertByAssignment(std::move(node.left), commonType);
+        node.left = std::move(castExpr);
+      }
+
+      if (*rightExp->type != commonType) {
+        auto castExpr = convertByAssignment(std::move(node.right), commonType);
+        node.right = std::move(castExpr);
+      }
+      node.type = std::make_shared<Type>(Type::Int());
+      return;
+    }
+  }
+
+  // Check for invalid pointer operations
+  if (leftExp->type->kind == TypeKind::POINTER ||
+      rightExp->type->kind == TypeKind::POINTER) {
+    success = 0;
+    errors.push_back("Invalid operator for pointer types in binary expression");
     return;
   }
+
   // For other binary operations, perform usual arithmetic conversions
   if (leftExp && rightExp && leftExp->type && rightExp->type) {
     Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
@@ -988,6 +1339,9 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
 }
 
 void SemanticAnalyzer::visit(AssignmentExpression &node) {
+  // Type check and convert left side (may wrap array in AddrOf for decay)
+  node.left = typecheckAndConvert(std::move(node.left));
+
   // Check if left side is an lvalue
   if (!isLvalue(node.left.get())) {
     success = 0;
@@ -1000,11 +1354,10 @@ void SemanticAnalyzer::visit(AssignmentExpression &node) {
     binexp->left = node.left->clone();
     binexp->right = std::move(node.right);
   }
-  if (node.left) {
-    node.left->accept(*this);
-  }
+
+  // Type check and convert right side
   if (node.right) {
-    node.right->accept(*this);
+    node.right = typecheckAndConvert(std::move(node.right));
   }
 
   switch (node.assignment_type) {
@@ -1152,13 +1505,13 @@ void SemanticAnalyzer::visit(VariableExpression &node) {
 
 void SemanticAnalyzer::visit(ConditionalExpression &node) {
   if (node.condition) {
-    node.condition->accept(*this);
+    node.condition = typecheckAndConvert(std::move(node.condition));
   }
   if (node.trueExpr) {
-    node.trueExpr->accept(*this);
+    node.trueExpr = typecheckAndConvert(std::move(node.trueExpr));
   }
   if (node.falseExpr) {
-    node.falseExpr->accept(*this);
+    node.falseExpr = typecheckAndConvert(std::move(node.falseExpr));
   }
   auto trueExp = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
   auto falseExp = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
@@ -1206,6 +1559,13 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
 }
 
 void SemanticAnalyzer::visit(CastExpression &node) {
+  // Check if trying to cast to array type
+  if (node.targetType.kind == TypeKind::ARRAY) {
+    success = 0;
+    errors.push_back("Cannot cast to array type");
+    return;
+  }
+
   if (node.expression) {
     node.expression->accept(*this);
   }
@@ -1222,8 +1582,10 @@ void SemanticAnalyzer::visit(CastExpression &node) {
 }
 
 void SemanticAnalyzer::visit(DereferenceExpression &node) {
+  // Type check and convert the pointer expression (handles array-to-pointer
+  // conversion)
   if (node.pointerExpr) {
-    node.pointerExpr->accept(*this);
+    node.pointerExpr = typecheckAndConvert(std::move(node.pointerExpr));
   }
   auto exp = dynamic_cast<ExpressionNode *>(node.pointerExpr.get());
   if (exp && exp->type && exp->type->kind == TypeKind::POINTER) {
@@ -1279,7 +1641,9 @@ void SemanticAnalyzer::visit(InitializerNode &node) {
   if (node.kind == InitializerKind::SINGLE_INIT) {
     auto &singleInit = std::get<SingleInit>(node.data);
     if (singleInit.expression) {
-      singleInit.expression->accept(*this);
+      // Type check and convert (handles array-to-pointer conversion)
+      singleInit.expression =
+          typecheckAndConvert(std::move(singleInit.expression));
     }
   } else if (node.kind == InitializerKind::COMPOUND_INIT) {
     auto &initList = std::get<CompoundInit>(node.data);
@@ -1289,21 +1653,49 @@ void SemanticAnalyzer::visit(InitializerNode &node) {
   }
 }
 void SemanticAnalyzer::visit(SubscriptExpression &node) {
+  // Type check and convert both operands (handles array-to-pointer conversion)
   if (node.arrayExpr) {
-    node.arrayExpr->accept(*this);
+    node.arrayExpr = typecheckAndConvert(std::move(node.arrayExpr));
   }
   if (node.indexExpr) {
-    node.indexExpr->accept(*this);
+    node.indexExpr = typecheckAndConvert(std::move(node.indexExpr));
   }
-  auto arrayType = dynamic_cast<ArrayType *>(node.arrayExpr.get());
-  // TODO
-  if (arrayType) {
-    // node.type = arrayType;
-  } else {
+
+  auto arrayExpr = dynamic_cast<ExpressionNode *>(node.arrayExpr.get());
+  auto indexExpr = dynamic_cast<ExpressionNode *>(node.indexExpr.get());
+
+  if (!arrayExpr || !arrayExpr->type || !indexExpr || !indexExpr->type) {
     success = 0;
-    errors.push_back("Operand of subscript operator is not an array type");
+    errors.push_back("Subscript expression has invalid operands");
     return;
   }
+
+  // One operand must be a pointer, the other must be an integer
+  std::shared_ptr<Type> ptrType = nullptr;
+
+  if (arrayExpr->type->kind == TypeKind::POINTER &&
+      indexExpr->type->kind != TypeKind::POINTER &&
+      indexExpr->type->kind != TypeKind::DOUBLE) {
+    ptrType = arrayExpr->type;
+    // Convert integer index to long
+    Type longType = Type::Long();
+    node.indexExpr = convertTo(std::move(node.indexExpr), longType);
+  } else if (indexExpr->type->kind == TypeKind::POINTER &&
+             arrayExpr->type->kind != TypeKind::POINTER &&
+             arrayExpr->type->kind != TypeKind::DOUBLE) {
+    ptrType = indexExpr->type;
+    // Convert integer index to long
+    Type longType = Type::Long();
+    node.arrayExpr = convertTo(std::move(node.arrayExpr), longType);
+  } else {
+    success = 0;
+    errors.push_back("Subscript must have integer and pointer operands");
+    return;
+  }
+
+  // Result type is the referenced type of the pointer
+  auto pointerType = std::get<PointerType>(ptrType->data);
+  node.type = pointerType.base;
 }
 
 void SemanticAnalyzer::visit(StringLiteralExpression &node) {}
