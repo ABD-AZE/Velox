@@ -1,9 +1,6 @@
-/* Test that we allocate enough space for arrays on the stack
- * and that they're correctly aligned
- * all three arrays are >= 16 bytes so they must be 16-byte aligned
- */
+
 int check_alignment(int *ptr) {
-static int arr0[5] = {1,2,3};
+int arr0[5] = {1,2,3};
   unsigned long addr = (unsigned long)ptr;
   return (addr % 16 == 0);
 }

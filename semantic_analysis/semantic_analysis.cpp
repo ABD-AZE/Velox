@@ -123,6 +123,11 @@ bool SemanticAnalyzer::isLvalue(ASTNode *expr) {
     return true;
   }
 
+  // String literals are lvalues (can take their address)
+  if (dynamic_cast<StringLiteralExpression *>(expr)) {
+    return true;
+  }
+
   // All other expressions are not lvalues
   return false;
 }
@@ -184,8 +189,25 @@ bool SemanticAnalyzer::isConstantInitializer(InitializerNode *init) {
   if (init->kind == InitializerKind::SINGLE_INIT) {
     auto &singleInit = std::get<SingleInit>(init->data);
     // Check if the expression is a constant
-    return dynamic_cast<ConstantExpression *>(singleInit.expression.get()) !=
-           nullptr;
+    if (dynamic_cast<ConstantExpression *>(singleInit.expression.get()) !=
+        nullptr) {
+      return true;
+    }
+    // Check if the expression is a string literal
+    if (dynamic_cast<StringLiteralExpression *>(singleInit.expression.get()) !=
+        nullptr) {
+      return true;
+    }
+    // Check if the expression is a decayed string literal (AddressOf wrapping
+    // StringLiteral)
+    if (auto addrOf =
+            dynamic_cast<AddressOfExpression *>(singleInit.expression.get())) {
+      if (dynamic_cast<StringLiteralExpression *>(addrOf->variableExpr.get()) !=
+          nullptr) {
+        return true;
+      }
+    }
+    return false;
   } else if (init->kind == InitializerKind::COMPOUND_INIT) {
     auto &compoundInit = std::get<CompoundInit>(init->data);
     // Recursively check all nested initializers
@@ -216,6 +238,65 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
     auto expr = dynamic_cast<ExpressionNode *>(singleInit.expression.get());
     if (!expr || !expr->type) {
       return false;
+    }
+
+    // Special case: String literal initializing an array (Listing 16-21)
+    if (targetType.kind == TypeKind::ARRAY) {
+      auto stringLiteral = dynamic_cast<StringLiteralExpression *>(expr);
+      if (stringLiteral) {
+        auto arrayType = std::get<ArrayType>(targetType.data);
+
+        // Check if array element type is a character type
+        if (arrayType.element->kind != TypeKind::CHAR &&
+            arrayType.element->kind != TypeKind::UCHAR &&
+            arrayType.element->kind != TypeKind::SCHAR) {
+          return false; // Can't initialize non-character array with string
+        }
+
+        // Check if string is too long
+        // Per C standard: if string length == array size, null terminator is
+        // omitted If string length < array size, null terminator is included
+        if (stringLiteral->value.length() >
+            static_cast<size_t>(arrayType.size)) {
+          return false; // String too long
+        }
+
+        // Annotate initializer with target type
+        init->type = std::make_shared<Type>(targetType);
+        return true;
+      }
+
+      // Also handle the case where string literal was already decayed to
+      // pointer This happens in compound initializers
+      if (expr->type->kind == TypeKind::POINTER) {
+        auto ptrType = std::get<PointerType>(expr->type->data);
+        auto arrayType = std::get<ArrayType>(targetType.data);
+
+        // Check if it's a pointer to char and target is array of char
+        if ((ptrType.base->kind == TypeKind::CHAR ||
+             ptrType.base->kind == TypeKind::UCHAR ||
+             ptrType.base->kind == TypeKind::SCHAR) &&
+            (arrayType.element->kind == TypeKind::CHAR ||
+             arrayType.element->kind == TypeKind::UCHAR ||
+             arrayType.element->kind == TypeKind::SCHAR)) {
+          // Check if this is a decayed string literal (AddressOf wrapping
+          // StringLiteral)
+          if (auto addrOf = dynamic_cast<AddressOfExpression *>(expr)) {
+            if (auto stringLiteral = dynamic_cast<StringLiteralExpression *>(
+                    addrOf->variableExpr.get())) {
+              // Validate string length just like direct string literals
+              if (stringLiteral->value.length() >
+                  static_cast<size_t>(arrayType.size)) {
+                return false; // String too long for sub-array
+              }
+            }
+          }
+          // Accept other pointer-to-char expressions (though they shouldn't
+          // appear in constant initializers)
+          init->type = std::make_shared<Type>(targetType);
+          return true;
+        }
+      }
     }
 
     // Check if the expression type is compatible with target type
@@ -620,7 +701,26 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
                      "have storage class specifiers");
     return;
   }
-  if (node.init.has_value()) {
+
+  // For string literals initializing arrays, visit the string literal directly
+  // to prevent array-to-pointer decay
+  bool isStringLiteralArrayInit = false;
+  if (node.init.has_value() && node.type.kind == TypeKind::ARRAY) {
+    auto initNode = dynamic_cast<InitializerNode *>(node.init.value().get());
+    if (initNode && initNode->kind == InitializerKind::SINGLE_INIT) {
+      auto &singleInit = std::get<SingleInit>(initNode->data);
+      auto stringLiteral =
+          dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
+      if (stringLiteral) {
+        // Visit string literal directly to set its type without decay
+        stringLiteral->accept(*this);
+        isStringLiteralArrayInit = true;
+      }
+    }
+  }
+
+  // Visit initializer for non-string-literal-array cases
+  if (node.init.has_value() && !isStringLiteralArrayInit) {
     node.init.value()->accept(*this);
   }
 
@@ -789,6 +889,18 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       }
     }
 
+    // Validate string literal array initialization (single init)
+    if (InitNode && node.type.kind == TypeKind::ARRAY &&
+        InitNode->kind == InitializerKind::SINGLE_INIT) {
+      if (!validateInitializerType(InitNode, node.type)) {
+        success = 0;
+        errors.push_back(
+            "Array initializer has incompatible types for variable '" +
+            node.name + "'");
+        return;
+      }
+    }
+
     // Convert initializer to the variable's type if it's an expression
     if (auto *initnode =
             dynamic_cast<InitializerNode *>(node.init.value().get())) {
@@ -799,7 +911,9 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
               auto initExp =
                   dynamic_cast<ExpressionNode *>(value.expression.get());
               // Check if type conversion is needed
-              if (initExp->type && *initExp->type != node.type) {
+              // Skip conversion for arrays (already validated above)
+              if (initExp->type && *initExp->type != node.type &&
+                  node.type.kind != TypeKind::ARRAY) {
                 // Create a cast expression to convert to variable's type
                 auto castExpr =
                     convertByAssignment(std::move(value.expression), node.type);
@@ -1328,12 +1442,8 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
   if (exp) {
     node.type = exp->type;
   }
-  if (node.op == TokenType::TILDE && (node.type)->kind == TypeKind::DOUBLE) {
-    success = 0;
-    errors.push_back(
-        "Bitwise NOT operator '~' cannot be applied to type 'double'");
-    return;
-  }
+
+  // Check for invalid operations on pointers
   if ((node.op == TokenType::HYPHEN || node.op == TokenType::TILDE) &&
       node.type->kind == TypeKind::POINTER) {
     success = 0;
@@ -1341,13 +1451,33 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
         "Unary '-' and '~' operators cannot be applied to pointer types");
     return;
   }
+
+  // Check for invalid operations on doubles
+  if (node.op == TokenType::TILDE && (node.type)->kind == TypeKind::DOUBLE) {
+    success = 0;
+    errors.push_back(
+        "Bitwise NOT operator '~' cannot be applied to type 'double'");
+    return;
+  }
+
+  // Apply integer promotions for - and ~ operators
+  if (node.op == TokenType::HYPHEN || node.op == TokenType::TILDE) {
+    if (node.type->kind == TypeKind::CHAR ||
+        node.type->kind == TypeKind::UCHAR) {
+      // Promote char types to int
+      Type intType = Type::Int();
+      node.operand = convertTo(std::move(node.operand), intType);
+      node.type = std::make_shared<Type>(intType);
+    }
+  }
+
   switch (node.op) {
   case TokenType::NOT:
     node.type =
         std::make_shared<Type>(Type::Int()); // logical NOT results in int
     break;
   default:
-    node.type = exp->type;
+    // Type was already set and possibly promoted above
     break;
   }
 }
@@ -1656,6 +1786,8 @@ void SemanticAnalyzer::visit(InitializerNode &node) {
     auto &singleInit = std::get<SingleInit>(node.data);
     if (singleInit.expression) {
       // Type check and convert (handles array-to-pointer conversion)
+      // Note: For array initializers with string literals, the decay is
+      // prevented later in VarDeclNode processing
       singleInit.expression =
           typecheckAndConvert(std::move(singleInit.expression));
     }
@@ -1712,7 +1844,13 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
   node.type = pointerType.base;
 }
 
-void SemanticAnalyzer::visit(StringLiteralExpression &node) {}
+void SemanticAnalyzer::visit(StringLiteralExpression &node) {
+  // String literals have type array of char with size = length + 1 (for null
+  // terminator)
+  int length = node.value.length();
+  node.type = std::make_shared<Type>(
+      Type::Array(std::make_shared<Type>(Type::Char()), length + 1));
+}
 
 void SemanticAnalyzer::visit(SizeofExpression &node) {}
 

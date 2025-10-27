@@ -398,11 +398,24 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
       const auto &arrayType = std::get<ArrayType>(varType.data);
       elemType = *arrayType.element;
       elemSize = getTypeSize(elemType);
+      int arraySize = arrayType.size;
 
       // Process each initializer element
       int currentOffset = baseOffset;
+      int elementsProvided = compoundInit.initializers.size();
+
       for (auto &elemInit : compoundInit.initializers) {
         processCompoundInitializer(&elemInit, varName, elemType, currentOffset);
+        currentOffset += elemSize;
+      }
+
+      // Pad remaining elements with zeros (C standard requires this)
+      for (int i = elementsProvided; i < arraySize; i++) {
+        // Generate CopyToOffset with zero constant
+        IRValuePtr zeroValue = IRValueNode::makeConstant(0);
+        auto copyInst = IRInstructionNode::makeCopyToOffset(
+            std::move(zeroValue), varName, currentOffset);
+        currentFunction->addInstruction(std::move(copyInst));
         currentOffset += elemSize;
       }
     }
