@@ -28,7 +28,9 @@ public:
   InitType initType;
   std::vector<Type> param_types; // for functions
   std::variant<int, long int, long unsigned int, unsigned int, double>
-      value; // for initialized constants
+      value; // for initialized constants (scalars)
+  InitializerNode
+      *initializer; // non-owning pointer to array initializer in AST
   Type type;
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name, SymbolType symbolType, InitType initType,
