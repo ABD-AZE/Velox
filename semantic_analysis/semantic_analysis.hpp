@@ -100,6 +100,13 @@ private:
   ASTNodePtr convertByAssignment(ASTNodePtr exp, Type &targetType);
   // Helper function to make implicit type conversions explicit
   ASTNodePtr convertTo(ASTNodePtr expr, Type &targetType);
+  // Helper function to convert arrays to pointers (implicit decay)
+  ASTNodePtr typecheckAndConvert(ASTNodePtr expr);
+  // Helper function to check if an initializer contains only constant
+  // expressions
+  bool isConstantInitializer(InitializerNode *init);
+  // Helper function to validate initializer type compatibility with target type
+  bool validateInitializerType(InitializerNode *init, Type &targetType);
   bool isFunctionBlock = false;
   bool inFunctionScope = false;
   bool inFileScope = true;
