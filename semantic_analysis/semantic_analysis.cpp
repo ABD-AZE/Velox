@@ -546,6 +546,10 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name].linkage =
           global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
       if (initType == InitType::INITIALIZED) {
+        // Store the initializer for arrays
+        if (node.type.kind == TypeKind::ARRAY && InitNode) {
+          global_symbol_table[node.name].initializer = InitNode;
+        }
         // update value if initialized (only for scalar constants)
         if (constInit) {
           global_symbol_table[node.name].setValue(constInit->value);
@@ -576,6 +580,10 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name].linkage =
           global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
       if (initType == InitType::INITIALIZED) {
+        // Store the initializer for arrays
+        if (node.type.kind == TypeKind::ARRAY && InitNode) {
+          global_symbol_table[node.name].initializer = InitNode;
+        }
         // Only set value for scalar constants
         if (constInit) {
           global_symbol_table[node.name].setValue(constInit->value);
@@ -702,6 +710,12 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
           uniqueName, SymbolType::VARIABLE, InitType::INITIALIZED, node.type);
       global_symbol_table[uniqueName].linkage = LinkageType::INTERNAL;
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
+
+      // Store the initializer for arrays
+      if (node.type.kind == TypeKind::ARRAY && InitNode) {
+        // Deep copy the initializer
+        global_symbol_table[uniqueName].initializer = InitNode;
+      }
 
       // Only set value for scalar constants
       if (constInit) {

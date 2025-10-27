@@ -41,6 +41,56 @@ struct ExpResult {
 // IR Value types
 enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
 
+// Static initializer types
+enum class StaticInitKind {
+  INITIAL,   // Single scalar value
+  ZERO_INIT, // Zero-initialized (for tentative definitions)
+  COMPOUND   // Compound initializer (list of static_init)
+};
+
+// Forward declaration for recursive structure
+struct StaticInit;
+
+// Compound initializer
+struct CompoundStaticInit {
+  std::vector<StaticInit> initializers;
+};
+
+// Static initializer variant
+struct StaticInit {
+  StaticInitKind kind;
+  std::variant<std::variant<int, long int, long unsigned int, unsigned int,
+                            double>, // INITIAL
+               int,                  // ZERO_INIT (num bytes)
+               CompoundStaticInit    // COMPOUND
+               >
+      data;
+
+  // Factory methods
+  static StaticInit makeInitial(
+      std::variant<int, long int, long unsigned int, unsigned int, double>
+          value) {
+    StaticInit init;
+    init.kind = StaticInitKind::INITIAL;
+    init.data = value;
+    return init;
+  }
+
+  static StaticInit makeZeroInit(int numBytes) {
+    StaticInit init;
+    init.kind = StaticInitKind::ZERO_INIT;
+    init.data = numBytes;
+    return init;
+  }
+
+  static StaticInit makeCompound(std::vector<StaticInit> inits) {
+    StaticInit init;
+    init.kind = StaticInitKind::COMPOUND;
+    init.data = CompoundStaticInit{std::move(inits)};
+    return init;
+  }
+};
+
 // IR Instruction types
 enum class IROpType {
   // Unary operations
@@ -59,6 +109,8 @@ enum class IROpType {
   GET_ADDRESS,
   LOAD,
   STORE,
+  ADD_PTR,
+  COPY_TO_OFFSET,
   // Binary operations
   ADD,
   SUBTRACT,
@@ -187,6 +239,8 @@ public:
   IRValuePtr src1;   // First operand
   IRValuePtr src2;   // Second operand (null for unary operations)
   std::string label; // For labels and jumps
+  int scale;         // For AddPtr instruction (size of referenced type)
+  int offset;        // For CopyToOffset instruction
 
   /*
   for function call:
@@ -296,6 +350,27 @@ public:
     return inst;
   }
 
+  static IRInstructionPtr makeAddPtr(IRValuePtr ptr, IRValuePtr index,
+                                     int scale, IRValuePtr dst) {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::ADD_PTR;
+    inst->src1 = std::move(ptr);
+    inst->src2 = std::move(index);
+    inst->scale = scale;
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr
+  makeCopyToOffset(IRValuePtr src, const std::string &dstName, int offset) {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::COPY_TO_OFFSET;
+    inst->src1 = std::move(src);
+    inst->label = dstName; // Reusing label field for destination name
+    inst->offset = offset;
+    return inst;
+  }
+
   static IRInstructionPtr makeReturn(IRValuePtr value) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::RETURN;
@@ -386,14 +461,12 @@ public:
   std::string identifier;
   bool global;
   Type type;
-  std::variant<int, long int, long unsigned int, unsigned int, double>
-      initialValue; // default to 0 if uninitialized
-  IRStaticVariableNode(
-      std::string id, bool isGlobal, Type varType,
-      std::variant<int, long int, long unsigned int, unsigned int, double>
-          init = 0)
+  std::vector<StaticInit> init_list;
+
+  IRStaticVariableNode(std::string id, bool isGlobal, Type varType,
+                       std::vector<StaticInit> inits = {})
       : identifier(std::move(id)), global(isGlobal), type(varType),
-        initialValue(init) {}
+        init_list(std::move(inits)) {}
 
   std::string toString() const override;
 };
@@ -517,6 +590,18 @@ private:
   // Helper functions for lvalue conversion
   IRValuePtr convertExpResult(const ExpResult &result, const Type &exprType);
   void emitLvalueConversion();
+
+  // Helper function to calculate type size in bytes
+  int getTypeSize(const Type &type);
+
+  // Helper function to process compound initializers
+  void processCompoundInitializer(InitializerNode *init,
+                                  const std::string &varName,
+                                  const Type &varType, int baseOffset);
+
+  // Helper function to convert InitializerNode to StaticInit
+  StaticInit convertToStaticInit(InitializerNode *init,
+                                 const Type *arrayType = nullptr);
 };
 
 class Valor {

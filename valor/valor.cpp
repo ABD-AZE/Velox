@@ -1,5 +1,6 @@
 #include "valor.hpp"
 #include "../utils/token_classifier.hpp"
+#include <functional>
 #include <iostream>
 #include <sstream>
 
@@ -125,6 +126,14 @@ std::string IRInstructionNode::toString() const {
   case IROpType::STORE:
     ss << "store(" << src1->toString() << ", " << dst->toString() << ")";
     break;
+  case IROpType::ADD_PTR:
+    ss << dst->toString() << " = add_ptr(" << src1->toString() << ", "
+       << src2->toString() << ", " << scale << ")";
+    break;
+  case IROpType::COPY_TO_OFFSET:
+    ss << "copy_to_offset(" << src1->toString() << ", " << label << ", "
+       << offset << ")";
+    break;
   case IROpType::JUMP:
     ss << "jump " << label;
     break;
@@ -193,12 +202,43 @@ std::string IRStaticVariableNode::toString() const {
   std::stringstream ss;
   ss << "StaticVariable(name=" << identifier
      << ", global=" << (global ? "true" : "false")
-     << ", type=" << TypeKindToString(type.kind) << ", init=";
+     << ", type=" << TypeKindToString(type.kind) << ", init=[";
 
-  // Handle the variant type by visiting it
-  std::visit([&ss](auto &&arg) { ss << arg; }, initialValue);
+  // Helper lambda to recursively print StaticInit
+  std::function<void(const StaticInit &)> printInit =
+      [&](const StaticInit &init) {
+        switch (init.kind) {
+        case StaticInitKind::INITIAL:
+          std::visit([&ss](auto &&arg) { ss << arg; },
+                     std::get<std::variant<int, long int, long unsigned int,
+                                           unsigned int, double>>(init.data));
+          break;
+        case StaticInitKind::ZERO_INIT:
+          ss << "ZeroInit(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::COMPOUND:
+          ss << "{";
+          const auto &compound = std::get<CompoundStaticInit>(init.data);
+          for (size_t i = 0; i < compound.initializers.size(); ++i) {
+            printInit(compound.initializers[i]);
+            if (i < compound.initializers.size() - 1) {
+              ss << ", ";
+            }
+          }
+          ss << "}";
+          break;
+        }
+      };
 
-  ss << ")";
+  // Print all initializers
+  for (size_t i = 0; i < init_list.size(); ++i) {
+    printInit(init_list[i]);
+    if (i < init_list.size() - 1) {
+      ss << ", ";
+    }
+  }
+
+  ss << "])";
   return ss.str();
 }
 
@@ -238,6 +278,29 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
   return std::move(program);
 }
 
+// Helper function to calculate type size in bytes
+int IRGenerator::getTypeSize(const Type &type) {
+  switch (type.kind) {
+  case TypeKind::INT:
+  case TypeKind::UINT:
+    return 4;
+  case TypeKind::LONG:
+  case TypeKind::ULONG:
+  case TypeKind::DOUBLE:
+  case TypeKind::POINTER:
+    return 8;
+  case TypeKind::CHAR:
+  case TypeKind::UCHAR:
+    return 1;
+  case TypeKind::ARRAY: {
+    const auto &arrayType = std::get<ArrayType>(type.data);
+    return arrayType.size * getTypeSize(*arrayType.element);
+  }
+  default:
+    return 0;
+  }
+}
+
 void IRGenerator::convertSymbolTableToIR() {
   // Iterate through the global symbol table
   for (const auto &[name, entry] : global_symbol_table) {
@@ -261,21 +324,163 @@ void IRGenerator::convertSymbolTableToIR() {
     // linkage)
     bool isGlobal = (entry.linkage == LinkageType::EXTERNAL);
 
-    // Get initial value
-    std::variant<int, long int, long unsigned int, unsigned int, double>
-        initValue = 0;
-    if (entry.initType == InitType::INITIALIZED) {
-      initValue = entry.value;
-    } else if (entry.initType == InitType::TENTATIVE ||
-               entry.initType == InitType::ZERO_INITIALIZED) {
-      initValue = 0;
+    // Create initializer list
+    std::vector<StaticInit> init_list;
+
+    if (entry.type.kind == TypeKind::ARRAY) {
+      // For arrays, check if we have a stored initializer
+      if (entry.initType == InitType::INITIALIZED && entry.initializer) {
+        // Convert the stored InitializerNode to StaticInit, passing array type
+        // for padding
+        init_list.push_back(
+            convertToStaticInit(entry.initializer, &entry.type));
+      } else if (entry.initType == InitType::TENTATIVE ||
+                 entry.initType == InitType::ZERO_INITIALIZED) {
+        // Use ZeroInit for the entire array
+        int arraySize = getTypeSize(entry.type);
+        init_list.push_back(StaticInit::makeZeroInit(arraySize));
+      }
+    } else {
+      // For scalar types
+      if (entry.initType == InitType::INITIALIZED) {
+        init_list.push_back(StaticInit::makeInitial(entry.value));
+      } else if (entry.initType == InitType::TENTATIVE ||
+                 entry.initType == InitType::ZERO_INITIALIZED) {
+        // Use ZeroInit for scalars too
+        int scalarSize = getTypeSize(entry.type);
+        init_list.push_back(StaticInit::makeZeroInit(scalarSize));
+      }
     }
 
     // Create static variable node
     auto staticVar = std::make_shared<IRStaticVariableNode>(
-        name, isGlobal, entry.type, initValue);
+        name, isGlobal, entry.type, std::move(init_list));
     program->addStaticVariable(std::move(staticVar));
   }
+}
+
+// Helper function to process compound initializers recursively
+void IRGenerator::processCompoundInitializer(InitializerNode *init,
+                                             const std::string &varName,
+                                             const Type &varType,
+                                             int baseOffset) {
+  if (!init)
+    return;
+
+  if (init->kind == InitializerKind::SINGLE_INIT) {
+    // Single initializer - evaluate expression and copy to offset
+    auto &singleInit = std::get<SingleInit>(init->data);
+    if (singleInit.expression) {
+      singleInit.expression->accept(*this);
+
+      // Get the expression node to access its type
+      auto exprNode =
+          dynamic_cast<ExpressionNode *>(singleInit.expression.get());
+      if (exprNode && exprNode->type) {
+        IRValuePtr exprValue =
+            convertExpResult(currentExpResult, *exprNode->type);
+
+        // Generate CopyToOffset instruction
+        auto copyInst = IRInstructionNode::makeCopyToOffset(
+            std::move(exprValue), varName, baseOffset);
+        currentFunction->addInstruction(std::move(copyInst));
+      }
+    }
+  } else if (init->kind == InitializerKind::COMPOUND_INIT) {
+    // Compound initializer - process each element recursively
+    auto &compoundInit = std::get<CompoundInit>(init->data);
+
+    // Determine element type and size based on varType
+    Type elemType;
+    int elemSize;
+
+    if (varType.kind == TypeKind::ARRAY) {
+      const auto &arrayType = std::get<ArrayType>(varType.data);
+      elemType = *arrayType.element;
+      elemSize = getTypeSize(elemType);
+
+      // Process each initializer element
+      int currentOffset = baseOffset;
+      for (auto &elemInit : compoundInit.initializers) {
+        processCompoundInitializer(&elemInit, varName, elemType, currentOffset);
+        currentOffset += elemSize;
+      }
+    }
+  }
+}
+
+// Helper function to convert InitializerNode to StaticInit
+StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
+                                            const Type *arrayType) {
+  if (!init) {
+    // Return a zero init for null initializer
+    return StaticInit::makeZeroInit(0);
+  }
+
+  if (init->kind == InitializerKind::SINGLE_INIT) {
+    // Single initializer - extract constant value
+    auto &singleInit = std::get<SingleInit>(init->data);
+    if (singleInit.expression) {
+      auto constExpr =
+          dynamic_cast<ConstantExpression *>(singleInit.expression.get());
+      if (constExpr) {
+        // Extract the constant value and convert to the supported variant type
+        return std::visit(
+            [](auto &&val) -> StaticInit {
+              using T = std::decay_t<decltype(val)>;
+              if constexpr (std::is_same_v<T, char> ||
+                            std::is_same_v<T, unsigned char>) {
+                // Convert char types to int
+                return StaticInit::makeInitial(static_cast<int>(val));
+              } else {
+                // int, long, unsigned long, unsigned int, double are directly
+                // supported
+                return StaticInit::makeInitial(val);
+              }
+            },
+            constExpr->value);
+      }
+    }
+    // If not a constant, return zero init (shouldn't happen for static
+    // variables)
+    return StaticInit::makeZeroInit(4);
+  } else if (init->kind == InitializerKind::COMPOUND_INIT) {
+    // Compound initializer - recursively convert each element
+    auto &compoundInit = std::get<CompoundInit>(init->data);
+    std::vector<StaticInit> staticInits;
+
+    // Get element type if we have an array type
+    const Type *elementType = nullptr;
+    int expectedCount = 0;
+    if (arrayType && arrayType->kind == TypeKind::ARRAY) {
+      auto &arrayData = std::get<ArrayType>(arrayType->data);
+      elementType = arrayData.element.get();
+      expectedCount = arrayData.size;
+    }
+
+    // Convert provided initializers
+    for (auto &elemInit : compoundInit.initializers) {
+      staticInits.push_back(convertToStaticInit(&elemInit, elementType));
+    }
+
+    // Pad with zero initializers if we have fewer elements than expected
+    if (arrayType && arrayType->kind == TypeKind::ARRAY) {
+      int providedCount = staticInits.size();
+      if (providedCount < expectedCount) {
+        // Calculate size of each element for zero-init
+        int elementSize = elementType ? getTypeSize(*elementType) : 4;
+
+        // Add zero initializers for remaining elements
+        for (int i = providedCount; i < expectedCount; i++) {
+          staticInits.push_back(StaticInit::makeInitial(0));
+        }
+      }
+    }
+
+    return StaticInit::makeCompound(std::move(staticInits));
+  }
+
+  return StaticInit::makeZeroInit(0);
 }
 
 void IRGenerator::visit(IfStatement &node) {
@@ -435,22 +640,33 @@ void IRGenerator::visit(VarDeclNode &node) {
     }
   }
 
-  // Local automatic variable - generate IR for it
+  // Local automatic variable
   IRValuePtr var = IRValueNode::makeVariable(node.name);
 
   // If there's an initializer, generate IR for it
   if (node.init) {
-    (*node.init)->accept(*this);
-    // After visiting the initializer, currentValue and currentExpResult are set
-    // by the inner expression Perform lvalue conversion if needed (check if we
-    // have a dereferenced pointer)
-    IRValuePtr initValue = currentExpResult.type == ExpResultType::PLAIN_OPERAND
-                               ? currentValue
-                               : convertExpResult(currentExpResult, node.type);
-    // Create copy instruction to assign initializer value to variable
-    auto copyInst =
-        IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
-    currentFunction->addInstruction(std::move(copyInst));
+    InitializerNode *initNode =
+        dynamic_cast<InitializerNode *>(node.init->get());
+    // Check if this is an array with compound initializer
+    if (initNode && node.type.kind == TypeKind::ARRAY &&
+        initNode->kind == InitializerKind::COMPOUND_INIT) {
+      // Process compound initializer with CopyToOffset instructions
+      processCompoundInitializer(initNode, node.name, node.type, 0);
+    } else {
+      // Scalar or single initializer
+      (*node.init)->accept(*this);
+      // After visiting the initializer, currentValue and currentExpResult are
+      // set by the inner expression Perform lvalue conversion if needed (check
+      // if we have a dereferenced pointer)
+      IRValuePtr initValue =
+          currentExpResult.type == ExpResultType::PLAIN_OPERAND
+              ? currentValue
+              : convertExpResult(currentExpResult, node.type);
+      // Create copy instruction to assign initializer value to variable
+      auto copyInst =
+          IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
+      currentFunction->addInstruction(std::move(copyInst));
+    }
   }
 }
 
@@ -504,8 +720,14 @@ void IRGenerator::visit(ReturnStatement &node) {
   if (node.expression) {
     // Generate IR for the return expression
     node.expression->accept(*this);
-    if (currentValue)
+
+    // Perform lvalue conversion if needed
+    auto exprNode = dynamic_cast<ExpressionNode *>(node.expression.get());
+    if (exprNode && exprNode->type) {
+      returnValue = convertExpResult(currentExpResult, *exprNode->type);
+    } else if (currentValue) {
       returnValue = std::make_shared<IRValueNode>(*currentValue);
+    }
   }
 
   // Create return instruction
@@ -1207,12 +1429,42 @@ void IRGenerator::visit(InitializerNode &node) {
   }
 }
 void IRGenerator::visit(SubscriptExpression &node) {
+  // Process array expression (which should be a pointer after decay)
   if (node.arrayExpr) {
     node.arrayExpr->accept(*this);
   }
+  auto arrayExprNode = dynamic_cast<ExpressionNode *>(node.arrayExpr.get());
+  if (!arrayExprNode || !arrayExprNode->type) {
+    return;
+  }
+  IRValuePtr ptrValue =
+      convertExpResult(currentExpResult, *arrayExprNode->type);
+
+  // Process index expression
   if (node.indexExpr) {
     node.indexExpr->accept(*this);
   }
+  auto indexExprNode = dynamic_cast<ExpressionNode *>(node.indexExpr.get());
+  if (!indexExprNode || !indexExprNode->type) {
+    return;
+  }
+  IRValuePtr indexValue =
+      convertExpResult(currentExpResult, *indexExprNode->type);
+
+  // Calculate the scale (size of element type)
+  // node.type is the type of the result (the element type)
+  int scale = getTypeSize(*node.type);
+
+  // Generate AddPtr instruction: result = ptr + (index * scale)
+  IRValuePtr result = createTemporary();
+  auto addPtrInst = IRInstructionNode::makeAddPtr(
+      std::move(ptrValue), std::move(indexValue), scale, result);
+  currentFunction->addInstruction(std::move(addPtrInst));
+
+  // Return DereferencedPointer since subscripting is equivalent to *(ptr +
+  // index)
+  currentExpResult = ExpResult::makeDereferencedPointer(result);
+  currentValue = result;
 }
 
 void IRGenerator::visit(StructDeclarationNode &node) {}
