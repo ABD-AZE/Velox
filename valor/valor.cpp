@@ -147,7 +147,10 @@ std::string IRInstructionNode::toString() const {
     ss << label << ":";
     break;
   case IROpType::CALL:
-    ss << dst->toString() << " = call " << src1->toString() << ", args: ";
+    if (dst) {
+      ss << dst->toString() << " = ";
+    }
+    ss << "call " << src1->toString() << ", args: ";
     if (src2 && src2->type == IRValueType::ARGS) {
       for (size_t i = 0; i < src2->args.size(); ++i) {
         ss << src2->args[i]->toString();

@@ -107,6 +107,11 @@ private:
   bool isConstantInitializer(InitializerNode *init);
   // Helper function to validate initializer type compatibility with target type
   bool validateInitializerType(InitializerNode *init, Type &targetType);
+  // Helper functions for void and incomplete types
+  bool isScalar(const Type &type);
+  bool isComplete(const Type &type);
+  bool isPointerToComplete(const Type &type);
+  void validateTypeSpecifier(const Type &type);
   bool isFunctionBlock = false;
   bool inFunctionScope = false;
   bool inFileScope = true;

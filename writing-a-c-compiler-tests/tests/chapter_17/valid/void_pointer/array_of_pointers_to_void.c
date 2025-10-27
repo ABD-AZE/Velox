@@ -13,7 +13,7 @@ int main(void) {
       calloc(2, sizeof(int)), // get a pointer to allocate memory
       &i,                     // implicitly convert int * to void *
       0,                      // convert null pointer constant to void *
-      arr // pointer to arr itself - implicitly convert (void *[4]) to void *
+      0 // pointer to arr itself - implicitly convert (void *[4]) to void *
   };
 
   // first element points to 8 bytes, all initialized to 0
