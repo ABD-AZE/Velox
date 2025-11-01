@@ -1,0 +1,309 @@
+#include "codegen.hpp"
+#define TAB "    "
+std::unordered_map<std::string, int> offset_table;
+
+std::string ASMProgram::toString() const {
+  std::stringstream ss;
+  for (const auto &function : functions) {
+    ss << function->toString() << "\n";
+  }
+  // disable stack execution
+  ss << TAB << ".section .note.GNU-stack,\"\",@progbits\n";
+  return ss.str();
+}
+
+std::string ASMFunction::toString() const {
+  std::stringstream ss;
+  ss << ".globl " << name << "\n";
+  ss << name << ":\n";
+  ss << TAB << "pushq %rbp\n";
+  ss << TAB << "movq %rsp, %rbp\n";
+  for (const auto &instruction : instructions) {
+    ss << TAB << instruction->toString() << "\n";
+  }
+  return ss.str();
+}
+
+std::string ASMInstruction::toString() const {
+  std::stringstream ss;
+  switch (opType) {
+  case ASMOpType::MOV:
+    ss << "movl " << src1->toString() << ", " << dst->toString();
+    break;
+  case ASMOpType::UNARY:
+    switch (unaryOpType) {
+    case UnaryOpType::NEG:
+      ss << "negl " << src1->toString();
+      break;
+    case UnaryOpType::NOT:
+      ss << "notl " << src1->toString();
+      break;
+    }
+    break;
+  case ASMOpType::ALLOCATE_STACK:
+    ss << "subq " << src1->toString() << ", %rsp";
+    break;
+  case ASMOpType::RET:
+    ss << "movq %rbp, %rsp\n";
+    ss << TAB << "popq %rbp\n";
+    ss << TAB<< "ret";
+    break;
+  case ASMOpType::BINARY:
+    switch (binaryOpType) {
+    case BinaryOpType::ADD:
+      ss << "addl " << src2->toString() << ", " << dst->toString();
+      break;
+    case BinaryOpType::SUB:
+      ss << "subl " << src2->toString() << ", " << dst->toString();
+      break;
+    case BinaryOpType::MULT:
+      ss << "imull " << src2->toString() << ", " << dst->toString();
+      break;
+    }
+    break;
+  case ASMOpType::IDIV:
+    ss << "idivl " << src1->toString();
+    break;
+  case ASMOpType::CDQ:
+    ss << "cdq";
+    break;
+  default:
+    break;
+  }
+  return ss.str();
+}
+
+ASMProgramPtr Codegen::generateCode(IRProgramPtr &irProgram){
+  auto asmProgram = IRProgramtoASM(irProgram);
+  return asmProgram;
+}
+
+ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram){
+  auto asmProgram = std::make_shared<ASMProgram>();
+  for (const auto &irTopLevel : irProgram->topLevelItems) {
+    auto asmFunction = IRFunctionToASM(std::dynamic_pointer_cast<IRFunctionNode>(irTopLevel));
+    asmProgram->functions.push_back(asmFunction);
+  }
+  return asmProgram;
+}
+
+ASMFunctionPtr Codegen::IRFunctionToASM(const IRFunctionPtr &irFunction){
+  auto asmFunction = std::make_shared<ASMFunction>();
+  asmFunction->name = irFunction->identifier;
+  for (const auto &irInstruction : irFunction->instructions) {
+    auto instrs = IRInstructionToASM(irInstruction);
+    for(auto instr : instrs){
+      asmFunction->instructions.push_back(instr);
+    }
+  }
+  int offset = replacePseudoRegisters(asmFunction);
+  finalPass(asmFunction);
+  // allocate stack
+  auto allocateStackInstr = std::make_shared<ASMInstruction>();
+  allocateStackInstr->opType = ASMOpType::ALLOCATE_STACK;
+  allocateStackInstr->src1 = std::make_shared<Immediate>(offset);
+  asmFunction->instructions.insert(asmFunction->instructions.begin(), allocateStackInstr);
+  return asmFunction;
+}
+
+std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction){
+  std::vector<ASMInstructionPtr> asmInstructions;
+  switch (irInstruction->opType) {
+  case IROpType::NEGATE:{
+    // First, move src to dst
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+    
+    // Then, negate the dst
+    asmInstructions.push_back(ASMInstruction::createUnary(UnaryOpType::NEG, IRValueToOperand(irInstruction->dst)));
+    break;
+  }
+  case IROpType::COMPLEMENT: {
+    // First, move src to dst
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+
+    // Then, complement the dst
+    asmInstructions.push_back(ASMInstruction::createUnary(UnaryOpType::NOT, IRValueToOperand(irInstruction->dst)));
+    break;
+  }
+  case IROpType::RETURN: {
+    asmInstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createRet());
+    break;
+  }
+  case IROpType::ADD:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::ADD, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::SUBTRACT:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::SUB, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::MULTIPLY:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::MULT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::DIVIDE:{
+    asmInstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createCDQ());
+
+    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),std::make_shared<Reg>(RegisterType::AX)));
+    break;
+  }
+  case IROpType::REMAINDER:{
+    asmInstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createCDQ());
+
+    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),std::make_shared<Reg>(RegisterType::DX)));
+    break;
+  }
+  default:
+    break;
+  }
+  return asmInstructions;
+}
+
+OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue){
+  if (!irValue) return nullptr;
+  switch (irValue->type) {
+  case IRValueType::CONSTANT :{
+    return std::make_shared<Immediate>(std::get<int>(irValue->value));
+  }
+  case IRValueType::VARIABLE:{
+    return std::make_shared<Pseudo>(irValue->name);
+  }
+  case IRValueType::TEMPORARY:{
+    return std::make_shared<Pseudo>(irValue->name);
+  }
+  case IRValueType::ARGS:{
+
+  }
+  default:
+    return nullptr;
+  }
+}
+
+int Codegen::replacePseudoRegisters(ASMBasePtr ast) {
+  static int offset = 0;
+  // Implementation for replacing pseudo registers with actual registers
+  if (auto program = std::dynamic_pointer_cast<ASMProgram>(ast)) {
+    for (auto &function : program->functions) {
+      replacePseudoRegisters(function);
+    }
+  } else if (auto function = std::dynamic_pointer_cast<ASMFunction>(ast)) {
+    offset_table.clear();
+    offset = 0;
+    for (auto &instruction : function->instructions) {
+      // Replace dst
+      if (instruction->dst) {
+        if (auto pseudo = std::dynamic_pointer_cast<Pseudo>(instruction->dst)) {
+          if (offset_table.find(pseudo->name) == offset_table.end()) {
+            offset += 4;
+            offset_table[pseudo->name] = offset; // Negative offset from RBP
+          }
+          instruction->dst = std::make_shared<Stack>(offset_table[pseudo->name]);
+        }
+      }
+      
+      // Replace src1
+      if (instruction->src1) {
+        if (auto pseudo = std::dynamic_pointer_cast<Pseudo>(instruction->src1)) {
+          if (offset_table.find(pseudo->name) == offset_table.end()) {
+            offset += 4;
+            offset_table[pseudo->name] = offset; // Negative offset from RBP
+          }
+          instruction->src1 = std::make_shared<Stack>(offset_table[pseudo->name]);
+        }
+      }
+      
+      // Replace src2
+      if (instruction->src2) {
+        if (auto pseudo = std::dynamic_pointer_cast<Pseudo>(instruction->src2)) {
+          if (offset_table.find(pseudo->name) == offset_table.end()) {
+            offset += 4;
+            offset_table[pseudo->name] = offset; // Negative offset from RBP
+          }
+          instruction->src2 = std::make_shared<Stack>(offset_table[pseudo->name]);
+        }
+      }
+    }
+  }
+  return offset;
+}
+
+void Codegen::finalPass(ASMBasePtr ast) {
+  // Implementation for final optimizations and adjustments
+  if (auto program = std::dynamic_pointer_cast<ASMProgram>(ast)) {
+    for (auto &function : program->functions) {
+      finalPass(function);
+    }
+  } else if (auto function = std::dynamic_pointer_cast<ASMFunction>(ast)) {
+    auto newinstructions = std::vector<ASMInstructionPtr>{};
+    for (auto &instruction : function->instructions) {
+      switch (instruction->opType) {
+        case ASMOpType::MOV:{
+          if(instruction->dst && instruction->src1){
+          if(auto dstStack = dynamic_cast<Stack*>(instruction->dst.get())){
+            if(auto srcImm = dynamic_cast<Stack*>(instruction->src1.get())){
+              // mov can't contain both dst and src as address
+              auto inst = std::make_shared<ASMInstruction>();
+              inst->opType = ASMOpType::MOV;
+              inst->dst = std::make_shared<Reg>(RegisterType::R10);
+              inst->src1 = std::make_shared<Stack>(srcImm->offset);
+              newinstructions.push_back(inst);
+              instruction->src1 = std::make_shared<Reg>(RegisterType::R10);
+            }
+          }
+        }
+          newinstructions.push_back(instruction);
+          break;
+        }
+        case ASMOpType::BINARY:{
+          if(instruction->binaryOpType == BinaryOpType::MULT){
+            if(dynamic_pointer_cast<Stack>(instruction->dst)){
+              // move address to R11
+              auto inst = std::make_shared<ASMInstruction>();
+              inst->opType = ASMOpType::MOV;
+              inst->dst = std::make_shared<Reg>(RegisterType::R11);
+              inst->src1 = instruction->dst;
+              newinstructions.push_back(inst);
+              instruction->dst = std::make_shared<Reg>(RegisterType::R11);
+              newinstructions.push_back(instruction);
+              newinstructions.push_back(ASMInstruction::createMov(inst->src1, std::make_shared<Reg>(RegisterType::R11)));
+            } else{
+              newinstructions.push_back(instruction);
+            }
+          }
+          else{
+            if(auto dstStack = dynamic_cast<Stack*>(instruction->dst.get())){
+              if(auto srcImm = dynamic_cast<Stack*>(instruction->src2.get())){
+                // mov can't contain both dst and src as address
+                newinstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::R10), instruction->src2));
+                instruction->src2 = std::make_shared<Reg>(RegisterType::R10);
+              }
+            }
+            newinstructions.push_back(instruction);
+          }
+          break;
+        }
+        case ASMOpType::IDIV:{
+          if(dynamic_pointer_cast<Immediate>(instruction->src1)){
+            // move immediate to R10
+            newinstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::R10), instruction->src1));
+            instruction->src1 = std::make_shared<Reg>(RegisterType::R10);
+          }
+          newinstructions.push_back(instruction);
+          break;
+        }
+        default:
+          newinstructions.push_back(instruction);
+          break;
+      }
+    }
+    function->instructions = std::move(newinstructions);
+  }
+}

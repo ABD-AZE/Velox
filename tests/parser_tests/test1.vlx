@@ -1,13 +1,1 @@
-
-int check_alignment(int *ptr) {
-int arr0[5] = {1,2,3};
-  unsigned long addr = (unsigned long)ptr;
-  return (addr % 16 == 0);
-}
-
-int main(void) {
-  int arr[3][4];
-  int i;
-  int j;
-  return arr[i][j];
-}
+int main(void) { return 6 / 3 / 2; }

@@ -5,8 +5,8 @@ GTEST_FLAGS = -lgtest -lgtest_main -pthread
 TEST_TARGETS = build/lexer_test
 
 # Object file lists
-OBJ_FILES = build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o build/obj/ast_printer.o build/obj/valor.o build/obj/semantic_analysis.o
-DEBUG_OBJ_FILES = build/obj/debug/lexer.o build/obj/debug/velox.o build/obj/debug/token.o build/obj/debug/parser.o build/obj/debug/ast_printer.o build/obj/debug/valor.o build/obj/debug/semantic_analysis.o
+OBJ_FILES = build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o build/obj/ast_printer.o build/obj/valor.o build/obj/semantic_analysis.o build/obj/codegen.o
+DEBUG_OBJ_FILES = build/obj/debug/lexer.o build/obj/debug/velox.o build/obj/debug/token.o build/obj/debug/parser.o build/obj/debug/ast_printer.o build/obj/debug/valor.o build/obj/debug/semantic_analysis.o build/obj/debug/codegen.o
 
 .PHONY: all clean help test 
 
@@ -54,6 +54,10 @@ build/obj/semantic_analysis.o: semantic_analysis/semantic_analysis.cpp
 	@mkdir -p build/obj
 	$(CXX) $(CXXFLAGS) -c $< -o $@	
 
+build/obj/codegen.o: codegen/codegen.cpp
+	@mkdir -p build/obj
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 # Debug object files
 build/obj/debug/lexer.o: lexer/lexer.cpp 
 	@mkdir -p build/obj/debug
@@ -80,6 +84,10 @@ build/obj/debug/valor.o: valor/valor.cpp
 	$(CXX) $(DEBUGFLAGS) -c $< -o $@
 
 build/obj/debug/semantic_analysis.o: semantic_analysis/semantic_analysis.cpp
+	@mkdir -p build/obj/debug
+	$(CXX) $(DEBUGFLAGS) -c $< -o $@
+
+build/obj/debug/codegen.o: codegen/codegen.cpp
 	@mkdir -p build/obj/debug
 	$(CXX) $(DEBUGFLAGS) -c $< -o $@
 	
