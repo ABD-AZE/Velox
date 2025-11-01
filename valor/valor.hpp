@@ -595,7 +595,6 @@ private:
 
   // Helper functions for lvalue conversion
   IRValuePtr convertExpResult(const ExpResult &result, const Type &exprType);
-  void emitLvalueConversion();
 
   // Helper function to calculate type size in bytes
   int getTypeSize(const Type &type);

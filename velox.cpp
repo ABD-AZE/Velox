@@ -3,12 +3,17 @@
 #include "parser/parser.hpp"
 #include "semantic_analysis/semantic_analysis.hpp"
 #include "valor/valor.hpp"
+#include "codegen/codegen.hpp"
+
+void cleanup(const std::string &filename);
 
 int main(int argc, char *argv[]) {
   bool lexflag = 0;
   bool parseflag = 0;
   bool irflag = 0;
   bool validateflag = 0;
+  bool codegenflag = 0;
+  bool asmflag = 0;
   // if (argc < 2) {
   //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
   //   return 1;
@@ -25,7 +30,12 @@ int main(int argc, char *argv[]) {
       irflag = 1;
     } else if (arg == "--validate") {
       validateflag = 1;
-    } else {
+    } else if (arg == "--codegen") {
+      codegenflag = 1;
+    } else if (arg == "-S"){
+      asmflag = 1;
+    } 
+    else {
       source = arg;
     }
   }
@@ -39,7 +49,7 @@ int main(int argc, char *argv[]) {
   int ret = system(command.c_str());
   if (ret != 0) {
     std::cerr << "Preprocessing failed." << std::endl;
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 1;
   }
   source = preprocessedfile;
@@ -48,20 +58,22 @@ int main(int argc, char *argv[]) {
   if (!lexer.success) {
     std::cerr << "Lexical analysis failed with errors." << std::endl;
     lexer.PrintErrors();
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 1;
   }
   lexer.PrintTokens();
   if (lexflag) {
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 0;
   }
+
+
   Parser parser(lexer.GetTokens());
   ASTNodePtr &ast = parser.parseProgram();
   if (!parser.isSuccessful()) {
     std::cerr << "Parsing failed with errors." << std::endl;
     parser.printErrors();
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 1;
   }
 
@@ -69,7 +81,7 @@ int main(int argc, char *argv[]) {
   ASTPrinter::print(ast);
 
   if (parseflag) {
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 0;
   }
 
@@ -82,16 +94,17 @@ int main(int argc, char *argv[]) {
     for (const auto &error : semanticAnalyzer.errors) {
       std::cerr << "  " << error << std::endl;
     }
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 1;
   }
 
   std::cout << "\n=== AST (After Semantic Analysis) ===" << std::endl;
   ASTPrinter::print(ast);
   if (validateflag) {
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 0;
   }
+
   // Generate IR
   Valor valor(semanticAnalyzer.label_counter);
   auto irProgram = valor.convertToIR(ast);
@@ -104,9 +117,44 @@ int main(int argc, char *argv[]) {
     irFile.close();
   }
   if (irflag) {
-    std::remove(preprocessedfile.c_str());
+    cleanup(preprocessedfile);
     return 0;
   }
-  std::remove(preprocessedfile.c_str());
+
+  // Code generation 
+  Codegen codegenerator;
+  auto asmProgram = codegenerator.generateCode(irProgram);
+  if(codegenflag){
+    cleanup(preprocessedfile);
+    return 0;
+  }
+  std::string asmfile;
+  asmfile = source.substr(0, source.find_last_of('.')) + ".s";
+  std::ofstream asmOutputFile(asmfile);
+  if (asmOutputFile.is_open()) {
+    asmOutputFile << asmProgram->toString();
+    asmOutputFile.close();
+    std::cout << "Assembly code written to " << asmfile << std::endl;
+  } else{
+    std::cerr << "Failed to write assembly code to " << asmfile << std::endl;
+  }
+
+  if (asmflag) {
+    cleanup(preprocessedfile);
+    return 0;
+  }
+  auto cmd = "gcc -m64 " + asmfile + " -o " +
+             source.substr(0, source.find_last_of('.'));
+  ret = system(cmd.c_str());
+  if (ret != 0) { 
+    std::cerr << "Assembly failed." << std::endl;
+  }
+  cleanup(preprocessedfile);
   return 0;
+}
+
+void cleanup(const std::string &filename) {
+  if (std::remove(filename.c_str()) != 0) {
+    std::cerr << "Error deleting file: " << filename << std::endl;
+  }
 }
