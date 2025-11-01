@@ -57,6 +57,11 @@ enum class BinaryOpType{
   ADD,
   SUB,
   MULT,
+  AND,
+  OR,
+  XOR,
+  LEFT_SHIFT,
+  RIGHT_SHIFT,
 };
 
 enum class RegisterType
@@ -65,6 +70,8 @@ enum class RegisterType
   DX,
   R10,
   R11,
+  CL, // lower 8 bits of ECX
+  ECX, 
 };
 
 class ASMBase
@@ -166,9 +173,16 @@ public:
         return "%r11d";
       case RegisterType::DX:
         return "%edx";
+      case RegisterType::CL:
+        return "%cl";
+      case RegisterType::ECX:
+        return "%ecx";
       default:
         return "%unknown";
     }
+  }
+  static std::shared_ptr<Reg> createRegister(RegisterType r){
+    return std::make_shared<Reg>(r);
   }
 };
 

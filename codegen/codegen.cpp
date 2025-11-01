@@ -59,6 +59,21 @@ std::string ASMInstruction::toString() const {
     case BinaryOpType::MULT:
       ss << "imull " << src2->toString() << ", " << dst->toString();
       break;
+    case BinaryOpType::AND:
+      ss << "andl " << src2->toString() << ", " << dst->toString();
+      break;
+    case BinaryOpType::OR:
+      ss << "orl " << src2->toString() << ", " << dst->toString();
+      break;  
+    case BinaryOpType::XOR:
+      ss << "xorl " << src2->toString() << ", " << dst->toString();
+      break;
+    case BinaryOpType::LEFT_SHIFT:
+      ss << "sall " << src2->toString() << ", " << dst->toString();
+      break;
+    case BinaryOpType::RIGHT_SHIFT:
+      ss << "sarl " << src2->toString() << ", " << dst->toString();
+      break;
     }
     break;
   case ASMOpType::IDIV:
@@ -126,7 +141,7 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     break;
   }
   case IROpType::RETURN: {
-    asmInstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
     asmInstructions.push_back(ASMInstruction::createRet());
     break;
   }
@@ -146,19 +161,44 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     break;
   }
   case IROpType::DIVIDE:{
-    asmInstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
     asmInstructions.push_back(ASMInstruction::createCDQ());
 
     asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2)));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),std::make_shared<Reg>(RegisterType::AX)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),Reg::createRegister(RegisterType::AX)));
     break;
   }
   case IROpType::REMAINDER:{
-    asmInstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX),IRValueToOperand(irInstruction->src1)));
     asmInstructions.push_back(ASMInstruction::createCDQ());
 
     asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2)));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),std::make_shared<Reg>(RegisterType::DX)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),Reg::createRegister(RegisterType::DX)));
+    break;
+  }
+  case IROpType::AND:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::AND, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::OR:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::OR, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::XOR:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::XOR, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::LEFT_SHIFT:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::LEFT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    break;
+  }
+  case IROpType::RIGHT_SHIFT:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),IRValueToOperand(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::RIGHT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
     break;
   }
   default:
@@ -252,10 +292,10 @@ void Codegen::finalPass(ASMBasePtr ast) {
               // mov can't contain both dst and src as address
               auto inst = std::make_shared<ASMInstruction>();
               inst->opType = ASMOpType::MOV;
-              inst->dst = std::make_shared<Reg>(RegisterType::R10);
+              inst->dst = Reg::createRegister(RegisterType::R10);
               inst->src1 = std::make_shared<Stack>(srcImm->offset);
               newinstructions.push_back(inst);
-              instruction->src1 = std::make_shared<Reg>(RegisterType::R10);
+              instruction->src1 = Reg::createRegister(RegisterType::R10);
             }
           }
         }
@@ -268,22 +308,29 @@ void Codegen::finalPass(ASMBasePtr ast) {
               // move address to R11
               auto inst = std::make_shared<ASMInstruction>();
               inst->opType = ASMOpType::MOV;
-              inst->dst = std::make_shared<Reg>(RegisterType::R11);
+              inst->dst = Reg::createRegister(RegisterType::R11);
               inst->src1 = instruction->dst;
               newinstructions.push_back(inst);
-              instruction->dst = std::make_shared<Reg>(RegisterType::R11);
+              instruction->dst = Reg::createRegister(RegisterType::R11);
               newinstructions.push_back(instruction);
-              newinstructions.push_back(ASMInstruction::createMov(inst->src1, std::make_shared<Reg>(RegisterType::R11)));
+              newinstructions.push_back(ASMInstruction::createMov(inst->src1, Reg::createRegister(RegisterType::R11)));
             } else{
               newinstructions.push_back(instruction);
             }
+          } else if(instruction->binaryOpType == BinaryOpType::LEFT_SHIFT || instruction->binaryOpType == BinaryOpType::RIGHT_SHIFT){
+            if(!dynamic_pointer_cast<Immediate>(instruction->src2)){
+              // move src2 to ECX
+              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::ECX), instruction->src2));
+              instruction->src2 = Reg::createRegister(RegisterType::CL);
+            }
+            newinstructions.push_back(instruction);
           }
           else{
             if(auto dstStack = dynamic_cast<Stack*>(instruction->dst.get())){
               if(auto srcImm = dynamic_cast<Stack*>(instruction->src2.get())){
                 // mov can't contain both dst and src as address
-                newinstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::R10), instruction->src2));
-                instruction->src2 = std::make_shared<Reg>(RegisterType::R10);
+                newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2));
+                instruction->src2 = Reg::createRegister(RegisterType::R10);
               }
             }
             newinstructions.push_back(instruction);
@@ -293,8 +340,8 @@ void Codegen::finalPass(ASMBasePtr ast) {
         case ASMOpType::IDIV:{
           if(dynamic_pointer_cast<Immediate>(instruction->src1)){
             // move immediate to R10
-            newinstructions.push_back(ASMInstruction::createMov(std::make_shared<Reg>(RegisterType::R10), instruction->src1));
-            instruction->src1 = std::make_shared<Reg>(RegisterType::R10);
+            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1));
+            instruction->src1 = Reg::createRegister(RegisterType::R10);
           }
           newinstructions.push_back(instruction);
           break;
