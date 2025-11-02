@@ -1,6 +1,7 @@
 #include "codegen.hpp"
 #define TAB "    "
 std::unordered_map<std::string, int> offset_table;
+bool oneByte = 0;
 
 std::string ASMProgram::toString() const {
   std::stringstream ss;
@@ -22,6 +23,25 @@ std::string ASMFunction::toString() const {
     ss << TAB << instruction->toString() << "\n";
   }
   return ss.str();
+}
+
+ConditionCode binOptoConditionCode(   IROpType binOp) {
+  switch (binOp) {
+  case IROpType::GREATER_THAN:
+    return ConditionCode::G;
+  case IROpType::GREATER_EQUAL:
+    return ConditionCode::GE;
+  case IROpType::LESS_THAN:
+    return ConditionCode::L;
+  case IROpType::LESS_EQUAL:
+    return ConditionCode::LE;
+  case IROpType::EQUAL:
+    return ConditionCode::E;
+  case IROpType::NOT_EQUAL:
+    return ConditionCode::NE;
+  default:
+    throw std::runtime_error("Invalid binary operation for condition code");
+  }
 }
 
 std::string ASMInstruction::toString() const {
@@ -69,10 +89,14 @@ std::string ASMInstruction::toString() const {
       ss << "xorl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::LEFT_SHIFT:
+      oneByte = 1;
       ss << "sall " << src2->toString() << ", " << dst->toString();
+      oneByte = 0;
       break;
     case BinaryOpType::RIGHT_SHIFT:
+      oneByte = 1;
       ss << "sarl " << src2->toString() << ", " << dst->toString();
+      oneByte = 0;
       break;
     }
     break;
@@ -81,6 +105,61 @@ std::string ASMInstruction::toString() const {
     break;
   case ASMOpType::CDQ:
     ss << "cdq";
+    break;
+  case ASMOpType::CMP:
+    ss << "cmpl " << src2->toString() << ", " << src1->toString();
+    break;
+  case ASMOpType::JMP:
+    ss << "jmp " << ".L" << label;
+    break;
+  case ASMOpType::JMPCC:
+    switch (conditionCode) {
+    case ConditionCode::E:
+      ss << "je " << ".L" << label;
+      break;
+    case ConditionCode::NE:
+      ss << "jne " << ".L" << label;
+      break;
+    case ConditionCode::G:
+      ss << "jg " << ".L" << label;
+      break;
+    case ConditionCode::GE:
+      ss << "jge " << ".L" << label;
+      break;
+    case ConditionCode::L:
+      ss << "jl " << ".L" << label;
+      break;
+    case ConditionCode::LE:
+      ss << "jle " << ".L" << label;
+      break;
+    }
+    break;
+  case ASMOpType::SETCC:
+    oneByte = 1;
+    switch (conditionCode) {
+    case ConditionCode::E:
+      ss << "sete " << dst->toString();
+      break;
+    case ConditionCode::NE:
+      ss << "setne " << dst->toString();
+      break;
+    case ConditionCode::G:
+      ss << "setg " << dst->toString();
+      break;
+    case ConditionCode::GE:
+      ss << "setge " << dst->toString();
+      break;
+    case ConditionCode::L:
+      ss << "setl " << dst->toString(); 
+      break;
+    case ConditionCode::LE:
+      ss << "setle " << dst->toString();
+      break;
+    }
+    oneByte = 0;
+    break;
+  case ASMOpType::LABEL:
+    ss << ".L" << label << ":";
     break;
   default:
     break;
@@ -116,7 +195,7 @@ ASMFunctionPtr Codegen::IRFunctionToASM(const IRFunctionPtr &irFunction){
   // allocate stack
   auto allocateStackInstr = std::make_shared<ASMInstruction>();
   allocateStackInstr->opType = ASMOpType::ALLOCATE_STACK;
-  allocateStackInstr->src1 = std::make_shared<Immediate>(offset);
+  allocateStackInstr->src1 = Immediate::createImmediate(offset);
   asmFunction->instructions.insert(asmFunction->instructions.begin(), allocateStackInstr);
   return asmFunction;
 }
@@ -201,6 +280,45 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::RIGHT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
     break;
   }
+  case IROpType::EQUAL:
+  case IROpType::NOT_EQUAL:
+  case IROpType::GREATER_THAN:
+  case IROpType::GREATER_EQUAL:
+  case IROpType::LESS_THAN:
+  case IROpType::LESS_EQUAL:{
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1),IRValueToOperand(irInstruction->src2)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0)));
+    asmInstructions.push_back(ASMInstruction::createSetCC(binOptoConditionCode(irInstruction->opType), IRValueToOperand(irInstruction->dst)));
+    break;
+  }
+  case IROpType::LABEL:{
+    asmInstructions.push_back(ASMInstruction::createLabel(irInstruction->label));
+    break;
+  }
+  case IROpType::JUMP:{
+    asmInstructions.push_back(ASMInstruction::createJmp(irInstruction->label));
+    break;
+  }
+  case IROpType::JUMP_IF_ZERO:{
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0)));
+    asmInstructions.push_back(ASMInstruction::createJmpCC(ConditionCode::E, irInstruction->label));
+    break;
+  }
+  case IROpType::JUMP_IF_NOT_ZERO:{
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0)));
+    asmInstructions.push_back(ASMInstruction::createJmpCC(ConditionCode::NE, irInstruction->label));
+    break;
+  }
+  case IROpType::NOT:{
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0)));
+    asmInstructions.push_back(ASMInstruction::createSetCC(ConditionCode::E, IRValueToOperand(irInstruction->dst)));
+    break;
+  }
+  case IROpType::COPY:{
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+    break;
+  }
   default:
     break;
   }
@@ -211,7 +329,7 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue){
   if (!irValue) return nullptr;
   switch (irValue->type) {
   case IRValueType::CONSTANT :{
-    return std::make_shared<Immediate>(std::get<int>(irValue->value));
+    return Immediate::createImmediate(std::get<int>(irValue->value));
   }
   case IRValueType::VARIABLE:{
     return std::make_shared<Pseudo>(irValue->name);
@@ -321,7 +439,7 @@ void Codegen::finalPass(ASMBasePtr ast) {
             if(!dynamic_pointer_cast<Immediate>(instruction->src2)){
               // move src2 to ECX
               newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::ECX), instruction->src2));
-              instruction->src2 = Reg::createRegister(RegisterType::CL);
+              instruction->src2 = Reg::createRegister(RegisterType::ECX);
             }
             newinstructions.push_back(instruction);
           }
@@ -342,6 +460,22 @@ void Codegen::finalPass(ASMBasePtr ast) {
             // move immediate to R10
             newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1));
             instruction->src1 = Reg::createRegister(RegisterType::R10);
+          }
+          newinstructions.push_back(instruction);
+          break;
+        }
+        case ASMOpType::CMP:{
+          if(auto src1Stack = dynamic_cast<Stack*>(instruction->src1.get())){
+            if(auto src2Stack = dynamic_cast<Stack*>(instruction->src2.get())){
+              // cmp can't contain both src1 and src2 as address
+              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2));
+              instruction->src2 = Reg::createRegister(RegisterType::R10);
+            }
+          }
+          // checking if the second operand is an immediate value
+          if(auto src1Imm = dynamic_cast<Immediate*>(instruction->src1.get())){
+            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R11), instruction->src1));
+            instruction->src1 = Reg::createRegister(RegisterType::R11);
           }
           newinstructions.push_back(instruction);
           break;

@@ -1483,9 +1483,6 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
 }
 
 void SemanticAnalyzer::visit(AssignmentExpression &node) {
-  // Type check and convert left side (may wrap array in AddrOf for decay)
-  node.left = typecheckAndConvert(std::move(node.left));
-
   // Check if left side is an lvalue
   if (!isLvalue(node.left.get())) {
     success = 0;
@@ -1498,6 +1495,8 @@ void SemanticAnalyzer::visit(AssignmentExpression &node) {
     binexp->left = node.left->clone();
     binexp->right = std::move(node.right);
   }
+  // Type check and convert left side (may wrap array in AddrOf for decay)
+  node.left = typecheckAndConvert(std::move(node.left));
 
   // Type check and convert right side
   if (node.right) {

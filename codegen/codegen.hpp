@@ -9,12 +9,15 @@ class ASMProgram;
 class ASMFunction;
 class ASMInstruction;
 class Operand;
+class Immediate;
 
 using ASMBasePtr = std::shared_ptr<ASMBase>;
 using ASMProgramPtr = std::shared_ptr<ASMProgram>;
 using ASMFunctionPtr = std::shared_ptr<ASMFunction>;
 using ASMInstructionPtr = std::shared_ptr<ASMInstruction>;
 using OperandPtr = std::shared_ptr<Operand>;
+
+extern bool oneByte;
 
 class Codegen
 {
@@ -45,6 +48,11 @@ enum class ASMOpType
   CDQ,
   ALLOCATE_STACK,
   RET,
+  CMP,
+  JMP,
+  JMPCC,
+  SETCC,
+  LABEL, // NOT an instruction, but a marker for labels
 };
 
 enum class UnaryOpType
@@ -53,7 +61,8 @@ enum class UnaryOpType
   NOT,
 };
 
-enum class BinaryOpType{
+enum class BinaryOpType
+{
   ADD,
   SUB,
   MULT,
@@ -64,14 +73,23 @@ enum class BinaryOpType{
   RIGHT_SHIFT,
 };
 
+enum class ConditionCode
+{
+  E,
+  NE,
+  G,
+  GE,
+  L,
+  LE,
+};
+
 enum class RegisterType
 {
   AX,
   DX,
   R10,
   R11,
-  CL, // lower 8 bits of ECX
-  ECX, 
+  ECX,
 };
 
 class ASMBase
@@ -95,61 +113,6 @@ public:
   std::string toString() const;
 };
 
-class ASMInstruction : public ASMBase
-{
-public:
-  ASMOpType opType;
-  UnaryOpType unaryOpType;
-  BinaryOpType binaryOpType;
-  OperandPtr dst;
-  OperandPtr src1;
-  OperandPtr src2;
-  std::string toString() const;
-
-  static ASMInstructionPtr createMov(const OperandPtr &dst, const OperandPtr &src) {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::MOV;
-    instr->dst = dst;
-    instr->src1 = src;
-    return instr;
-  }
-
-  static ASMInstructionPtr createUnary(UnaryOpType unaryOpType, const OperandPtr &src) {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::UNARY;
-    instr->unaryOpType = unaryOpType;
-    instr->src1 = src;
-    return instr;
-  }
-
-  static ASMInstructionPtr createBinary(BinaryOpType binaryOpType, const OperandPtr &dst, const OperandPtr &src2) {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::BINARY;
-    instr->binaryOpType = binaryOpType;
-    instr->dst = dst;
-    instr->src2 = src2;
-    return instr;
-  }
-
-  static ASMInstructionPtr createIDiv(const OperandPtr &src) {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::IDIV;
-    instr->src1 = src;
-    return instr;
-  }
-
-  static ASMInstructionPtr createCDQ() {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::CDQ;
-    return instr;
-  }
-
-  static ASMInstructionPtr createRet() {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::RET;
-    return instr;
-  }
-};
 
 class Operand : public ASMBase
 {
@@ -163,25 +126,46 @@ class Reg : public Operand
 public:
   RegisterType name;
   Reg(RegisterType name) : name(name) {}
-  std::string toString() const override {
-    switch (name) {
-      case RegisterType::AX:
-        return "%eax";
-      case RegisterType::R10:
-        return "%r10d";
-      case RegisterType::R11:
-        return "%r11d";
-      case RegisterType::DX:
-        return "%edx";
-      case RegisterType::CL:
+  std::string toString() const override
+  {
+    switch (name)
+    {
+    case RegisterType::AX:{
+      if(oneByte){
+        return "%al";
+      }
+      return "%eax";
+    }
+    case RegisterType::R10:{
+      if(oneByte){
+        return "%r10b";
+      }
+      return "%r10d";
+    }
+    case RegisterType::R11:{
+      if(oneByte){
+        return "%r11b";
+      }
+      return "%r11d";
+    }
+    case RegisterType::DX:{
+      if(oneByte){
+        return "%dl";
+      }
+    return "%edx";
+    }
+    case RegisterType::ECX:{
+      if(oneByte){
         return "%cl";
-      case RegisterType::ECX:
-        return "%ecx";
-      default:
-        return "%unknown";
+      }
+      return "%ecx";
+    }
+    default:
+      return "%unknown";
     }
   }
-  static std::shared_ptr<Reg> createRegister(RegisterType r){
+  static std::shared_ptr<Reg> createRegister(RegisterType r)
+  {
     return std::make_shared<Reg>(r);
   }
 };
@@ -191,8 +175,13 @@ class Immediate : public Operand
 public:
   int value;
   Immediate(int value) : value(value) {}
-  std::string toString() const override {
+  std::string toString() const override
+  {
     return "$" + std::to_string(value);
+  }
+  static std::shared_ptr<Immediate> createImmediate(int value)
+  {
+    return std::make_shared<Immediate>(value);
   }
 };
 /// Pseudo operand lets us use an arbitrary identifier as a pseudo register
@@ -203,7 +192,8 @@ public:
 
   Pseudo(std::string name) : name(std::move(name)) {}
   // useless
-  std::string toString() const override {
+  std::string toString() const override
+  {
     return "";
   }
 };
@@ -214,7 +204,123 @@ class Stack : public Operand
 public:
   int offset;
   Stack(int offset) : offset(offset) {}
-  std::string toString() const override {
+  std::string toString() const override
+  {
     return std::to_string(-offset) + "(%rbp)";
+  }
+};
+
+class ASMInstruction : public ASMBase
+{
+public:
+  ASMOpType opType;
+  UnaryOpType unaryOpType;
+  BinaryOpType binaryOpType;
+  std::string label;           // for labels and jumps
+  ConditionCode conditionCode; // for conditional jumps and setcc
+  OperandPtr dst;
+  OperandPtr src1;
+  OperandPtr src2;
+  std::string toString() const;
+
+  static ASMInstructionPtr createMov(const OperandPtr &dst, const OperandPtr &src)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::MOV;
+    instr->dst = dst;
+    instr->src1 = src;
+    return instr;
+  }
+
+  static ASMInstructionPtr createUnary(UnaryOpType unaryOpType, const OperandPtr &src)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::UNARY;
+    instr->unaryOpType = unaryOpType;
+    instr->src1 = src;
+    return instr;
+  }
+
+  static ASMInstructionPtr createBinary(BinaryOpType binaryOpType, const OperandPtr &dst, const OperandPtr &src2)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::BINARY;
+    instr->binaryOpType = binaryOpType;
+    instr->dst = dst;
+    instr->src2 = src2;
+    return instr;
+  }
+
+  static ASMInstructionPtr createIDiv(const OperandPtr &src)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::IDIV;
+    instr->src1 = src;
+    return instr;
+  }
+
+  static ASMInstructionPtr createCDQ()
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::CDQ;
+    return instr;
+  }
+
+  static ASMInstructionPtr createRet()
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::RET;
+    return instr;
+  }
+
+  static ASMInstructionPtr createAllocateStack(int bytes)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::ALLOCATE_STACK;
+    instr->src1 = Immediate::createImmediate(bytes);
+    return instr;
+  }
+
+  static ASMInstructionPtr createLabel(const std::string &label)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::LABEL;
+    instr->label = label;
+    return instr;
+  }
+
+  static ASMInstructionPtr createJmp(const std::string &label)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::JMP;
+    instr->label = label;
+    return instr;
+  }
+
+  static ASMInstructionPtr createJmpCC(ConditionCode cc, const std::string &label)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::JMPCC;
+    instr->conditionCode = cc;
+    instr->label = label;
+    return instr;
+  }
+
+  static ASMInstructionPtr createSetCC(ConditionCode cc, const OperandPtr &dst)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::SETCC;
+    instr->conditionCode = cc;
+    instr->dst = dst;
+    return instr;
+  }
+
+  static ASMInstructionPtr createCmp(const OperandPtr &src1, const OperandPtr &src2)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::CMP;
+    instr->src1 = src1;
+    instr->src2 = src2;
+    return instr;
   }
 };
