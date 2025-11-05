@@ -480,6 +480,7 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
         node.type, node.param_types);
     global_symbol_table[node.name].linkage =
         global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+    global_symbol_table[node.name].isVariadic = node.isVariadic;
   }
   // Check for redeclaration
   if (identifier_map.find(node.name) != identifier_map.end()) {
@@ -521,6 +522,7 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
           {}); // assuming all params are int for simplicity
       global_symbol_table[uniqueName].linkage = LinkageType::NONE;
       global_symbol_table[uniqueName].storageClass = StorageClass::AUTO;
+      global_symbol_table[uniqueName].isVariadic = node.isVariadic;
     }
   }
   isFunctionBlock = true;
@@ -1033,15 +1035,17 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
     errors.push_back("Variable '" + node.name + "' used as function");
     return;
   }
-  if (node.args.size() !=
-      (entry.type.data.index() == 1
-           ? std::get<FunType>(entry.type.data).params.size()
-           : -1)) {
-    success = 0;
-    errors.push_back("Function '" + node.name +
-                     "' called with incorrect number of arguments");
-    return;
+  // Check argument count
+  auto param_count = entry.type.data.index() == 1
+                         ? std::get<FunType>(entry.type.data).params.size()
+                         : -1;
+  if((node.args.size() >= param_count) && entry.isVariadic && param_count != -1){
+    return; 
   }
+  success = 0;
+  errors.push_back("Function '" + node.name +
+                    "' called with incorrect number of arguments");
+  return;
 }
 
 // Statement visitors

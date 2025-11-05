@@ -88,7 +88,7 @@ private:
   param types: for function declarators, list of parameter types. For
   non-function declarators, empty vector
   */
-  std::tuple<std::string, Type, std::vector<std::string>, std::vector<Type>>
+  std::tuple<std::string, Type, std::vector<std::string>, std::vector<Type>, bool >
   processDeclarator(ASTNodePtr &declaratorNode, Type &baseType);
   Type processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
                                  Type baseType);
