@@ -309,9 +309,8 @@ void IRGenerator::convertSymbolTableToIR() {
       continue;
     }
 
-    // Skip if it doesn't have static linkage (we only want static variables)
-    if (entry.linkage != LinkageType::INTERNAL &&
-        entry.linkage != LinkageType::EXTERNAL) {
+    // Skip if it doesn't have static storage (we only want static variables)
+    if (entry.storageClass != StorageClass::STATIC) {
       continue;
     }
 
@@ -891,11 +890,8 @@ void IRGenerator::visit(FunDeclNode &node) {
     return;
   }
 
-  // Determine if function is global based on storage class
-  bool isGlobal = true;
-  if (node.storage_class.has_value()) {
-    isGlobal = (node.storage_class.value() != TokenType::STATIC);
-  }
+  // Determine if function is global based on linkage
+  bool isGlobal = global_symbol_table[node.name].linkage == LinkageType::EXTERNAL;
 
   std::shared_ptr<IRFunctionNode> func =
       std::make_shared<IRFunctionNode>(node.name, isGlobal);
