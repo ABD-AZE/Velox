@@ -62,8 +62,6 @@ const std::unordered_map<TokenType, std::string> TokenTypeNames = {
     {TokenType::SWITCH, "SWITCH"},                           // switch
     {TokenType::CASE, "CASE"},                               // case
     {TokenType::DEFAULT_CASE, "DEFAULT_CASE"},               // default
-    {TokenType::PRINTF, "PRINTF"},                           // printf
-    {TokenType::SCANF, "SCANF"},                             // scanf
     {TokenType::TYPEDEF, "TYPEDEF"},                         // typedef
     {TokenType::ENUM, "ENUM"},                               // enum
     {TokenType::UNION, "UNION"},                             // union
@@ -103,12 +101,6 @@ const std::unordered_map<TokenType, std::string> TokenTypeNames = {
     {TokenType::VA_END, "VA_END"},                       // va_end
     {TokenType::VA_ARG, "VA_ARG"},                       // va_arg
     {TokenType::VA_LIST, "VA_LIST"},                     // va_list
-    {TokenType::FOPEN, "FOPEN"},                         // fopen
-    {TokenType::FCLOSE, "FCLOSE"},                       // fclose
-    {TokenType::FREAD, "FREAD"},                         // fread
-    {TokenType::FWRITE, "FWRITE"},                       // fwrite
-    {TokenType::FPRINTF, "FPRINTF"},                     // fprintf
-    {TokenType::FSCANF, "FSCANF"},                       // fscanf
     {TokenType::UNTIL, "UNTIL"},                         // until
     {TokenType::CONST, "CONST"},                         // const
     {TokenType::END_OF_FILE, "END_OF_FILE"}              // end of file
@@ -141,8 +133,6 @@ const std::unordered_map<std::string, TokenType> keywords = {
     {"switch", TokenType::SWITCH},
     {"case", TokenType::CASE},
     {"default", TokenType::DEFAULT_CASE},
-    {"printf", TokenType::PRINTF},
-    {"scanf", TokenType::SCANF},
     {"typedef", TokenType::TYPEDEF},
     {"enum", TokenType::ENUM},
     {"union", TokenType::UNION},
@@ -150,12 +140,6 @@ const std::unordered_map<std::string, TokenType> keywords = {
     {"va_end", TokenType::VA_END},
     {"va_arg", TokenType::VA_ARG},
     {"va_list", TokenType::VA_LIST},
-    {"fopen", TokenType::FOPEN},
-    {"fclose", TokenType::FCLOSE},
-    {"fread", TokenType::FREAD},
-    {"fwrite", TokenType::FWRITE},
-    {"fprintf", TokenType::FPRINTF},
-    {"fscanf", TokenType::FSCANF},
     {"until", TokenType::UNTIL},
     {"const", TokenType::CONST},
     {"end_of_file", TokenType::END_OF_FILE}};

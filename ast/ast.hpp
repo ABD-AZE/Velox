@@ -1024,6 +1024,7 @@ public:
   Type type;                              // return type
   std::optional<TokenType> storage_class; // storage class
   std::vector<Type> param_types;          // parameter info
+  bool isVariadic = false;
   FunDeclNode() = default;
   FunDeclNode(std::string name, std::vector<std::string> param_names,
               ASTNodePtr body)

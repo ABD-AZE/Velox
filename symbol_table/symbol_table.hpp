@@ -26,6 +26,7 @@ public:
   SymbolType symbolType;
   StorageClass storageClass;
   InitType initType;
+  bool isVariadic = false;
   std::vector<Type> param_types; // for functions
   std::variant<int, long int, long unsigned int, unsigned int, double>
       value; // for initialized constants (scalars)
