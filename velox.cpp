@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
       parseflag = 1;
     } else if (arg == "--lex") {
       lexflag = 1;
-    } else if (arg == "--ir") {
+    } else if (arg == "--tacky") {
       irflag = 1;
     } else if (arg == "--validate") {
       validateflag = 1;

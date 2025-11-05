@@ -1,16 +1,21 @@
 #include "codegen.hpp"
-#define TAB "    "
 std::unordered_map<std::string, int> offset_table;
 // default is 4 bytes
 bool eightByte = 0;
 bool oneByte = 0;
 
+bool isMemoryAddress(const OperandPtr &operand)
+{
+  return (std::dynamic_pointer_cast<Stack>(operand) != nullptr || 
+         std::dynamic_pointer_cast<Data>(operand) != nullptr);
+}
+
 std::string ASMProgram::toString() const
 {
   std::stringstream ss;
-  for (const auto &function : functions)
+  for (const auto &topLevel : topLevelItems)
   {
-    ss << function->toString() << "\n";
+    ss << topLevel->toString() << "\n";
   }
   // disable stack execution
   ss << TAB << ".section .note.GNU-stack,\"\",@progbits\n";
@@ -20,7 +25,9 @@ std::string ASMProgram::toString() const
 std::string ASMFunction::toString() const
 {
   std::stringstream ss;
-  ss << ".globl " << name << "\n";
+  if(global)
+  ss << TAB << ".globl " << name << "\n";
+  ss << TAB << ".text" << "\n";
   ss << name << ":\n";
   ss << TAB << "pushq %rbp\n";
   ss << TAB << "movq %rsp, %rbp\n";
@@ -211,8 +218,33 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
   auto asmProgram = std::make_shared<ASMProgram>();
   for (const auto &irTopLevel : irProgram->topLevelItems)
   {
-    auto asmFunction = IRFunctionToASM(std::dynamic_pointer_cast<IRFunctionNode>(irTopLevel));
-    asmProgram->functions.push_back(asmFunction);
+    if (auto irFunction = std::dynamic_pointer_cast<IRFunctionNode>(irTopLevel))
+    {
+      auto asmFunction = IRFunctionToASM(irFunction);
+      asmProgram->topLevelItems.push_back(asmFunction);
+    }
+    else if (auto irStaticVar = std::dynamic_pointer_cast<IRStaticVariableNode>(irTopLevel))
+    {
+      auto init = std::visit(
+          [](auto &&arg) -> int {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, int>)
+              return 0;
+            else if constexpr (std::is_same_v<T, std::variant<int, long int, long unsigned int,
+                                                unsigned int, double>>)
+              return std::get<int>(arg);
+            else
+              return 0;
+          },
+          irStaticVar->init_list.empty()
+              ? std::variant<int, long int, long unsigned int,
+                             unsigned int, double>{0}
+              : irStaticVar->init_list[0].data);
+        
+      auto asmStaticVar = ASMStaticVariable::createStaticVariable(
+          irStaticVar->identifier, irStaticVar->global, init);
+      asmProgram->topLevelItems.push_back(asmStaticVar);
+    }
   }
   return asmProgram;
 }
@@ -221,6 +253,7 @@ ASMFunctionPtr Codegen::IRFunctionToASM(const IRFunctionPtr &irFunction)
 {
   auto asmFunction = std::make_shared<ASMFunction>();
   asmFunction->name = irFunction->identifier;
+  asmFunction->global = irFunction->global;
   auto regs = std::vector<RegisterType>{
       RegisterType::DI, RegisterType::SI, RegisterType::DX,
       RegisterType::CX, RegisterType::R8, RegisterType::R9};
@@ -516,12 +549,11 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue)
 int Codegen::replacePseudoRegisters(ASMBasePtr ast)
 {
   static int offset = 0;
-  // Implementation for replacing pseudo registers with actual registers
   if (auto program = std::dynamic_pointer_cast<ASMProgram>(ast))
   {
-    for (auto &function : program->functions)
+    for (auto &topLevel : program->topLevelItems)
     {
-      replacePseudoRegisters(function);
+      replacePseudoRegisters(topLevel);
     }
   }
   else if (auto function = std::dynamic_pointer_cast<ASMFunction>(ast))
@@ -537,10 +569,17 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
         {
           if (offset_table.find(pseudo->name) == offset_table.end())
           {
-            offset += 4;
-            offset_table[pseudo->name] = offset; // Negative offset from RBP
+            if(global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC){
+              instruction->dst = std::make_shared<Data>(pseudo->name);
+            }
+            else{
+              offset += 4;
+              offset_table[pseudo->name] = offset; // Negative offset from RBP
+              instruction->dst = std::make_shared<Stack>(offset_table[pseudo->name]);
+            }
+          }else{
+            instruction->dst = std::make_shared<Stack>(offset_table[pseudo->name]);
           }
-          instruction->dst = std::make_shared<Stack>(offset_table[pseudo->name]);
         }
       }
 
@@ -551,10 +590,18 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
         {
           if (offset_table.find(pseudo->name) == offset_table.end())
           {
-            offset += 4;
-            offset_table[pseudo->name] = offset; // Negative offset from RBP
+            if(global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC){
+              instruction->src1 = std::make_shared<Data>(pseudo->name);
+            }
+            else{
+              offset += 4;
+              offset_table[pseudo->name] = offset; // Negative offset from RBP
+              instruction->src1 = std::make_shared<Stack>(offset_table[pseudo->name]);
+            }
           }
-          instruction->src1 = std::make_shared<Stack>(offset_table[pseudo->name]);
+          else{
+            instruction->src1 = std::make_shared<Stack>(offset_table[pseudo->name]);
+          }
         }
       }
 
@@ -565,10 +612,18 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
         {
           if (offset_table.find(pseudo->name) == offset_table.end())
           {
-            offset += 4;
-            offset_table[pseudo->name] = offset; // Negative offset from RBP
+            if(global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC){
+              instruction->src2 = std::make_shared<Data>(pseudo->name);
+            }
+            else{
+              offset += 4;
+              offset_table[pseudo->name] = offset; // Negative offset from RBP
+              instruction->src2 = std::make_shared<Stack>(offset_table[pseudo->name]);
+            }
           }
-          instruction->src2 = std::make_shared<Stack>(offset_table[pseudo->name]);
+          else{
+            instruction->src2 = std::make_shared<Stack>(offset_table[pseudo->name]);
+          }
         }
       }
     }
@@ -581,9 +636,9 @@ void Codegen::finalPass(ASMBasePtr ast)
   // Implementation for final optimizations and adjustments
   if (auto program = std::dynamic_pointer_cast<ASMProgram>(ast))
   {
-    for (auto &function : program->functions)
+    for (auto &topLevel : program->topLevelItems)
     {
-      finalPass(function);
+      finalPass(topLevel);
     }
   }
   else if (auto function = std::dynamic_pointer_cast<ASMFunction>(ast))
@@ -597,15 +652,15 @@ void Codegen::finalPass(ASMBasePtr ast)
       {
         if (instruction->dst && instruction->src1)
         {
-          if (auto dstStack = dynamic_cast<Stack *>(instruction->dst.get()))
+          if (isMemoryAddress(instruction->dst))
           {
-            if (auto srcImm = dynamic_cast<Stack *>(instruction->src1.get()))
+            if (isMemoryAddress(instruction->src1))
             {
               // mov can't contain both dst and src as address
               auto inst = std::make_shared<ASMInstruction>();
               inst->opType = ASMOpType::MOV;
               inst->dst = Reg::createRegister(RegisterType::R10);
-              inst->src1 = std::make_shared<Stack>(srcImm->offset);
+              inst->src1 = instruction->src1;
               newinstructions.push_back(inst);
               instruction->src1 = Reg::createRegister(RegisterType::R10);
             }
@@ -618,7 +673,7 @@ void Codegen::finalPass(ASMBasePtr ast)
       {
         if (instruction->binaryOpType == BinaryOpType::MULT)
         {
-          if (dynamic_pointer_cast<Stack>(instruction->dst))
+          if (isMemoryAddress(instruction->dst))
           {
             // move address to R11
             auto inst = std::make_shared<ASMInstruction>();
@@ -647,9 +702,9 @@ void Codegen::finalPass(ASMBasePtr ast)
         }
         else
         {
-          if (auto dstStack = dynamic_cast<Stack *>(instruction->dst.get()))
+          if (isMemoryAddress(instruction->dst))
           {
-            if (auto srcImm = dynamic_cast<Stack *>(instruction->src2.get()))
+            if (isMemoryAddress(instruction->src2))
             {
               // mov can't contain both dst and src as address
               newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2));
@@ -673,9 +728,9 @@ void Codegen::finalPass(ASMBasePtr ast)
       }
       case ASMOpType::CMP:
       {
-        if (auto src1Stack = dynamic_cast<Stack *>(instruction->src1.get()))
+        if (isMemoryAddress(instruction->src1))
         {
-          if (auto src2Stack = dynamic_cast<Stack *>(instruction->src2.get()))
+          if (isMemoryAddress(instruction->src2))
           {
             // cmp can't contain both src1 and src2 as address
             newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2));

@@ -97,7 +97,7 @@ ASTNodePtr SemanticAnalyzer::convertByAssignment(ASTNodePtr exp,
 
 std::string SemanticAnalyzer::make_temp(const std::string &var_name) {
   static int counter = 0;
-  return "$" + var_name + "." + std::to_string(counter++);
+  return "_" + var_name + "." + std::to_string(counter++);
 }
 
 std::string SemanticAnalyzer::make_label() {
@@ -470,9 +470,8 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
     }
     // no need to update linkage as this declaration would follow the linkage of
     // the first declaration
-    global_symbol_table[node.name] =
-        SymbolTableEntry(node.name, SymbolType::FUNCTION, new_initType,
-                         node.type, node.param_types);
+    global_symbol_table[node.name].type = node.type;
+    global_symbol_table[node.name].initType = new_initType;
   } else {
     global_symbol_table[node.name] = SymbolTableEntry(
         node.name, SymbolType::FUNCTION,
@@ -549,8 +548,8 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
     }
     auto initType = node.init.has_value() ? InitType::INITIALIZED
                     : node.storage_class == StorageClass::EXTERN
-                        ? InitType::TENTATIVE
-                        : InitType::UNINITIALIZED;
+                        ? InitType::UNINITIALIZED
+                        : InitType::TENTATIVE;
     auto InitNode =
         node.init.has_value()
             ? dynamic_cast<InitializerNode *>(node.init.value().get())
@@ -626,10 +625,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
                  old_decl.initType == InitType::UNINITIALIZED) {
         new_initType = InitType::UNINITIALIZED;
       }
-      global_symbol_table[node.name] = SymbolTableEntry(
-          node.name, SymbolType::VARIABLE, new_initType, node.type);
-      global_symbol_table[node.name].linkage =
-          global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+      global_symbol_table[node.name].initType = new_initType;
       if (initType == InitType::INITIALIZED) {
         // Store the initializer for arrays
         if (node.type.kind == TypeKind::ARRAY && InitNode) {
@@ -659,11 +655,17 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
               InitNode->data);
         }
       }
+      global_symbol_table[node.name].type = node.type;
+      global_symbol_table[node.name].storageClass =
+          StorageClass::STATIC;
+      global_symbol_table[node.name].linkage =
+          global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
     } else {
       global_symbol_table[node.name] = SymbolTableEntry(
           node.name, SymbolType::VARIABLE, initType, node.type);
       global_symbol_table[node.name].linkage =
           global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
+      global_symbol_table[node.name].storageClass = StorageClass::STATIC;
       if (initType == InitType::INITIALIZED) {
         // Store the initializer for arrays
         if (node.type.kind == TypeKind::ARRAY && InitNode) {
@@ -774,6 +776,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name] = SymbolTableEntry(
           node.name, SymbolType::VARIABLE, InitType::UNINITIALIZED, node.type);
       global_symbol_table[node.name].linkage = LinkageType::EXTERNAL;
+      global_symbol_table[node.name].storageClass = StorageClass::STATIC;
     }
     return;
   } else if (node.storage_class.has_value() &&
@@ -1039,7 +1042,7 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
   auto param_count = entry.type.data.index() == 1
                          ? std::get<FunType>(entry.type.data).params.size()
                          : -1;
-  if((node.args.size() >= param_count) && entry.isVariadic && param_count != -1){
+  if((((node.args.size() >= param_count) && entry.isVariadic) || (node.args.size() == param_count)) && param_count != -1){
     return; 
   }
   success = 0;

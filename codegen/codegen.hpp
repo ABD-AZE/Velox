@@ -4,15 +4,21 @@
 #include <sstream>
 #include "../valor/valor.hpp"
 
+#define TAB "    "
+
 class ASMBase;
 class ASMProgram;
 class ASMFunction;
+class ASMTopLevel;
+class ASMStaticVariable;
 class ASMInstruction;
 class Operand;
 class Immediate;
 
 using ASMBasePtr = std::shared_ptr<ASMBase>;
 using ASMProgramPtr = std::shared_ptr<ASMProgram>;
+using ASMTopLevelPtr = std::shared_ptr<ASMTopLevel>;
+using ASMStaticVariablePtr = std::shared_ptr<ASMStaticVariable>;
 using ASMFunctionPtr = std::shared_ptr<ASMFunction>;
 using ASMInstructionPtr = std::shared_ptr<ASMInstruction>;
 using OperandPtr = std::shared_ptr<Operand>;
@@ -108,19 +114,62 @@ public:
 class ASMProgram : public ASMBase
 {
 public:
-  std::vector<ASMFunctionPtr> functions;
+  std::vector<ASMTopLevelPtr> topLevelItems;
   std::string toString() const;
 };
 
-class ASMFunction : public ASMBase
+class ASMTopLevel : public ASMBase
+{
+public:
+  virtual std::string toString() const = 0;
+  virtual ~ASMTopLevel() = default;
+};
+
+class ASMFunction : public ASMTopLevel
 {
 public:
   std::string name;
   std::vector<ASMInstructionPtr> instructions;
+  bool global;
   int stackSize = 0; // in bytes
   std::string toString() const;
 };
 
+class ASMStaticVariable : public ASMTopLevel
+{
+public:
+  std::string name;
+  bool global;
+  int init;
+  static std::shared_ptr<ASMStaticVariable> createStaticVariable(const std::string &name, bool global, int init)
+  {
+    auto var = std::make_shared<ASMStaticVariable>();
+    var->name = name;
+    var->global = global;
+    var->init = init;
+    return var;
+  }
+  std::string toString() const override
+  {
+    std::stringstream ss;
+    if (global)
+    {
+      ss << TAB << ".globl " << name << "\n";
+    }
+    if (init){
+      ss << TAB << ".data\n";
+      ss << TAB << ".align 4\n";
+      ss << name << ":\n";
+      ss << TAB << ".long " << init << "\n";
+    } else{
+      ss << TAB << ".bss\n";
+      ss << TAB << ".align 4\n";
+      ss << name << ":\n";
+      ss << TAB << ".zero 4\n";
+    }
+    return ss.str();
+  }
+};
 
 class Operand : public ASMBase
 {
@@ -235,7 +284,7 @@ public:
     return std::make_shared<Immediate>(value);
   }
 };
-/// Pseudo operand lets us use an arbitrary identifier as a pseudo register
+/// Pseudo operand lets us use an arbitrary identifier as a pseudo register. Tacky(Var) = Pseudo irrespective of storage duration
 class Pseudo : public Operand
 {
 public:
@@ -268,6 +317,17 @@ public:
   {
     return std::make_shared<Stack>(offset);
   }
+};
+
+class Data : public Operand
+{
+public:
+  std::string name;
+  Data(std::string name): name(std::move(name)) {}
+  std::string toString() const override
+  {
+    return name + "(%rip)";
+  }  
 };
 
 class ASMInstruction : public ASMBase

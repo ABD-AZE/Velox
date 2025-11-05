@@ -24,7 +24,7 @@ public:
   std::string name;
   LinkageType linkage;
   SymbolType symbolType;
-  StorageClass storageClass;
+  StorageClass storageClass = StorageClass::STATIC; // no use for functions
   InitType initType;
   bool isVariadic = false;
   std::vector<Type> param_types; // for functions
