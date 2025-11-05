@@ -506,11 +506,13 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
     }
     std::string uniqueName = make_temp(param_name);
     identifier_map[param_name] = {
-        uniqueName, 0}; // default linkage to 0 (internal) for parameters
-    if (hasbody) {
-      Type type;
-      // find type from param_types
-      auto it = &node.param_types[&param_name - &node.param_names[0]];
+      uniqueName, 0}; // default linkage to 0 (internal) for parameters
+      if (hasbody) {
+        Type type;
+        // find type from param_types
+        auto it = &node.param_types[&param_name - &node.param_names[0]];
+        node.param_names[&param_name - &node.param_names[0]] =
+            uniqueName; // rename parameter to unique name
       if (it) {
         type = *it;
       }
