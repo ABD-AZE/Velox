@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
   bool validateflag = 0;
   bool codegenflag = 0;
   bool asmflag = 0;
+  bool objectflag = 0;
   // if (argc < 2) {
   //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
   //   return 1;
@@ -34,7 +35,9 @@ int main(int argc, char *argv[]) {
       codegenflag = 1;
     } else if (arg == "-S"){
       asmflag = 1;
-    } 
+    } else if (arg == "-c") {
+      objectflag = 1;
+    }
     else {
       source = arg;
     }
@@ -138,11 +141,26 @@ int main(int argc, char *argv[]) {
   } else{
     std::cerr << "Failed to write assembly code to " << asmfile << std::endl;
   }
-
+  
   if (asmflag) {
     cleanup(preprocessedfile);
     return 0;
   }
+  // Assemble to object file
+  std::string objfile;
+  objfile = source.substr(0, source.find_last_of('.')) + ".o";
+  auto cmd2 = "gcc -m64 -c " + asmfile + " -o " + objfile;
+  ret = system(cmd2.c_str());
+  if (ret != 0) {
+    std::cerr << "Assembly to object file failed." << std::endl;
+    cleanup(preprocessedfile);
+    return 1;
+  }
+  if (objectflag) {
+    cleanup(preprocessedfile);
+    return 0;
+  }
+  // Link to executable
   auto cmd = "gcc -m64 " + asmfile + " -o " +
              source.substr(0, source.find_last_of('.'));
   ret = system(cmd.c_str());

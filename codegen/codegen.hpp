@@ -18,7 +18,7 @@ using ASMInstructionPtr = std::shared_ptr<ASMInstruction>;
 using OperandPtr = std::shared_ptr<Operand>;
 
 extern bool oneByte;
-
+extern bool eightByte;
 class Codegen
 {
 public:
@@ -53,6 +53,9 @@ enum class ASMOpType
   JMPCC,
   SETCC,
   LABEL, // NOT an instruction, but a marker for labels
+  DEALLOCATE_STACK, // arg: int 
+  PUSH, // arg : operand
+  CALL,  // arg: identifier
 };
 
 enum class UnaryOpType
@@ -86,10 +89,14 @@ enum class ConditionCode
 enum class RegisterType
 {
   AX,
+  CX,
   DX,
+  DI,
+  SI,
+  R8,
+  R9,
   R10,
   R11,
-  ECX,
 };
 
 class ASMBase
@@ -110,6 +117,7 @@ class ASMFunction : public ASMBase
 public:
   std::string name;
   std::vector<ASMInstructionPtr> instructions;
+  int stackSize = 0; // in bytes
   std::string toString() const;
 };
 
@@ -129,36 +137,79 @@ public:
   std::string toString() const override
   {
     switch (name)
-    {
+    { 
+    // default return val is 4 byte register name
     case RegisterType::AX:{
       if(oneByte){
         return "%al";
+      } else if (eightByte){
+        return "%rax";
       }
       return "%eax";
     }
     case RegisterType::R10:{
       if(oneByte){
         return "%r10b";
+      } else if (eightByte){
+        return "%r10";
       }
       return "%r10d";
     }
     case RegisterType::R11:{
       if(oneByte){
         return "%r11b";
+      } else if (eightByte){
+        return "%r11";
       }
       return "%r11d";
     }
     case RegisterType::DX:{
       if(oneByte){
         return "%dl";
+      } else if (eightByte){
+        return "%rdx";
       }
     return "%edx";
     }
-    case RegisterType::ECX:{
+    case RegisterType::CX:{
       if(oneByte){
         return "%cl";
+      } else if (eightByte){  
+        return "%rcx";
       }
       return "%ecx";
+    }
+    case RegisterType::DI:{
+      if(oneByte){
+        return "%dil";
+      } else if (eightByte){
+        return "%rdi";
+      }
+      return "%edi";
+    }
+    case RegisterType::SI:{
+      if(oneByte){
+        return "%sil";
+      } else if (eightByte){
+        return "%rsi";
+      }
+      return "%esi";
+    } 
+    case RegisterType::R8:{
+      if(oneByte){
+        return "%r8b";
+      } else if (eightByte){
+        return "%r8";
+      }
+      return "%r8d";
+    }
+    case RegisterType::R9:{
+      if(oneByte){
+        return "%r9b";
+      } else if (eightByte){
+        return "%r9";
+      }
+      return "%r9d";
     }
     default:
       return "%unknown";
@@ -196,9 +247,14 @@ public:
   {
     return "";
   }
+
+  static std::shared_ptr<Pseudo> createPseudo(const std::string &name)
+  {
+    return std::make_shared<Pseudo>(name);
+  }
 };
 
-/// -4(%rbp) = Stack(-4)
+/// -4(%rbp) = Stack(4)
 class Stack : public Operand
 {
 public:
@@ -207,6 +263,10 @@ public:
   std::string toString() const override
   {
     return std::to_string(-offset) + "(%rbp)";
+  }
+  static std::shared_ptr<Stack> createStack(int offset)
+  {
+    return std::make_shared<Stack>(offset);
   }
 };
 
@@ -321,6 +381,30 @@ public:
     instr->opType = ASMOpType::CMP;
     instr->src1 = src1;
     instr->src2 = src2;
+    return instr;
+  }
+
+  static ASMInstructionPtr createDeallocateStack(int bytes)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::DEALLOCATE_STACK;
+    instr->src1 = Immediate::createImmediate(bytes);
+    return instr;
+  }
+
+  static ASMInstructionPtr createPush(const OperandPtr &src)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::PUSH;
+    instr->src1 = src;
+    return instr;
+  }
+
+  static ASMInstructionPtr createCall(const std::string &label)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::CALL;
+    instr->label = label;
     return instr;
   }
 };
