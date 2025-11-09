@@ -1736,7 +1736,7 @@ void IRGenerator::visit(InitializerNode &node) {
   }
 }
 void IRGenerator::visit(SubscriptExpression &node) {
-  // Process array expression (which should be a pointer after decay)
+  // Process array expression
   if (node.arrayExpr) {
     node.arrayExpr->accept(*this);
   }
@@ -1744,7 +1744,7 @@ void IRGenerator::visit(SubscriptExpression &node) {
   if (!arrayExprNode || !arrayExprNode->type) {
     return;
   }
-  IRValuePtr ptrValue =
+  IRValuePtr arrayValue =
       convertExpResult(currentExpResult, *arrayExprNode->type);
 
   // Process index expression
@@ -1758,14 +1758,31 @@ void IRGenerator::visit(SubscriptExpression &node) {
   IRValuePtr indexValue =
       convertExpResult(currentExpResult, *indexExprNode->type);
 
+  // Determine which operand is the pointer and which is the index
+  IRValuePtr ptrValue;
+  IRValuePtr offsetValue;
+  
+  if (arrayExprNode->type->kind == TypeKind::POINTER) {
+    // arrayExpr is the pointer, indexExpr is the offset
+    ptrValue = std::move(arrayValue);
+    offsetValue = std::move(indexValue);
+  } else if (indexExprNode->type->kind == TypeKind::POINTER) {
+    // indexExpr is the pointer, arrayExpr is the offset (e.g., idx[arr])
+    ptrValue = std::move(indexValue);
+    offsetValue = std::move(arrayValue);
+  } else {
+    // Neither is a pointer - error case
+    return;
+  }
+
   // Calculate the scale (size of element type)
   // node.type is the type of the result (the element type)
   int scale = getTypeSize(*node.type);
 
-  // Generate AddPtr instruction: result = ptr + (index * scale)
+  // Generate AddPtr instruction: result = ptr + (offset * scale)
   IRValuePtr result = createTemporary();
   auto addPtrInst = IRInstructionNode::makeAddPtr(
-      std::move(ptrValue), std::move(indexValue), scale, result);
+      std::move(ptrValue), std::move(offsetValue), scale, result);
   currentFunction->addInstruction(std::move(addPtrInst));
 
   // Return DereferencedPointer since subscripting is equivalent to *(ptr +
