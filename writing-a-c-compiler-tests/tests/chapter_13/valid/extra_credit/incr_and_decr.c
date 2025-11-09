@@ -41,9 +41,9 @@ int main(void) {
 
   // ++ and -- have no effect if gap between representable values is greater
   // than 1
-  d = 1020;
+  d = 10*100000000000000000000.0;
   d--;
-  if (d != 1020) {
+  if (d != 10*100000000000000000000.0) {
     return 10;
   }
   return 0;

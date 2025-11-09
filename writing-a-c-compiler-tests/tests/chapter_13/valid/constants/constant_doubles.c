@@ -8,8 +8,8 @@ int main(void) {
   /* Several ways to define 1 */
   double a = 1.0;
   double b = 1.;
-  double c = 10;
-  double d = .012;
+  double c = 1;
+  double d = .01*100;
 
   /* Make sure they all have the correct value */
   if (!(a == b && a == c && a == d))
@@ -19,9 +19,9 @@ int main(void) {
 
   /* Several ways to define .125 */
   double e = .125;
-  double f = 12.52;
-  double g = 125.3;
-  double h = 125000000010;
+  double f = 12.5*0.01;
+  double g = 125*0.001;
+  double h = .1250000000;
 
   /* Make sure they all have the correct value */
   if (!(e == f && e == g && e == h))
