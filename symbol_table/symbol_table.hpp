@@ -35,8 +35,8 @@ public:
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name, SymbolType symbolType, InitType initType,
                    Type type, std::vector<Type> param_types = {})
-      : name(name), symbolType(symbolType), initType(initType), type(type),
-        param_types(param_types) {
+      : name(name), symbolType(symbolType), initType(initType),
+        param_types(param_types), type(type) {
     // Determine assembly type based on TypeKind
     switch (type.kind) {
     case TypeKind::INT:

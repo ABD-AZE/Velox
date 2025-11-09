@@ -939,9 +939,9 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
   node.name = uniqueName;
 }
 
-void SemanticAnalyzer::visit(StructDeclarationNode &node) {}
+void SemanticAnalyzer::visit(StructDeclarationNode &node) {(void)node;}
 
-void SemanticAnalyzer::visit(MemberDeclarationNode &node) {}
+void SemanticAnalyzer::visit(MemberDeclarationNode &node) {(void)node;}
 
 void SemanticAnalyzer::visit(BlockNode &node) {
   auto temp_isFunctionBlock = isFunctionBlock;
@@ -1042,7 +1042,7 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
   auto param_count = entry.type.data.index() == 1
                          ? std::get<FunType>(entry.type.data).params.size()
                          : -1;
-  if((((node.args.size() >= param_count) && entry.isVariadic) || (node.args.size() == param_count)) && param_count != -1){
+  if((((node.args.size() >= param_count) && entry.isVariadic) || (node.args.size() == param_count)) && param_count != -1ul){
     return; 
   }
   success = 0;
@@ -1860,10 +1860,10 @@ void SemanticAnalyzer::visit(StringLiteralExpression &node) {
       Type::Array(std::make_shared<Type>(Type::Char()), length + 1));
 }
 
-void SemanticAnalyzer::visit(SizeofExpression &node) {}
+void SemanticAnalyzer::visit(SizeofExpression &node) {(void)node;}
 
-void SemanticAnalyzer::visit(SizeofTypeExpression &node) {}
+void SemanticAnalyzer::visit(SizeofTypeExpression &node) {(void)node;}
 
-void SemanticAnalyzer::visit(DotExpression &node) {}
+void SemanticAnalyzer::visit(DotExpression &node) {(void)node;}
 
-void SemanticAnalyzer::visit(ArrowExpression &node) {}
+void SemanticAnalyzer::visit(ArrowExpression &node) {(void)node;}

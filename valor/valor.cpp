@@ -818,6 +818,7 @@ void IRGenerator::visit(ProgramNode &node) {
 }
 
 void IRGenerator::visit(FunctionDefinitionNode &node) {
+  (void)node;
   // not used
 }
 
@@ -1478,8 +1479,8 @@ IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
 }
 
 // <------------------------------------------------------------------------------------->
-void IRGenerator::visit(GotoStatement &node) { /* TODO: Implement jumps */ }
-void IRGenerator::visit(LabelStatement &node) { /* TODO: Implement labels */ }
+void IRGenerator::visit(GotoStatement &node) { (void)node;}
+void IRGenerator::visit(LabelStatement &node) { (void)node;}
 
 void IRGenerator::visit(CastExpression &node) {
   // Generate IR for the inner expression
@@ -1698,28 +1699,27 @@ void IRGenerator::visit(StringLiteralExpression &node) {
   currentValue = dst;
   currentExpResult = ExpResult::makePlainOperand(dst);
 }
-void IRGenerator::visit(SizeofExpression &node) { /* TODO: Implement sizeof */ }
+void IRGenerator::visit(SizeofExpression &node) { (void)node; /* TODO: Implement sizeof */ }
 void IRGenerator::visit(
-    SizeofTypeExpression &node) { /* TODO: Implement sizeof type */ }
-void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
-void IRGenerator::visit(InitDecl &node) { /* TODO: Implement declarations */ }
-void IRGenerator::visit(InitExp &node) { /* TODO: Implement expressions */ }
-void IRGenerator::visit(Ident &node) { /* Not needed for basic IR generation */
-}
+    SizeofTypeExpression &node) { (void)node; /* TODO: Implement sizeof type */ }
+void IRGenerator::visit(ForInit &node) { (void)node; /* TODO: Implement for loops */ }
+void IRGenerator::visit(InitDecl &node) { (void)node; /* TODO: Implement declarations */ }
+void IRGenerator::visit(InitExp &node) { (void)node; /* TODO: Implement expressions */ }
+void IRGenerator::visit(Ident &node) { (void)node; /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    DeclaratorNode &node) { /* Not needed for basic IR generation */ }
+    DeclaratorNode &node) { (void)node; /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    PointerDeclarator &node) { /* Not needed for basic IRgeneration */ }
+    PointerDeclarator &node) { (void)node; /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    FunDeclarator &node) { /* Not needed for basic IR generation */ }
+    FunDeclarator &node) { (void)node; /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    paraminfo &node) { /* Not needed for basic IR generation */ }
-void IRGenerator::visit(AbstractPointer &node) {}
-void IRGenerator::visit(AbstractBase &node) {}
-void IRGenerator::visit(Type &node) { /* Not needed for basic IR generation */ }
+    paraminfo &node) { (void)node; /* Not needed for basic IR generation */ }
+void IRGenerator::visit(AbstractPointer &node) { (void)node; }
+void IRGenerator::visit(AbstractBase &node) { (void)node; }
+void IRGenerator::visit(Type &node) { (void)node; /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
-    DeclarationNode &node) { /* Handle declarations if needed */ }
-void IRGenerator::visit(NullStatement &node) { /* Nothing to do */ }
+    DeclarationNode &node) { (void)node; /* Handle declarations if needed */ }
+void IRGenerator::visit(NullStatement &node) { (void)node; /* Nothing to do */ }
 void IRGenerator::visit(ArrayDeclarator &node) { (void)node; }
 void IRGenerator::visit(AbstractArray &node) { (void)node; }
 void IRGenerator::visit(InitializerNode &node) {
@@ -1774,10 +1774,10 @@ void IRGenerator::visit(SubscriptExpression &node) {
   currentValue = result;
 }
 
-void IRGenerator::visit(StructDeclarationNode &node) {}
+void IRGenerator::visit(StructDeclarationNode &node) { (void)node; }
 
-void IRGenerator::visit(MemberDeclarationNode &node) {}
+void IRGenerator::visit(MemberDeclarationNode &node) { (void)node; }
 
-void IRGenerator::visit(DotExpression &node) {}
+void IRGenerator::visit(DotExpression &node) { (void)node; }
 
-void IRGenerator::visit(ArrowExpression &node) {}
+void IRGenerator::visit(ArrowExpression &node) { (void)node; }

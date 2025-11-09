@@ -792,6 +792,8 @@ ASTNodePtr Parser::parseCastExp() {
                                                      std::move(expr));
       break;
     }
+    castExpNode = parseUnaryExp();
+    break;
   default: {
     castExpNode = parseUnaryExp();
     break;
@@ -1352,7 +1354,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
     }
     for (auto &param : funDecl->params) {
   
-      auto [param_name, param_type, _, __,_] =
+      auto [param_name, param_type, _, __,___] =
           processDeclarator((param.declarator), (param.type));
       if (param_type.kind == TypeKind::FUNC) {
         success = 0;

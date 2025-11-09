@@ -12,11 +12,14 @@ void modifySymbolTable()
   }
 }
 
-AssemblyType getAssemblyType(IRValuePtr irValue){
-  if(global_symbol_table.find(irValue->name) != global_symbol_table.end()){
+AssemblyType getAssemblyType(IRValuePtr irValue)
+{
+  if (global_symbol_table.find(irValue->name) != global_symbol_table.end())
+  {
     return global_symbol_table[irValue->name].assemblyType;
   }
-  else{
+  else
+  {
     return irValue->constType == TypeKind::LONG ? AssemblyType::QUAD_WORD : AssemblyType::LONG_WORD;
   }
 }
@@ -55,8 +58,28 @@ std::string ASMFunction::toString() const
   return ss.str();
 }
 
-ConditionCode binOptoConditionCode(IROpType binOp)
+ConditionCode binOptoConditionCode(IROpType binOp, bool isUnsigned)
 {
+  if (isUnsigned)
+  {
+    switch (binOp)
+    {
+    case IROpType::GREATER_THAN:
+      return ConditionCode::A;
+    case IROpType::GREATER_EQUAL:
+      return ConditionCode::AE;
+    case IROpType::LESS_THAN:
+      return ConditionCode::B;
+    case IROpType::LESS_EQUAL:
+      return ConditionCode::BE;
+    case IROpType::EQUAL:
+      return ConditionCode::E;
+    case IROpType::NOT_EQUAL:
+      return ConditionCode::NE;
+    default:
+      throw std::runtime_error("Invalid binary operation for condition code");
+    }
+  }
   switch (binOp)
   {
   case IROpType::GREATER_THAN:
@@ -176,6 +199,12 @@ std::string ASMInstruction::toString() const
     else
       ss << "idivl " << src1->toString();
     break;
+  case ASMOpType::DIV:
+    if (assemblyType == AssemblyType::QUAD_WORD)
+      ss << "divq " << src1->toString();
+    else
+      ss << "divl " << src1->toString();
+    break;
   case ASMOpType::CDQ:
     if (assemblyType == AssemblyType::QUAD_WORD)
       ss << "cqo";
@@ -212,6 +241,17 @@ std::string ASMInstruction::toString() const
     case ConditionCode::LE:
       ss << "jle " << ".L" << label;
       break;
+    case ConditionCode::A:
+      ss << "ja " << ".L" << label;
+      break;
+    case ConditionCode::AE:
+      ss << "jae " << ".L" << label;
+      break;
+    case ConditionCode::B:
+      ss << "jb " << ".L" << label;
+      break;
+    case ConditionCode::BE:
+      ss << "jbe " << ".L" << label;  
     }
     break;
   case ASMOpType::SETCC:
@@ -235,6 +275,18 @@ std::string ASMInstruction::toString() const
       break;
     case ConditionCode::LE:
       ss << "setle " << dst->toString();
+      break;
+    case ConditionCode::A:
+      ss << "seta " << dst->toString(); 
+      break;
+    case ConditionCode::AE:
+      ss << "setae " << dst->toString(); 
+      break;
+    case ConditionCode::B:
+      ss << "setb " << dst->toString(); 
+      break;
+    case ConditionCode::BE:
+      ss << "setbe " << dst->toString(); 
       break;
     }
     oneByte = 0;
@@ -405,22 +457,46 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
   */
   case IROpType::DIVIDE:
   {
-    AssemblyType type = getAssemblyType(irInstruction->dst);
-    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
-    asmInstructions.push_back(ASMInstruction::createCDQ(type));
+    bool isUnsigned = global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::ULONG ||
+                      global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::UINT;
 
-    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2), type));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX), type));
+    if(isUnsigned){
+      AssemblyType type = getAssemblyType(irInstruction->dst);
+      asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
+      asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::DX), Immediate::createImmediate(0), type));
+  
+      asmInstructions.push_back(ASMInstruction::createDiv(IRValueToOperand(irInstruction->src2), type));
+      asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX), type));
+    }
+    else{
+      AssemblyType type = getAssemblyType(irInstruction->dst);
+      asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
+      asmInstructions.push_back(ASMInstruction::createCDQ(type));
+  
+      asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2), type));
+      asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX), type));
+    }
     break;
   }
   case IROpType::REMAINDER:
   {
-    AssemblyType type = getAssemblyType(irInstruction->dst);
-    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
-    asmInstructions.push_back(ASMInstruction::createCDQ(type));
-
-    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2), type));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::DX), type));
+    bool isUnsigned = global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::ULONG ||
+                      global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::UINT;
+    if(isUnsigned){
+      AssemblyType type = getAssemblyType(irInstruction->dst);
+      asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
+      asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::DX), Immediate::createImmediate(0), type)); 
+      asmInstructions.push_back(ASMInstruction::createDiv(IRValueToOperand(irInstruction->src2), type));
+      asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::DX), type));
+    }
+    else{
+      AssemblyType type = getAssemblyType(irInstruction->dst);
+      asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
+      asmInstructions.push_back(ASMInstruction::createCDQ(type));
+  
+      asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2), type));
+      asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::DX), type));
+    }
     break;
   }
   case IROpType::AND:
@@ -465,9 +541,11 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
   case IROpType::LESS_THAN:
   case IROpType::LESS_EQUAL:
   {
+    bool isUnsigned = global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::ULONG ||
+                      global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::UINT;
     asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), IRValueToOperand(irInstruction->src2), getAssemblyType(irInstruction->src1)));
     asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0), AssemblyType::LONG_WORD));
-    asmInstructions.push_back(ASMInstruction::createSetCC(binOptoConditionCode(irInstruction->opType), IRValueToOperand(irInstruction->dst)));
+    asmInstructions.push_back(ASMInstruction::createSetCC(binOptoConditionCode(irInstruction->opType, isUnsigned), IRValueToOperand(irInstruction->dst)));
     break;
   }
   case IROpType::LABEL:
@@ -610,6 +688,11 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     asmInstructions.push_back(ASMInstruction::createMovsx(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
     break;
   }
+  case IROpType::ZERO_EXTEND:
+  {
+    asmInstructions.push_back(ASMInstruction::createMovZeroExtend(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+    break;
+  }
   default:
     break;
   }
@@ -637,7 +720,22 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue)
       {
         // Handle long constant
         imm->value = static_cast<int64_t>(arg);
-      } }, irValue->value);
+      }
+      else if constexpr (std::is_same_v<T,unsigned int>)
+      {
+        // Handle unsigned int constant
+        imm->value = static_cast<int64_t>(arg);
+      }
+      else if constexpr (std::is_same_v<T,unsigned long>)
+      {
+        // Handle unsigned long constant
+        imm->value = static_cast<int64_t>(arg);
+      }
+      else
+      {
+        throw std::runtime_error("Unsupported constant type in IRValueToOperand");
+      }
+    }, irValue->value);
     return imm;
   }
   case IRValueType::VARIABLE:
@@ -805,7 +903,7 @@ void Codegen::finalPass(ASMBasePtr ast)
         {
           if (instruction->assemblyType == AssemblyType::LONG_WORD)
           {
-            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            if ((int64_t)imm->value > std::numeric_limits<int32_t>::max() || (int64_t)imm->value < std::numeric_limits<int32_t>::min())
             {
               // truncate to 4 bytes
               instruction->src1 = Immediate::createImmediate(static_cast<int32_t>(imm->value) & 0xFFFFFFFF);
@@ -813,7 +911,7 @@ void Codegen::finalPass(ASMBasePtr ast)
           }
           else
           {
-            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            if ((int64_t)imm->value > std::numeric_limits<int32_t>::max() || (int64_t)imm->value < std::numeric_limits<int32_t>::min())
             {
               if (isMemoryAddress(instruction->dst))
               {
@@ -845,7 +943,7 @@ void Codegen::finalPass(ASMBasePtr ast)
         {
           if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src2))
           {
-            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            if ((int64_t)imm->value > std::numeric_limits<int32_t>::max() || (int64_t)imm->value < std::numeric_limits<int32_t>::min())
             {
               // move immediate to R10 and then to instruction src2
               newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2, AssemblyType::QUAD_WORD));
@@ -909,6 +1007,17 @@ void Codegen::finalPass(ASMBasePtr ast)
         newinstructions.push_back(instruction);
         break;
       }
+      case ASMOpType::DIV:
+      {
+        if (dynamic_pointer_cast<Immediate>(instruction->src1))
+        {
+          // move immediate to R10
+          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, instruction->assemblyType));
+          instruction->src1 = Reg::createRegister(RegisterType::R10);
+        }
+        newinstructions.push_back(instruction);
+        break;
+      }
       case ASMOpType::CMP:
       {
         if (isMemoryAddress(instruction->src1))
@@ -921,7 +1030,7 @@ void Codegen::finalPass(ASMBasePtr ast)
           }
         }
         // checking if the second operand is an immediate value
-        if (auto src1Imm = dynamic_cast<Immediate *>(instruction->src1.get()))
+        if (dynamic_cast<Immediate *>(instruction->src1.get()))
         {
           newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R11), instruction->src1, instruction->assemblyType));
           instruction->src1 = Reg::createRegister(RegisterType::R11);
@@ -930,7 +1039,7 @@ void Codegen::finalPass(ASMBasePtr ast)
         {
           if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src2))
           {
-            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            if ((int64_t)imm->value > std::numeric_limits<int32_t>::max() || (int64_t)imm->value < std::numeric_limits<int32_t>::min())
             {
               // move immediate to R10 and then to instruction src2
               newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2, AssemblyType::QUAD_WORD));
@@ -966,7 +1075,7 @@ void Codegen::finalPass(ASMBasePtr ast)
       {
         if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src1))
         {
-          if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+          if ((int64_t)imm->value > std::numeric_limits<int32_t>::max() || (int64_t)imm->value < std::numeric_limits<int32_t>::min())
           {
             // move immediate to R10 and then to instruction src1
             newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, AssemblyType::QUAD_WORD));
@@ -974,6 +1083,18 @@ void Codegen::finalPass(ASMBasePtr ast)
           }
         }
         newinstructions.push_back(instruction);
+        break;
+      }
+      case ASMOpType::MOVZEROEXTEND:
+      {
+        if(dynamic_cast<Reg *>(instruction->dst.get()))
+        {
+          newinstructions.push_back(ASMInstruction::createMov(instruction->dst, instruction->src1, AssemblyType::LONG_WORD));
+        }
+        else if(isMemoryAddress(instruction->dst)){
+          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R11), instruction->src1, AssemblyType::LONG_WORD));
+          newinstructions.push_back(ASMInstruction::createMov(instruction->dst, Reg::createRegister(RegisterType::R11), AssemblyType::QUAD_WORD));
+        }
         break;
       }
       default:
