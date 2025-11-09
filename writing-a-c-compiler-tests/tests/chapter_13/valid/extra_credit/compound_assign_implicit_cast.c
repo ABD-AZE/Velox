@@ -15,7 +15,7 @@ int main(void) {
    * results in 3446744073709551616.0,
    * then convert it back to an unsigned long
    */
-  ul -= 1.519;
+  ul -= 1.5*10000000000000000000;
   if (ul != 3446744073709551616ul) {
     return 2;
   }

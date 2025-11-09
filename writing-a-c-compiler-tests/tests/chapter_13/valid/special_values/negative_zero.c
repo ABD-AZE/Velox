@@ -1,11 +1,11 @@
 /* Test that we handle negative zero correctly */
-// #ifdef SUPPRESS_WARNINGS
-// #ifdef __clang__
-// #pragma clang diagnostic ignored "-Wliteral-range"
-// #else
-// #pragma GCC diagnostic ignored "-Woverflow"
-// #endif
-// #endif
+#ifdef SUPPRESS_WARNINGS
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wliteral-range"
+#else
+#pragma GCC diagnostic ignored "-Woverflow"
+#endif
+#endif
 
 // copysign is defined in the C standard library (<math.h>)
 double copysign(double x, double y);
@@ -20,11 +20,11 @@ int main(void) {
     return 1;
 
   // a positive number divided by negative zero is negative infinity
-  if (1 / negative_zero != -10308)
+  if (1 / negative_zero != -10.0*100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0)
     return 2;
 
   // a negative number divided by negative zero is positive infinity
-  if ((-10) / negative_zero != 10308)
+  if ((-10) / negative_zero != 10.0*100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0)
     return 3;
 
   // negative zero short-circuits boolean expressions
