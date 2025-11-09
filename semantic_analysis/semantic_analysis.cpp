@@ -1492,13 +1492,6 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
 }
 
 void SemanticAnalyzer::visit(AssignmentExpression &node) {
-  // Check if left side is an lvalue
-  if (!isLvalue(node.left.get())) {
-    success = 0;
-    errors.push_back("Left side of assignment must be an lvalue");
-    return;
-  }
-
   auto binexp = std::make_unique<BinaryExpression>();
   if (node.assignment_type != TokenType::ASSIGNMENT) {
     binexp->left = node.left->clone();
@@ -1506,10 +1499,17 @@ void SemanticAnalyzer::visit(AssignmentExpression &node) {
   }
   // Type check and convert left side (may wrap array in AddrOf for decay)
   node.left = typecheckAndConvert(std::move(node.left));
-
+  
   // Type check and convert right side
   if (node.right) {
     node.right = typecheckAndConvert(std::move(node.right));
+  }
+  
+  // Check if left side is an lvalue
+  if (!isLvalue(node.left.get())) {
+    success = 0;
+    errors.push_back("Left side of assignment must be an lvalue");
+    return;
   }
 
   switch (node.assignment_type) {
