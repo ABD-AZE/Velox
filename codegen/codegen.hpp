@@ -51,6 +51,7 @@ enum class ASMOpType
   UNARY,
   BINARY,
   IDIV,
+  DIV, 
   CDQ,
   RET,
   CMP,
@@ -61,6 +62,7 @@ enum class ASMOpType
   PUSH,  // arg : operand
   CALL,  // arg: identifier
   MOVSX,
+  MOVZEROEXTEND,
 };
 
 enum class UnaryOpType
@@ -89,6 +91,10 @@ enum class ConditionCode
   GE,
   L,
   LE,
+  A,
+  AE,
+  B,
+  BE,
 };
 
 enum class RegisterType
@@ -185,14 +191,14 @@ public:
                   else
                   ss << TAB << ".zero " << 4 << "\n";
                 }
-                else if constexpr (std::is_same_v<U, long int>)
+                else if constexpr (std::is_same_v<U, long>)
                 {
                   if(data!=0)
                   ss << TAB << ".quad " << data << "\n";
                   else
                   ss << TAB << ".zero " << 8 << "\n";
                 }
-                else if constexpr (std::is_same_v<U, long unsigned int>)
+                else if constexpr (std::is_same_v<U, unsigned long>)
                 {
                   if(data!=0)
                   ss << TAB << ".quad " << data << "\n";
@@ -380,13 +386,13 @@ public:
 class Immediate : public Operand
 {
 public:
-  long value;
-  Immediate(long value) : value(value) {}
+  unsigned long value;
+  Immediate(unsigned long value) : value(value) {}
   std::string toString() const override
   {
     return "$" + std::to_string(value);
   }
-  static std::shared_ptr<Immediate> createImmediate(long value)
+  static std::shared_ptr<Immediate> createImmediate(unsigned long value)
   {
     return std::make_shared<Immediate>(value);
   }
@@ -582,6 +588,24 @@ public:
     instr->opType = ASMOpType::MOVSX;
     instr->dst = dst;
     instr->src1 = src;
+    return instr;
+  }
+
+  static ASMInstructionPtr createMovZeroExtend(const OperandPtr &dst, const OperandPtr &src)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::MOVZEROEXTEND;
+    instr->dst = dst;
+    instr->src1 = src;
+    return instr;
+  }
+
+  static ASMInstructionPtr createDiv(const OperandPtr &src, AssemblyType assemblyType)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::DIV;
+    instr->src1 = src;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 };

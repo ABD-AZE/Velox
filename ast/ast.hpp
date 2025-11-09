@@ -175,7 +175,7 @@ struct ArrayType {
   std::shared_ptr<Type> element;
   int size;
   ArrayType(std::shared_ptr<Type> Element, int Size)
-      : size(Size), element(std::move(Element)) {}
+      : element(std::move(Element)), size(Size) {}
 };
 
 struct StructType {
@@ -213,8 +213,7 @@ public:
   // constructor for other types
   Type(TypeKind k,
        std::variant<std::monostate, FunType, PointerType, ArrayType, StructType>
-           d,
-       std::string id = "")
+           d)
       : kind(k), data(std::move(d)) {}
   // copy constructor
   Type(const Type &other) : kind(other.kind) {
