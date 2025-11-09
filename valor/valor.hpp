@@ -622,7 +622,7 @@ public:
   ~Valor() = default;
 
   IRProgramPtr convertToIR(const ASTNodePtr &ast);
-
+  
 private:
   IRGenerator generator;
 };

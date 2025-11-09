@@ -157,15 +157,7 @@ public:
 
 enum class StorageClass { STATIC, EXTERN, AUTO };
 
-constexpr bool operator==(const TokenType &a, const StorageClass &b) {
-  if (b == StorageClass::STATIC && a == TokenType::STATIC) {
-    return true;
-  }
-  if (b == StorageClass::EXTERN && a == TokenType::EXTERN) {
-    return true;
-  }
-  return false;
-}
+bool operator==(const TokenType &a, const StorageClass &b);
 
 struct FunType {
   std::vector<Type> params;
@@ -208,28 +200,8 @@ enum class TypeKind {
   ERROR
 };
 enum class InitializerKind { SINGLE_INIT, COMPOUND_INIT };
-constexpr int size(TypeKind &kind) {
-  switch (kind) {
-  case TypeKind::CHAR:
-    return 1;
-  case TypeKind::SCHAR:
-    return 1;
-  case TypeKind::UCHAR:
-    return 1;
-  case TypeKind::INT:
-    return 4;
-  case TypeKind::UINT:
-    return 4;
-  case TypeKind::LONG:
-    return 8;
-  case TypeKind::ULONG:
-    return 8;
-  case TypeKind::DOUBLE:
-    return 8;
-  default:
-    return 0;
-  }
-};
+
+extern int size(TypeKind &kind);
 
 class Type : public ASTNode {
 public:

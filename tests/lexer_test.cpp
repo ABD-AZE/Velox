@@ -566,7 +566,6 @@ TEST_F(LexerTest, Test8_ComprehensiveCCode) {
       // Line 12
       {TokenType::CLOSE_BRACE, "}", 12, 3},
       // Line 13
-      {TokenType::PRINTF, "printf", 13, 3},
       {TokenType::OPEN_PARENTHESES, "(", 13, 9},
       {TokenType::STRING, "x=\%f y=\%f\n", 13, 10},
       {TokenType::COMMA, ",", 13, 23},

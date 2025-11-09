@@ -5,8 +5,8 @@ GTEST_FLAGS = -lgtest -lgtest_main -pthread
 TEST_TARGETS = build/lexer_test
 
 # Object file lists
-OBJ_FILES = build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o build/obj/ast_printer.o build/obj/valor.o build/obj/semantic_analysis.o build/obj/codegen.o
-DEBUG_OBJ_FILES = build/obj/debug/lexer.o build/obj/debug/velox.o build/obj/debug/token.o build/obj/debug/parser.o build/obj/debug/ast_printer.o build/obj/debug/valor.o build/obj/debug/semantic_analysis.o build/obj/debug/codegen.o
+OBJ_FILES = build/obj/lexer.o build/obj/velox.o build/obj/token.o build/obj/parser.o build/obj/ast_printer.o build/obj/valor.o build/obj/semantic_analysis.o build/obj/codegen.o build/obj/symbol_table.o build/obj/ast.o
+DEBUG_OBJ_FILES = build/obj/debug/lexer.o build/obj/debug/velox.o build/obj/debug/token.o build/obj/debug/parser.o build/obj/debug/ast_printer.o build/obj/debug/valor.o build/obj/debug/semantic_analysis.o build/obj/debug/codegen.o build/obj/debug/symbol_table.o build/obj/debug/ast.o
 
 .PHONY: all clean help test 
 
@@ -26,6 +26,10 @@ build/debug: $(DEBUG_OBJ_FILES)
 	$(CXX) $(DEBUGFLAGS) -o $@ $^
 
 # Object files
+build/obj/ast.o: ast/ast.cpp
+	@mkdir -p build/obj 
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 build/obj/lexer.o: lexer/lexer.cpp 
 	@mkdir -p build/obj 
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -46,6 +50,10 @@ build/obj/ast_printer.o: ast/ast_printer.cpp
 	@mkdir -p build/obj
 	$(CXX) $(CXXFLAGS) -c $< -o $@	
 
+build/obj/symbol_table.o: symbol_table/symbol_table.cpp
+	@mkdir -p build/obj
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 build/obj/valor.o: valor/valor.cpp
 	@mkdir -p build/obj
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -59,6 +67,10 @@ build/obj/codegen.o: codegen/codegen.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Debug object files
+build/obj/debug/ast.o: ast/ast.cpp
+	@mkdir -p build/obj/debug
+	$(CXX) $(DEBUGFLAGS) -c $< -o $@
+
 build/obj/debug/lexer.o: lexer/lexer.cpp 
 	@mkdir -p build/obj/debug
 	$(CXX) $(DEBUGFLAGS) -c $< -o $@
@@ -80,6 +92,10 @@ build/obj/debug/ast_printer.o: ast/ast_printer.cpp
 	$(CXX) $(DEBUGFLAGS) -c $< -o $@
 
 build/obj/debug/valor.o: valor/valor.cpp
+	@mkdir -p build/obj/debug
+	$(CXX) $(DEBUGFLAGS) -c $< -o $@
+
+build/obj/debug/symbol_table.o: symbol_table/symbol_table.cpp
 	@mkdir -p build/obj/debug
 	$(CXX) $(DEBUGFLAGS) -c $< -o $@
 

@@ -4,10 +4,27 @@ std::unordered_map<std::string, int> offset_table;
 bool eightByte = 0;
 bool oneByte = 0;
 
+void modifySymbolTable()
+{
+  for (auto [name, entry] : global_symbol_table)
+  {
+    global_symbol_table[global_symbol_table[name].name] = entry;
+  }
+}
+
+AssemblyType getAssemblyType(IRValuePtr irValue){
+  if(global_symbol_table.find(irValue->name) != global_symbol_table.end()){
+    return global_symbol_table[irValue->name].assemblyType;
+  }
+  else{
+    return irValue->constType == TypeKind::LONG ? AssemblyType::QUAD_WORD : AssemblyType::LONG_WORD;
+  }
+}
+
 bool isMemoryAddress(const OperandPtr &operand)
 {
-  return (std::dynamic_pointer_cast<Stack>(operand) != nullptr || 
-         std::dynamic_pointer_cast<Data>(operand) != nullptr);
+  return (std::dynamic_pointer_cast<Stack>(operand) != nullptr ||
+          std::dynamic_pointer_cast<Data>(operand) != nullptr);
 }
 
 std::string ASMProgram::toString() const
@@ -25,8 +42,8 @@ std::string ASMProgram::toString() const
 std::string ASMFunction::toString() const
 {
   std::stringstream ss;
-  if(global)
-  ss << TAB << ".globl " << name << "\n";
+  if (global)
+    ss << TAB << ".globl " << name << "\n";
   ss << TAB << ".text" << "\n";
   ss << name << ":\n";
   ss << TAB << "pushq %rbp\n";
@@ -62,26 +79,34 @@ ConditionCode binOptoConditionCode(IROpType binOp)
 std::string ASMInstruction::toString() const
 {
   std::stringstream ss;
+  if (assemblyType == AssemblyType::QUAD_WORD)
+  {
+    eightByte = 1;
+  }
   switch (opType)
   {
   case ASMOpType::MOV:
-    ss << "movl " << src1->toString() << ", " << dst->toString();
+    if (assemblyType == AssemblyType::QUAD_WORD)
+      ss << "movq " << src1->toString() << ", " << dst->toString();
+    else
+      ss << "movl " << src1->toString() << ", " << dst->toString();
     break;
   case ASMOpType::UNARY:
     switch (unaryOpType)
     {
     case UnaryOpType::NEG:
-      ss << "negl " << src1->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "negq " << src1->toString();
+      else
+        ss << "negl " << src1->toString();
       break;
     case UnaryOpType::NOT:
-      ss << "notl " << src1->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "notq " << src1->toString();
+      else
+        ss << "notl " << src1->toString();
       break;
     }
-    break;
-  case ASMOpType::ALLOCATE_STACK:
-    eightByte = 1;
-    ss << "subq " << src1->toString() << ", %rsp";
-    eightByte = 0;
     break;
   case ASMOpType::RET:
     ss << "movq %rbp, %rsp\n";
@@ -92,43 +117,76 @@ std::string ASMInstruction::toString() const
     switch (binaryOpType)
     {
     case BinaryOpType::ADD:
-      ss << "addl " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "addq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "addl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::SUB:
-      ss << "subl " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "subq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "subl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::MULT:
-      ss << "imull " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "imulq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "imull " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::AND:
-      ss << "andl " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "andq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "andl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::OR:
-      ss << "orl " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "orq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "orl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::XOR:
-      ss << "xorl " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "xorq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "xorl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::LEFT_SHIFT:
       oneByte = 1;
-      ss << "sall " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "salq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "sall " << src2->toString() << ", " << dst->toString();
       oneByte = 0;
       break;
     case BinaryOpType::RIGHT_SHIFT:
       oneByte = 1;
-      ss << "sarl " << src2->toString() << ", " << dst->toString();
+      if (assemblyType == AssemblyType::QUAD_WORD)
+        ss << "sarq " << src2->toString() << ", " << dst->toString();
+      else
+        ss << "sarl " << src2->toString() << ", " << dst->toString();
       oneByte = 0;
       break;
     }
     break;
   case ASMOpType::IDIV:
-    ss << "idivl " << src1->toString();
+    if (assemblyType == AssemblyType::QUAD_WORD)
+      ss << "idivq " << src1->toString();
+    else
+      ss << "idivl " << src1->toString();
     break;
   case ASMOpType::CDQ:
-    ss << "cdq";
+    if (assemblyType == AssemblyType::QUAD_WORD)
+      ss << "cqo";
+    else
+      ss << "cdq";
     break;
   case ASMOpType::CMP:
-    ss << "cmpl " << src2->toString() << ", " << src1->toString();
+    if (assemblyType == AssemblyType::QUAD_WORD)
+      ss << "cmpq " << src2->toString() << ", " << src1->toString();
+    else
+      ss << "cmpl " << src2->toString() << ", " << src1->toString();
     break;
   case ASMOpType::JMP:
     ss << "jmp " << ".L" << label;
@@ -190,25 +248,39 @@ std::string ASMInstruction::toString() const
     eightByte = 0;
     break;
   case ASMOpType::CALL:
-    if(global_symbol_table[label].initType == InitType::INITIALIZED){
+    if (global_symbol_table[label].initType == InitType::INITIALIZED)
+    {
       ss << "call " << label;
-    } else{
+    }
+    else
+    {
       ss << "call " << label << "@PLT";
     }
     break;
-  case ASMOpType::DEALLOCATE_STACK:
-    eightByte = 1;
-    ss << "addq " << src1->toString() << ", %rsp";
+  case ASMOpType::MOVSX:
+    ss << "movslq ";
     eightByte = 0;
+    ss << src1->toString() << ", ";
+    eightByte = 1;
+    ss << dst->toString();
+    if (assemblyType != AssemblyType::QUAD_WORD)
+    {
+      eightByte = 0;
+    }
     break;
   default:
     break;
+  }
+  if (assemblyType == AssemblyType::QUAD_WORD)
+  {
+    eightByte = 0;
   }
   return ss.str();
 }
 
 ASMProgramPtr Codegen::generateCode(IRProgramPtr &irProgram)
 {
+  modifySymbolTable();
   auto asmProgram = IRProgramtoASM(irProgram);
   return asmProgram;
 }
@@ -225,24 +297,10 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
     }
     else if (auto irStaticVar = std::dynamic_pointer_cast<IRStaticVariableNode>(irTopLevel))
     {
-      auto init = std::visit(
-          [](auto &&arg) -> int {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, int>)
-              return 0;
-            else if constexpr (std::is_same_v<T, std::variant<int, long int, long unsigned int,
-                                                unsigned int, double>>)
-              return std::get<int>(arg);
-            else
-              return 0;
-          },
-          irStaticVar->init_list.empty()
-              ? std::variant<int, long int, long unsigned int,
-                             unsigned int, double>{0}
-              : irStaticVar->init_list[0].data);
-        
+      auto init = irStaticVar->init_list[0];
+      int alignment = init.data.index() == 0 ? 4 : 8;
       auto asmStaticVar = ASMStaticVariable::createStaticVariable(
-          irStaticVar->identifier, irStaticVar->global, init);
+          irStaticVar->identifier, irStaticVar->global, alignment, init);
       asmProgram->topLevelItems.push_back(asmStaticVar);
     }
   }
@@ -257,13 +315,15 @@ ASMFunctionPtr Codegen::IRFunctionToASM(const IRFunctionPtr &irFunction)
   auto regs = std::vector<RegisterType>{
       RegisterType::DI, RegisterType::SI, RegisterType::DX,
       RegisterType::CX, RegisterType::R8, RegisterType::R9};
-  for(size_t i=0 ;i<irFunction->parameters.size(); i++)
+  for (size_t i = 0; i < irFunction->parameters.size(); i++)
   {
-    if(i<6){
-      asmFunction->instructions.push_back(ASMInstruction::createMov(Pseudo::createPseudo(global_symbol_table[irFunction->parameters[i]].name),Reg::createRegister(regs[i])));
+    if (i < 6)
+    {
+      asmFunction->instructions.push_back(ASMInstruction::createMov(Pseudo::createPseudo(global_symbol_table[irFunction->parameters[i]].name), Reg::createRegister(regs[i]), global_symbol_table[irFunction->parameters[i]].assemblyType));
     }
-    else{
-      asmFunction->instructions.push_back(ASMInstruction::createMov(Pseudo::createPseudo(global_symbol_table[irFunction->parameters[i]].name),Stack::createStack(-8*(i-4))));
+    else
+    {
+      asmFunction->instructions.push_back(ASMInstruction::createMov(Pseudo::createPseudo(global_symbol_table[irFunction->parameters[i]].name), Stack::createStack(-8 * (i - 4)), global_symbol_table[irFunction->parameters[i]].assemblyType));
     }
   }
   for (const auto &irInstruction : irFunction->instructions)
@@ -275,11 +335,11 @@ ASMFunctionPtr Codegen::IRFunctionToASM(const IRFunctionPtr &irFunction)
     }
   }
   int offset = replacePseudoRegisters(asmFunction);
-  asmFunction->stackSize = offset;
   finalPass(asmFunction);
   // allocate stack size in multiple of 16
   auto allocateStackInstr = ASMInstruction::createAllocateStack(((offset + 15) / 16) * 16);
   asmFunction->instructions.insert(asmFunction->instructions.begin(), allocateStackInstr);
+  asmFunction->stackSize = offset;
   return asmFunction;
 }
 
@@ -291,91 +351,111 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
   case IROpType::NEGATE:
   {
     // First, move src to dst
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
 
     // Then, negate the dst
-    asmInstructions.push_back(ASMInstruction::createUnary(UnaryOpType::NEG, IRValueToOperand(irInstruction->dst)));
+    asmInstructions.push_back(ASMInstruction::createUnary(UnaryOpType::NEG, IRValueToOperand(irInstruction->dst), type));
     break;
   }
   case IROpType::COMPLEMENT:
   {
     // First, move src to dst
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
 
     // Then, complement the dst
-    asmInstructions.push_back(ASMInstruction::createUnary(UnaryOpType::NOT, IRValueToOperand(irInstruction->dst)));
+    asmInstructions.push_back(ASMInstruction::createUnary(UnaryOpType::NOT, IRValueToOperand(irInstruction->dst), type));
     break;
   }
   case IROpType::RETURN:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1)));
+    AssemblyType type = getAssemblyType(irInstruction->src1);
+    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
     asmInstructions.push_back(ASMInstruction::createRet());
     break;
   }
   case IROpType::ADD:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::ADD, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::ADD, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::SUBTRACT:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::SUB, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::SUB, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::MULTIPLY:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::MULT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::MULT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
+  /*
+    division using idiv instruction
+    dividend is in rax
+    divisor is the source operand
+    quotient is stored in rax
+    remainder is stored in rdx
+  */
   case IROpType::DIVIDE:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createCDQ());
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createCDQ(type));
 
-    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2)));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX)));
+    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2), type));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX), type));
     break;
   }
   case IROpType::REMAINDER:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createCDQ());
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createCDQ(type));
 
-    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2)));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::DX)));
+    asmInstructions.push_back(ASMInstruction::createIDiv(IRValueToOperand(irInstruction->src2), type));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::DX), type));
     break;
   }
   case IROpType::AND:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::AND, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::AND, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::OR:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::OR, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::OR, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::XOR:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::XOR, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::XOR, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::LEFT_SHIFT:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::LEFT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::LEFT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::RIGHT_SHIFT:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
-    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::RIGHT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
+    asmInstructions.push_back(ASMInstruction::createBinary(BinaryOpType::RIGHT_SHIFT, IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src2), type));
     break;
   }
   case IROpType::EQUAL:
@@ -385,8 +465,8 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
   case IROpType::LESS_THAN:
   case IROpType::LESS_EQUAL:
   {
-    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), IRValueToOperand(irInstruction->src2)));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0)));
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), IRValueToOperand(irInstruction->src2), getAssemblyType(irInstruction->src1)));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0), AssemblyType::LONG_WORD));
     asmInstructions.push_back(ASMInstruction::createSetCC(binOptoConditionCode(irInstruction->opType), IRValueToOperand(irInstruction->dst)));
     break;
   }
@@ -402,26 +482,30 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
   }
   case IROpType::JUMP_IF_ZERO:
   {
-    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0)));
+    AssemblyType type = getAssemblyType(irInstruction->src1);
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0), type));
     asmInstructions.push_back(ASMInstruction::createJmpCC(ConditionCode::E, irInstruction->label));
     break;
   }
   case IROpType::JUMP_IF_NOT_ZERO:
   {
-    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0)));
+    AssemblyType type = getAssemblyType(irInstruction->src1);
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0), type));
     asmInstructions.push_back(ASMInstruction::createJmpCC(ConditionCode::NE, irInstruction->label));
     break;
   }
   case IROpType::NOT:
   {
-    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0)));
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0)));
+    AssemblyType type = getAssemblyType(irInstruction->src1);
+    asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), Immediate::createImmediate(0), type));
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0), AssemblyType::LONG_WORD));
     asmInstructions.push_back(ASMInstruction::createSetCC(ConditionCode::E, IRValueToOperand(irInstruction->dst)));
     break;
   }
   case IROpType::COPY:
   {
-    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
+    AssemblyType type = getAssemblyType(irInstruction->dst);
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), type));
     break;
   }
   case IROpType::CALL:
@@ -463,7 +547,8 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     // Pass arguments in registers
     for (size_t i = 0; i < registerArgs.size(); ++i)
     {
-      auto movInstr = ASMInstruction::createMov(Reg::createRegister(argRegisters[i]), IRValueToOperand(registerArgs[i]));
+      AssemblyType type = getAssemblyType(registerArgs[i]);
+      auto movInstr = ASMInstruction::createMov(Reg::createRegister(argRegisters[i]), IRValueToOperand(registerArgs[i]), type);
       asmInstructions.push_back(movInstr);
     }
 
@@ -471,7 +556,7 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     for (auto it = stackArgs.rbegin(); it != stackArgs.rend(); ++it)
     {
       auto assemblyArg = IRValueToOperand(*it);
-
+      AssemblyType type = getAssemblyType(*it);
       // Check if operand is a register or immediate
       bool isRegOrImm = (std::dynamic_pointer_cast<Reg>(assemblyArg) != nullptr) ||
                         (std::dynamic_pointer_cast<Immediate>(assemblyArg) != nullptr);
@@ -485,7 +570,7 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
       else
       {
         // Need to move to AX first, then push
-        auto movInstr = ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), assemblyArg);
+        auto movInstr = ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), assemblyArg, type);
         asmInstructions.push_back(movInstr);
 
         auto pushInstr = ASMInstruction::createPush(Reg::createRegister(RegisterType::AX));
@@ -508,10 +593,21 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
     // Retrieve return value (if dst is not null)
     if (irInstruction->dst)
     {
-      auto movInstr = ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX));
+      AssemblyType type = getAssemblyType(irInstruction->dst);
+      auto movInstr = ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Reg::createRegister(RegisterType::AX), type);
       asmInstructions.push_back(movInstr);
     }
 
+    break;
+  }
+  case IROpType::TRUNCATE:
+  {
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1), AssemblyType::LONG_WORD));
+    break;
+  }
+  case IROpType::SIGN_EXTEND:
+  {
+    asmInstructions.push_back(ASMInstruction::createMovsx(IRValueToOperand(irInstruction->dst), IRValueToOperand(irInstruction->src1)));
     break;
   }
   default:
@@ -528,7 +624,21 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue)
   {
   case IRValueType::CONSTANT:
   {
-    return Immediate::createImmediate(std::get<int>(irValue->value));
+    auto imm = std::make_shared<Immediate>(0);
+    std::visit([&imm](auto &&arg)
+               {
+      using T = std::decay_t<decltype(arg)>;
+      if constexpr (std::is_same_v<T, int>)
+      {
+        // Handle int constant
+        imm->value = static_cast<int64_t>(arg);
+      }
+      else if constexpr (std::is_same_v<T, long>)
+      {
+        // Handle long constant
+        imm->value = static_cast<int64_t>(arg);
+      } }, irValue->value);
+    return imm;
   }
   case IRValueType::VARIABLE:
   {
@@ -569,15 +679,29 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
         {
           if (offset_table.find(pseudo->name) == offset_table.end())
           {
-            if(global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC){
+            if (global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC)
+            {
               instruction->dst = std::make_shared<Data>(pseudo->name);
             }
-            else{
-              offset += 4;
+            else
+            {
+              if (global_symbol_table[pseudo->name].assemblyType == AssemblyType::QUAD_WORD)
+              {
+                offset = (offset + 7) & ~7; // Align to 8 bytes
+                offset += 8;
+              }
+              // will always be 4 byte aligned since minimum size of type is 4 bytes
+              else
+              {
+                offset = (offset + 3) & ~3; // Align to 4 bytes
+                offset += 4;
+              }
               offset_table[pseudo->name] = offset; // Negative offset from RBP
               instruction->dst = std::make_shared<Stack>(offset_table[pseudo->name]);
             }
-          }else{
+          }
+          else
+          {
             instruction->dst = std::make_shared<Stack>(offset_table[pseudo->name]);
           }
         }
@@ -590,16 +714,29 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
         {
           if (offset_table.find(pseudo->name) == offset_table.end())
           {
-            if(global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC){
+            if (global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC)
+            {
               instruction->src1 = std::make_shared<Data>(pseudo->name);
             }
-            else{
-              offset += 4;
+            else
+            {
+              if (global_symbol_table[pseudo->name].assemblyType == AssemblyType::QUAD_WORD)
+              {
+                offset = (offset + 7) & ~7; // Align to 8 bytes
+                offset += 8;
+              }
+              // will always be 4 byte aligned since minimum size of type is 4 bytes
+              else
+              {
+                offset = (offset + 3) & ~3; // Align to 4 bytes
+                offset += 4;
+              }
               offset_table[pseudo->name] = offset; // Negative offset from RBP
               instruction->src1 = std::make_shared<Stack>(offset_table[pseudo->name]);
             }
           }
-          else{
+          else
+          {
             instruction->src1 = std::make_shared<Stack>(offset_table[pseudo->name]);
           }
         }
@@ -612,16 +749,29 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
         {
           if (offset_table.find(pseudo->name) == offset_table.end())
           {
-            if(global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC){
+            if (global_symbol_table.find(pseudo->name) != global_symbol_table.end() && global_symbol_table[pseudo->name].storageClass == StorageClass::STATIC)
+            {
               instruction->src2 = std::make_shared<Data>(pseudo->name);
             }
-            else{
-              offset += 4;
+            else
+            {
+              if (global_symbol_table[pseudo->name].assemblyType == AssemblyType::QUAD_WORD)
+              {
+                offset = (offset + 7) & ~7; // Align to 8 bytes
+                offset += 8;
+              }
+              // will always be 4 byte aligned since minimum size of type is 4 bytes
+              else
+              {
+                offset = (offset + 3) & ~3; // Align to 4 bytes
+                offset += 4;
+              }
               offset_table[pseudo->name] = offset; // Negative offset from RBP
               instruction->src2 = std::make_shared<Stack>(offset_table[pseudo->name]);
             }
           }
-          else{
+          else
+          {
             instruction->src2 = std::make_shared<Stack>(offset_table[pseudo->name]);
           }
         }
@@ -650,6 +800,30 @@ void Codegen::finalPass(ASMBasePtr ast)
       {
       case ASMOpType::MOV:
       {
+        // converting 8 byte immediate values in src to 4 bytes
+        if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src1))
+        {
+          if (instruction->assemblyType == AssemblyType::LONG_WORD)
+          {
+            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            {
+              // truncate to 4 bytes
+              instruction->src1 = Immediate::createImmediate(static_cast<int32_t>(imm->value) & 0xFFFFFFFF);
+            }
+          }
+          else
+          {
+            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            {
+              if (isMemoryAddress(instruction->dst))
+              {
+                // move immediate to R10 and then to instruction dst
+                newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, AssemblyType::QUAD_WORD));
+                instruction->src1 = Reg::createRegister(RegisterType::R10);
+              }
+            }
+          }
+        }
         if (instruction->dst && instruction->src1)
         {
           if (isMemoryAddress(instruction->dst))
@@ -657,11 +831,7 @@ void Codegen::finalPass(ASMBasePtr ast)
             if (isMemoryAddress(instruction->src1))
             {
               // mov can't contain both dst and src as address
-              auto inst = std::make_shared<ASMInstruction>();
-              inst->opType = ASMOpType::MOV;
-              inst->dst = Reg::createRegister(RegisterType::R10);
-              inst->src1 = instruction->src1;
-              newinstructions.push_back(inst);
+              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, instruction->assemblyType));
               instruction->src1 = Reg::createRegister(RegisterType::R10);
             }
           }
@@ -671,6 +841,18 @@ void Codegen::finalPass(ASMBasePtr ast)
       }
       case ASMOpType::BINARY:
       {
+        if (instruction->assemblyType == AssemblyType::QUAD_WORD)
+        {
+          if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src2))
+          {
+            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            {
+              // move immediate to R10 and then to instruction src2
+              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2, AssemblyType::QUAD_WORD));
+              instruction->src2 = Reg::createRegister(RegisterType::R10);
+            }
+          }
+        }
         if (instruction->binaryOpType == BinaryOpType::MULT)
         {
           if (isMemoryAddress(instruction->dst))
@@ -680,10 +862,11 @@ void Codegen::finalPass(ASMBasePtr ast)
             inst->opType = ASMOpType::MOV;
             inst->dst = Reg::createRegister(RegisterType::R11);
             inst->src1 = instruction->dst;
+            inst->assemblyType = instruction->assemblyType;
             newinstructions.push_back(inst);
             instruction->dst = Reg::createRegister(RegisterType::R11);
             newinstructions.push_back(instruction);
-            newinstructions.push_back(ASMInstruction::createMov(inst->src1, Reg::createRegister(RegisterType::R11)));
+            newinstructions.push_back(ASMInstruction::createMov(inst->src1, Reg::createRegister(RegisterType::R11), instruction->assemblyType));
           }
           else
           {
@@ -695,7 +878,7 @@ void Codegen::finalPass(ASMBasePtr ast)
           if (!dynamic_pointer_cast<Immediate>(instruction->src2))
           {
             // move src2 to ECX
-            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::CX), instruction->src2));
+            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::CX), instruction->src2, instruction->assemblyType));
             instruction->src2 = Reg::createRegister(RegisterType::CX);
           }
           newinstructions.push_back(instruction);
@@ -707,7 +890,7 @@ void Codegen::finalPass(ASMBasePtr ast)
             if (isMemoryAddress(instruction->src2))
             {
               // mov can't contain both dst and src as address
-              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2));
+              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2, instruction->assemblyType));
               instruction->src2 = Reg::createRegister(RegisterType::R10);
             }
           }
@@ -720,7 +903,7 @@ void Codegen::finalPass(ASMBasePtr ast)
         if (dynamic_pointer_cast<Immediate>(instruction->src1))
         {
           // move immediate to R10
-          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1));
+          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, instruction->assemblyType));
           instruction->src1 = Reg::createRegister(RegisterType::R10);
         }
         newinstructions.push_back(instruction);
@@ -733,15 +916,62 @@ void Codegen::finalPass(ASMBasePtr ast)
           if (isMemoryAddress(instruction->src2))
           {
             // cmp can't contain both src1 and src2 as address
-            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2));
+            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2, instruction->assemblyType));
             instruction->src2 = Reg::createRegister(RegisterType::R10);
           }
         }
         // checking if the second operand is an immediate value
         if (auto src1Imm = dynamic_cast<Immediate *>(instruction->src1.get()))
         {
-          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R11), instruction->src1));
+          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R11), instruction->src1, instruction->assemblyType));
           instruction->src1 = Reg::createRegister(RegisterType::R11);
+        }
+        if (instruction->assemblyType == AssemblyType::QUAD_WORD)
+        {
+          if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src2))
+          {
+            if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+            {
+              // move immediate to R10 and then to instruction src2
+              newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src2, AssemblyType::QUAD_WORD));
+              instruction->src2 = Reg::createRegister(RegisterType::R10);
+            }
+          }
+        }
+        newinstructions.push_back(instruction);
+        break;
+      }
+      case ASMOpType::MOVSX:
+      {
+        if (instruction->src1 && dynamic_cast<Immediate *>(instruction->src1.get()))
+        {
+          newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, AssemblyType::LONG_WORD));
+          instruction->src1 = Reg::createRegister(RegisterType::R10);
+        }
+        if (isMemoryAddress(instruction->dst))
+        {
+          // move address to R11
+          auto d = instruction->dst;
+          instruction->dst = Reg::createRegister(RegisterType::R11);
+          newinstructions.push_back(instruction);
+          newinstructions.push_back(ASMInstruction::createMov(d, Reg::createRegister(RegisterType::R11), AssemblyType::QUAD_WORD));
+        }
+        else
+        {
+          newinstructions.push_back(instruction);
+        }
+        break;
+      }
+      case ASMOpType::PUSH:
+      {
+        if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src1))
+        {
+          if (imm->value > std::numeric_limits<int32_t>::max() || imm->value < std::numeric_limits<int32_t>::min())
+          {
+            // move immediate to R10 and then to instruction src1
+            newinstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::R10), instruction->src1, AssemblyType::QUAD_WORD));
+            instruction->src1 = Reg::createRegister(RegisterType::R10);
+          }
         }
         newinstructions.push_back(instruction);
         break;
