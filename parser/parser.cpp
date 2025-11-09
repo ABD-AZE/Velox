@@ -556,40 +556,30 @@ ASTNodePtr Parser::parsePrimaryExp() {
       }
       primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {
-      // If int parsing fails, try parsing as unsigned int
+      // If int parsing fails, try parsing as long
       try {
         std::string lexeme = currentToken.GetLexeme();
-        unsigned int value = 0;
+        long value = 0;
         if (!lexeme.empty()) {
-          value = (unsigned int)std::stoul(lexeme);
+          value = std::stol(lexeme);
         }
         primaryExpNode = std::make_unique<ConstantExpression>(value);
       } catch (const std::exception &e1) {
-        // If uint parsing fails, try as long
+        // If long parsing fails, try as unsigned int
         try {
           std::string lexeme = currentToken.GetLexeme();
-          long value = 0;
+          unsigned long value = 0;
           if (!lexeme.empty()) {
-            value = std::stol(lexeme);
+            value = std::stoul(lexeme);
           }
           primaryExpNode = std::make_unique<ConstantExpression>(value);
-        } catch (const std::exception &e2) {
-          // If long parsing fails, try as unsigned long
-          try {
-            std::string lexeme = currentToken.GetLexeme();
-            unsigned long value = 0;
-            if (!lexeme.empty()) {
-              value = std::stoul(lexeme);
-            }
-            primaryExpNode = std::make_unique<ConstantExpression>(value);
-          } catch (const std::exception &e3) {
+        } catch (const std::exception &e3) {
             // All parsing attempts failed
             primaryExpNode = std::make_unique<ConstantExpression>(0);
             success = 0;
             errors.push_back(ParserErrorInfo(
                 currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
                 currentToken.GetType(), "invalid integer constant"));
-          }
         }
       }
     }

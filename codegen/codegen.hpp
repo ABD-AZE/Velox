@@ -52,16 +52,15 @@ enum class ASMOpType
   BINARY,
   IDIV,
   CDQ,
-  ALLOCATE_STACK,
   RET,
   CMP,
   JMP,
   JMPCC,
   SETCC,
   LABEL, // NOT an instruction, but a marker for labels
-  DEALLOCATE_STACK, // arg: int 
-  PUSH, // arg : operand
+  PUSH,  // arg : operand
   CALL,  // arg: identifier
+  MOVSX,
 };
 
 enum class UnaryOpType
@@ -103,6 +102,7 @@ enum class RegisterType
   R9,
   R10,
   R11,
+  SP,
 };
 
 class ASMBase
@@ -140,12 +140,14 @@ class ASMStaticVariable : public ASMTopLevel
 public:
   std::string name;
   bool global;
-  int init;
-  static std::shared_ptr<ASMStaticVariable> createStaticVariable(const std::string &name, bool global, int init)
+  int alignment;
+  StaticInit init;
+  static std::shared_ptr<ASMStaticVariable> createStaticVariable(const std::string &name, bool global, int alignment, StaticInit init)
   {
     auto var = std::make_shared<ASMStaticVariable>();
     var->name = name;
     var->global = global;
+    var->alignment = alignment;
     var->init = init;
     return var;
   }
@@ -156,17 +158,74 @@ public:
     {
       ss << TAB << ".globl " << name << "\n";
     }
-    if (init){
-      ss << TAB << ".data\n";
-      ss << TAB << ".align 4\n";
-      ss << name << ":\n";
-      ss << TAB << ".long " << init << "\n";
-    } else{
-      ss << TAB << ".bss\n";
-      ss << TAB << ".align 4\n";
-      ss << name << ":\n";
-      ss << TAB << ".zero 4\n";
-    }
+    std::visit(
+        [&](auto &&value)
+        {
+          using T = std::decay_t<decltype(value)>;
+          if constexpr (std::is_same_v<T, int>)
+          {
+            ss << TAB << ".bss\n";
+            ss << TAB << ".align " << alignment << "\n";
+            ss << name << ":\n";
+            ss << TAB << ".zero " << alignment << "\n";
+          }
+          else if constexpr (std::is_same_v<T, std::variant<int, long int, long unsigned int,
+                                                            unsigned int, double>>)
+          {
+            std::visit([&](auto &&data)
+                       {
+                using U = std::decay_t<decltype(data)>;
+                ss << TAB << ".data\n";
+                ss << TAB << ".align " << alignment << "\n";
+                ss << name << ":\n";
+                if constexpr (std::is_same_v<U, int>)
+                {
+                  if(data!=0)
+                  ss << TAB << ".long " << data << "\n";
+                  else
+                  ss << TAB << ".zero " << 4 << "\n";
+                }
+                else if constexpr (std::is_same_v<U, long int>)
+                {
+                  if(data!=0)
+                  ss << TAB << ".quad " << data << "\n";
+                  else
+                  ss << TAB << ".zero " << 8 << "\n";
+                }
+                else if constexpr (std::is_same_v<U, long unsigned int>)
+                {
+                  if(data!=0)
+                  ss << TAB << ".quad " << data << "\n";
+                  else
+                  ss << TAB << ".zero " << 8 << "\n";
+                }
+                else if constexpr (std::is_same_v<U, unsigned int>)
+                {
+                  if(data!=0)
+                  ss << TAB << ".long " << data << "\n";
+                  else
+                  ss << TAB << ".zero " << 4 << "\n";
+                }
+                else if constexpr (std::is_same_v<U, double>)
+                {
+                  union {
+                    double d;
+                    uint64_t u;
+                  } converter;
+                  converter.d = data;
+                  if (data!=0.0)
+                  {
+                    ss << TAB << ".quad " << converter.u << "\n";
+                  }
+                  else
+                  {
+                    ss << TAB << ".zero " << 8 << "\n";
+                  }
+                } },
+                       value);
+          }
+        },
+        init.data);
     return ss.str();
   }
 };
@@ -186,79 +245,127 @@ public:
   std::string toString() const override
   {
     switch (name)
-    { 
+    {
     // default return val is 4 byte register name
-    case RegisterType::AX:{
-      if(oneByte){
+    case RegisterType::AX:
+    {
+      if (oneByte)
+      {
         return "%al";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%rax";
       }
       return "%eax";
     }
-    case RegisterType::R10:{
-      if(oneByte){
+    case RegisterType::R10:
+    {
+      if (oneByte)
+      {
         return "%r10b";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%r10";
       }
       return "%r10d";
     }
-    case RegisterType::R11:{
-      if(oneByte){
+    case RegisterType::R11:
+    {
+      if (oneByte)
+      {
         return "%r11b";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%r11";
       }
       return "%r11d";
     }
-    case RegisterType::DX:{
-      if(oneByte){
+    case RegisterType::DX:
+    {
+      if (oneByte)
+      {
         return "%dl";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%rdx";
       }
-    return "%edx";
+      return "%edx";
     }
-    case RegisterType::CX:{
-      if(oneByte){
+    case RegisterType::CX:
+    {
+      if (oneByte)
+      {
         return "%cl";
-      } else if (eightByte){  
+      }
+      else if (eightByte)
+      {
         return "%rcx";
       }
       return "%ecx";
     }
-    case RegisterType::DI:{
-      if(oneByte){
+    case RegisterType::DI:
+    {
+      if (oneByte)
+      {
         return "%dil";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%rdi";
       }
       return "%edi";
     }
-    case RegisterType::SI:{
-      if(oneByte){
+    case RegisterType::SI:
+    {
+      if (oneByte)
+      {
         return "%sil";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%rsi";
       }
       return "%esi";
-    } 
-    case RegisterType::R8:{
-      if(oneByte){
+    }
+    case RegisterType::R8:
+    {
+      if (oneByte)
+      {
         return "%r8b";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%r8";
       }
       return "%r8d";
     }
-    case RegisterType::R9:{
-      if(oneByte){
+    case RegisterType::R9:
+    {
+      if (oneByte)
+      {
         return "%r9b";
-      } else if (eightByte){
+      }
+      else if (eightByte)
+      {
         return "%r9";
       }
       return "%r9d";
+    }
+    case RegisterType::SP:
+    {
+      if (oneByte)
+      {
+        return "%spl";
+      }
+      else if (eightByte)
+      {
+        return "%rsp";
+      }
+      return "%esp";
     }
     default:
       return "%unknown";
@@ -273,13 +380,13 @@ public:
 class Immediate : public Operand
 {
 public:
-  int value;
-  Immediate(int value) : value(value) {}
+  long value;
+  Immediate(long value) : value(value) {}
   std::string toString() const override
   {
     return "$" + std::to_string(value);
   }
-  static std::shared_ptr<Immediate> createImmediate(int value)
+  static std::shared_ptr<Immediate> createImmediate(long value)
   {
     return std::make_shared<Immediate>(value);
   }
@@ -323,11 +430,11 @@ class Data : public Operand
 {
 public:
   std::string name;
-  Data(std::string name): name(std::move(name)) {}
+  Data(std::string name) : name(std::move(name)) {}
   std::string toString() const override
   {
     return name + "(%rip)";
-  }  
+  }
 };
 
 class ASMInstruction : public ASMBase
@@ -341,48 +448,54 @@ public:
   OperandPtr dst;
   OperandPtr src1;
   OperandPtr src2;
+  AssemblyType assemblyType;
   std::string toString() const;
 
-  static ASMInstructionPtr createMov(const OperandPtr &dst, const OperandPtr &src)
+  static ASMInstructionPtr createMov(const OperandPtr &dst, const OperandPtr &src, AssemblyType assemblyType)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::MOV;
     instr->dst = dst;
     instr->src1 = src;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 
-  static ASMInstructionPtr createUnary(UnaryOpType unaryOpType, const OperandPtr &src)
+  static ASMInstructionPtr createUnary(UnaryOpType unaryOpType, const OperandPtr &src, AssemblyType assemblyType)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::UNARY;
     instr->unaryOpType = unaryOpType;
     instr->src1 = src;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 
-  static ASMInstructionPtr createBinary(BinaryOpType binaryOpType, const OperandPtr &dst, const OperandPtr &src2)
+  static ASMInstructionPtr createBinary(BinaryOpType binaryOpType, const OperandPtr &dst, const OperandPtr &src2, AssemblyType assemblyType)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::BINARY;
     instr->binaryOpType = binaryOpType;
     instr->dst = dst;
     instr->src2 = src2;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 
-  static ASMInstructionPtr createIDiv(const OperandPtr &src)
+  static ASMInstructionPtr createIDiv(const OperandPtr &src, AssemblyType assemblyType)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::IDIV;
     instr->src1 = src;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 
-  static ASMInstructionPtr createCDQ()
+  static ASMInstructionPtr createCDQ(AssemblyType assemblyType)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::CDQ;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 
@@ -395,10 +508,7 @@ public:
 
   static ASMInstructionPtr createAllocateStack(int bytes)
   {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::ALLOCATE_STACK;
-    instr->src1 = Immediate::createImmediate(bytes);
-    return instr;
+    return createBinary(BinaryOpType::SUB, Reg::createRegister(RegisterType::SP), Immediate::createImmediate(bytes), AssemblyType::QUAD_WORD);
   }
 
   static ASMInstructionPtr createLabel(const std::string &label)
@@ -435,21 +545,19 @@ public:
     return instr;
   }
 
-  static ASMInstructionPtr createCmp(const OperandPtr &src1, const OperandPtr &src2)
+  static ASMInstructionPtr createCmp(const OperandPtr &src1, const OperandPtr &src2, AssemblyType assemblyType)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::CMP;
     instr->src1 = src1;
     instr->src2 = src2;
+    instr->assemblyType = assemblyType;
     return instr;
   }
 
   static ASMInstructionPtr createDeallocateStack(int bytes)
   {
-    auto instr = std::make_shared<ASMInstruction>();
-    instr->opType = ASMOpType::DEALLOCATE_STACK;
-    instr->src1 = Immediate::createImmediate(bytes);
-    return instr;
+    return createBinary(BinaryOpType::ADD, Reg::createRegister(RegisterType::SP), Immediate::createImmediate(bytes), AssemblyType::QUAD_WORD);
   }
 
   static ASMInstructionPtr createPush(const OperandPtr &src)
@@ -465,6 +573,15 @@ public:
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::CALL;
     instr->label = label;
+    return instr;
+  }
+
+  static ASMInstructionPtr createMovsx(const OperandPtr &dst, const OperandPtr &src)
+  {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::MOVSX;
+    instr->dst = dst;
+    instr->src1 = src;
     return instr;
   }
 };

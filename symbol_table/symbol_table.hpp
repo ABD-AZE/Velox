@@ -9,15 +9,13 @@ enum class LinkageType { INTERNAL, EXTERNAL, NONE };
 
 enum class SymbolType { VARIABLE, FUNCTION };
 
-constexpr bool operator==(const StorageClass &a, const LinkageType &b) {
-  if (b == LinkageType::INTERNAL && a == StorageClass::STATIC) {
-    return true;
-  }
-  if (b == LinkageType::EXTERNAL && a == StorageClass::EXTERN) {
-    return true;
-  }
-  return false;
-}
+enum class AssemblyType
+{
+  LONG_WORD,
+  QUAD_WORD,
+};
+
+extern bool operator==(const StorageClass &a, const LinkageType &b);
 
 class SymbolTableEntry {
 public:
@@ -33,11 +31,28 @@ public:
   InitializerNode
       *initializer; // non-owning pointer to array initializer in AST
   Type type;
+  AssemblyType assemblyType;
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name, SymbolType symbolType, InitType initType,
                    Type type, std::vector<Type> param_types = {})
       : name(name), symbolType(symbolType), initType(initType), type(type),
-        param_types(param_types) {}
+        param_types(param_types) {
+    // Determine assembly type based on TypeKind
+    switch (type.kind) {
+    case TypeKind::INT:
+    case TypeKind::UINT:
+      assemblyType = AssemblyType::LONG_WORD;
+      break;
+    case TypeKind::LONG:
+    case TypeKind::ULONG:
+    case TypeKind::DOUBLE:
+      assemblyType = AssemblyType::QUAD_WORD;
+      break;
+    default:
+      assemblyType = AssemblyType::LONG_WORD; // default
+      break;
+        }
+  }
   void
   setValue(const std::variant<int, long int, long unsigned int, unsigned int,
                               double, char, unsigned char> &val) {
