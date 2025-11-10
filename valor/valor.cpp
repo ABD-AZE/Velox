@@ -208,15 +208,42 @@ std::string IRStaticVariableNode::toString() const {
   std::function<void(const StaticInit &)> printInit =
       [&](const StaticInit &init) {
         switch (init.kind) {
-        case StaticInitKind::INITIAL:
-          std::visit([&ss](auto &&arg) { ss << arg; },
-                     std::get<std::variant<int, long int, long unsigned int,
-                                           unsigned int, double>>(init.data));
+        case StaticInitKind::INT_INIT:
+          ss << "Int(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::LONG_INIT:
+          ss << "Long(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::UINT_INIT:
+          ss << "UInt(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::ULONG_INIT:
+          ss << "ULong(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::CHAR_INIT:
+          ss << "Char(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::UCHAR_INIT:
+          ss << "UChar(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::DOUBLE_INIT:
+          ss << "Double(" << std::get<double>(init.data) << ")";
           break;
         case StaticInitKind::ZERO_INIT:
           ss << "ZeroInit(" << std::get<int>(init.data) << ")";
           break;
-        case StaticInitKind::COMPOUND:
+        case StaticInitKind::STRING_INIT: {
+          const auto &stringInit = std::get<StringStaticInit>(init.data);
+          ss << "String(\"" << stringInit.value << "\", null_terminated=" 
+             << (stringInit.null_terminated ? "true" : "false") << ")";
+          break;
+        }
+        case StaticInitKind::POINTER_INIT: {
+          const auto &ptrInit = std::get<PointerStaticInit>(init.data);
+          ss << "Pointer(" << ptrInit.name << ")";
+          break;
+        }
+        case StaticInitKind::COMPOUND: {
           ss << "{";
           const auto &compound = std::get<CompoundStaticInit>(init.data);
           for (size_t i = 0; i < compound.initializers.size(); ++i) {
@@ -227,6 +254,79 @@ std::string IRStaticVariableNode::toString() const {
           }
           ss << "}";
           break;
+        }
+        }
+      };
+
+  // Print all initializers
+  for (size_t i = 0; i < init_list.size(); ++i) {
+    printInit(init_list[i]);
+    if (i < init_list.size() - 1) {
+      ss << ", ";
+    }
+  }
+
+  ss << "])";
+  return ss.str();
+}
+
+// IRStaticConstantNode implementation
+std::string IRStaticConstantNode::toString() const {
+  std::stringstream ss;
+  ss << "StaticConstant(name=" << identifier
+     << ", type=" << TypeKindToString(type.kind) << ", init=[";
+
+  // Helper lambda to recursively print StaticInit
+  std::function<void(const StaticInit &)> printInit =
+      [&](const StaticInit &init) {
+        switch (init.kind) {
+        case StaticInitKind::INT_INIT:
+          ss << "Int(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::LONG_INIT:
+          ss << "Long(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::UINT_INIT:
+          ss << "UInt(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::ULONG_INIT:
+          ss << "ULong(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::CHAR_INIT:
+          ss << "Char(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::UCHAR_INIT:
+          ss << "UChar(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::DOUBLE_INIT:
+          ss << "Double(" << std::get<double>(init.data) << ")";
+          break;
+        case StaticInitKind::ZERO_INIT:
+          ss << "ZeroInit(" << std::get<int>(init.data) << ")";
+          break;
+        case StaticInitKind::STRING_INIT: {
+          const auto &stringInit = std::get<StringStaticInit>(init.data);
+          ss << "String(\"" << stringInit.value << "\", null_terminated=" 
+             << (stringInit.null_terminated ? "true" : "false") << ")";
+          break;
+        }
+        case StaticInitKind::POINTER_INIT: {
+          const auto &ptrInit = std::get<PointerStaticInit>(init.data);
+          ss << "Pointer(" << ptrInit.name << ")";
+          break;
+        }
+        case StaticInitKind::COMPOUND: {
+          ss << "{";
+          const auto &compound = std::get<CompoundStaticInit>(init.data);
+          for (size_t i = 0; i < compound.initializers.size(); ++i) {
+            printInit(compound.initializers[i]);
+            if (i < compound.initializers.size() - 1) {
+              ss << ", ";
+            }
+          }
+          ss << "}";
+          break;
+        }
         }
       };
 
@@ -304,8 +404,8 @@ int IRGenerator::getTypeSize(const Type &type) {
 void IRGenerator::convertSymbolTableToIR() {
   // Iterate through the global symbol table
   for (const auto &[name, entry] : global_symbol_table) {
-    // Skip if it's not a variable
-    if (entry.symbolType != SymbolType::VARIABLE) {
+    // Skip functions
+    if (entry.symbolType == SymbolType::FUNCTION) {
       continue;
     }
 
@@ -319,16 +419,32 @@ void IRGenerator::convertSymbolTableToIR() {
       continue;
     }
 
-    // Determine if it's global (external linkage) or file-scope (internal
-    // linkage)
-    bool isGlobal = (entry.linkage == LinkageType::EXTERNAL);
-
     // Create initializer list
     std::vector<StaticInit> init_list;
 
     if (entry.type.kind == TypeKind::ARRAY) {
-      // For arrays, check if we have a stored initializer
-      if (entry.initType == InitType::INITIALIZED && entry.initializer) {
+      // Check if this is a string constant (has stringValue set)
+      if (!entry.stringValue.empty()) {
+        // This is a string constant - create StringInit
+        int arraySize = entry.type.kind == TypeKind::ARRAY 
+                       ? std::get<ArrayType>(entry.type.data).size 
+                       : entry.stringValue.length() + 1;
+        
+        // Determine if null-terminated (string length + 1 <= array size)
+        bool hasNullTerminator = (entry.stringValue.length() + 1) <= static_cast<size_t>(arraySize);
+        
+        // Add StringInit
+        init_list.push_back(StaticInit::makeStringInit(entry.stringValue, hasNullTerminator));
+        
+        // Add padding if needed
+        int bytesUsed = entry.stringValue.length() + (hasNullTerminator ? 1 : 0);
+        int paddingBytes = arraySize - bytesUsed;
+        if (paddingBytes > 0) {
+          init_list.push_back(StaticInit::makeZeroInit(paddingBytes));
+        }
+      }
+      // For arrays with stored initializer
+      else if (entry.initType == InitType::INITIALIZED && entry.initializer) {
         // Convert the stored InitializerNode to StaticInit, passing array type
         // for padding
         init_list.push_back(
@@ -338,6 +454,23 @@ void IRGenerator::convertSymbolTableToIR() {
         // Use ZeroInit for the entire array
         int arraySize = getTypeSize(entry.type);
         init_list.push_back(StaticInit::makeZeroInit(arraySize));
+      }
+    } else if (entry.type.kind == TypeKind::POINTER) {
+      // For pointer types
+      if (entry.initType == InitType::INITIALIZED) {
+        // Check if this pointer is initialized with a string literal
+        if (!entry.stringConstantName.empty()) {
+          // Create PointerInit pointing to the string constant
+          init_list.push_back(StaticInit::makePointerInit(entry.stringConstantName));
+        } else {
+          // Regular scalar initialization (shouldn't happen for pointers typically)
+          init_list.push_back(StaticInit::makeInitial(entry.value));
+        }
+      } else if (entry.initType == InitType::TENTATIVE ||
+                 entry.initType == InitType::ZERO_INITIALIZED) {
+        // Use ZeroInit for pointers
+        int pointerSize = getTypeSize(entry.type);
+        init_list.push_back(StaticInit::makeZeroInit(pointerSize));
       }
     } else {
       // For scalar types
@@ -351,10 +484,21 @@ void IRGenerator::convertSymbolTableToIR() {
       }
     }
 
-    // Create static variable node
-    auto staticVar = std::make_shared<IRStaticVariableNode>(
-        name, isGlobal, entry.type, std::move(init_list));
-    program->addStaticVariable(std::move(staticVar));
+    // Check if this is a constant (string literals in expressions)
+    if (entry.symbolType == SymbolType::CONSTANT) {
+      // Create static constant node (read-only)
+      auto staticConst = std::make_shared<IRStaticConstantNode>(
+          name, entry.type, std::move(init_list));
+      program->addTopLevel(std::static_pointer_cast<IRTopLevelNode>(staticConst));
+    } else {
+      // Determine if it's global (external linkage) or file-scope (internal linkage)
+      bool isGlobal = (entry.linkage == LinkageType::EXTERNAL);
+      
+      // Create static variable node
+      auto staticVar = std::make_shared<IRStaticVariableNode>(
+          name, isGlobal, entry.type, std::move(init_list));
+      program->addStaticVariable(std::move(staticVar));
+    }
   }
 }
 
@@ -556,29 +700,27 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
             elemType.kind == TypeKind::UCHAR) {
           int arraySize = arrayData.size;
           const std::string &str = stringLiteral->value;
-          std::vector<StaticInit> charInits;
-
-          // Add each character from the string
-          size_t i = 0;
-          for (; i < str.length() && i < static_cast<size_t>(arraySize); ++i) {
-            charInits.push_back(StaticInit::makeInitial(
-                static_cast<int>(static_cast<unsigned char>(str[i]))));
+          
+          // Determine if we have room for null terminator
+          bool hasNullTerminator = str.length() < static_cast<size_t>(arraySize);
+          
+          // Calculate bytes needed for padding after the string (and null terminator if present)
+          int bytesUsed = str.length() + (hasNullTerminator ? 1 : 0);
+          int paddingBytes = arraySize - bytesUsed;
+          
+          // Create the initializer list
+          std::vector<StaticInit> initList;
+          
+          // Add StringInit with the string value and null-termination flag
+          initList.push_back(StaticInit::makeStringInit(str, hasNullTerminator));
+          
+          // Add ZeroInit for remaining padding if needed
+          if (paddingBytes > 0) {
+            initList.push_back(StaticInit::makeZeroInit(paddingBytes));
           }
-
-          // Add null terminator if there's room and string is shorter
-          if (i < static_cast<size_t>(arraySize) &&
-              str.length() < static_cast<size_t>(arraySize)) {
-            charInits.push_back(StaticInit::makeInitial(0));
-            i++;
-          }
-
-          // Pad remaining elements with zeros
-          while (i < static_cast<size_t>(arraySize)) {
-            charInits.push_back(StaticInit::makeInitial(0));
-            i++;
-          }
-
-          return StaticInit::makeCompound(std::move(charInits));
+          
+          // Return compound initializer containing StringInit and optional ZeroInit
+          return StaticInit::makeCompound(std::move(initList));
         }
       }
 
@@ -1663,6 +1805,12 @@ void IRGenerator::visit(AddressOfExpression &node) {
   }
 }
 void IRGenerator::visit(StringLiteralExpression &node) {
+  // Check if we're in a function (expression context) or not (static initializer)
+  if (!currentFunction) {
+    // String literal in static context - already handled by semantic analyzer
+    return;
+  }
+  
   // Generate a unique identifier for this string literal
   std::string stringName = generateStringName();
 
@@ -1677,14 +1825,12 @@ void IRGenerator::visit(StringLiteralExpression &node) {
   SymbolTableEntry entry;
   entry.name = stringName;
   entry.type = stringType;
-  entry.symbolType = SymbolType::VARIABLE;
+  entry.symbolType = SymbolType::CONSTANT;  // Mark as CONSTANT not VARIABLE
   entry.storageClass = StorageClass::STATIC;
   entry.linkage = LinkageType::INTERNAL;
   entry.initType = InitType::INITIALIZED;
+  entry.stringValue = node.value;  // Store the actual string value
 
-  // Store the string value for later use in convertSymbolTableToIR
-  // We'll create a special initializer to mark this as a string constant
-  // For now, just add it to the symbol table
   global_symbol_table[stringName] = entry;
 
   // Generate GetAddress instruction to load the string's address

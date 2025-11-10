@@ -11,7 +11,7 @@ double fma(double x, double y, double z);
 double ldexp(double x, int exp); // x * 2^exp
 
 int main(void) {
-  double fma_result = fma(5.0, 1.0*10000000000000000000000, 4000000.0);
+  double fma_result = fma(5.0, 1.0*10000000000000000000000.0, 4000000.0);
   double ldexp_result = ldexp(92.0*10000000000000000000000000000000000000000000000000000000000000000000000000.0, 5);
   if (fma_result != 50000000000000004194304.0) {
     return 1;

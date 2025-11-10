@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include <limits>
 
 // for postfix expression parsing
 std::map<TokenType, int> Precedence = {
@@ -666,7 +667,12 @@ ASTNodePtr Parser::parsePrimaryExp() {
         value = std::stod(lexeme);
       }
       primaryExpNode = std::make_unique<ConstantExpression>(value);
-    } catch (const std::exception &e) {
+    } 
+    catch (const std::out_of_range& e) {
+      //convert to inf
+      primaryExpNode = std::make_unique<ConstantExpression>(std::numeric_limits<double>::infinity());
+    }
+    catch (const std::exception &e) {
       primaryExpNode = std::make_unique<ConstantExpression>((unsigned int)0);
       success = 0;
       errors.push_back(ParserErrorInfo(

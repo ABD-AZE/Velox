@@ -38,7 +38,7 @@ double uninitialized; // should be initialized to 0.0
 
 static int i = 4.9; // truncated to 4
 
-int unsigned u = 42949.672923*100000.0; // truncated to 4294967292u
+int unsigned u = 4294967292.3; // truncated to 4294967292u
 
 // this token is first converted to a double w/ value 4611686018427389952.0,
 // then truncated down to long 4611686018427389952
