@@ -8,7 +8,7 @@ double point_three = 0.3;
 double two = 2.0;
 double three = 3.0;
 double four = 4.0;
-double twelveE30 = 12*1000000000000000000000000000000.0;
+double twelveE30 = 12000000000000000000000000000000.0;
 
 int addition(void) { return (point_one + point_two == 0.30000000000000004); }
 
@@ -20,7 +20,7 @@ int division(void) { return (7.0 / two == 3.5); }
 
 int negation(void) {
   double neg = -twelveE30;
-  return !(12e30 + neg);
+  return !(12000000000000000000000000000000.0 + neg);
 }
 
 int complex_expression(void) {

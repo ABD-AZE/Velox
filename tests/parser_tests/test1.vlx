@@ -1,24 +1,56 @@
-/* test support for left and right shift operations where the right operand
- * (i.e. the shift count) is the result of another expression, not a constant.
- */
-int t(int x){
-  return x;
-}
-int putchar(int c);
+/* Test our handling of positive and negative infinity */
+
+#ifdef SUPPRESS_WARNINGS
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wliteral-range"
+#else
+#pragma GCC diagnostic ignored "-Woverflow"
+#endif
+#endif
+
+/* This value should be rounded to infinity */
+double inf = 200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+/* This should round to the largest finite double */
+double very_large = 179000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0;
+double zero = 0.0;
 int main(void) {
-  putchar(72);
-  int next = t(101);
-putchar(next);
-putchar(108);
-putchar(108);
-putchar(111);
-putchar(44);
-putchar(32);
-putchar(87);
-putchar(111);
-putchar(114);
-putchar(108);
-putchar(100);
-putchar(33);
-putchar(10);
+
+  /* Rounding constants to infinity */
+
+  // 11e330 should be rounded to infinity
+  if (inf != 11.0*1100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0) {
+    return 1;
+  }
+
+  /* Infinity compares greater than any finite number */
+  if (inf <= very_large) {
+    return 2;
+  }
+
+  /* Calculations that result in infinity */
+
+  /* Multiplication result is too large to represent as finite value */
+  if (very_large * 10.0 != inf) {
+    return 3;
+  }
+
+  /* 1/0 is infinity */
+  if (1.0 / zero != inf) {
+    return 4;
+  }
+
+  /* Negative infinity */
+  double negated_inf = -inf;
+  double negated_inf2 = -1.0 / zero;
+
+  /* Negative infinity compares less than any finite number */
+  if (negated_inf >= -very_large) {
+    return 5;
+  }
+
+  if (negated_inf != negated_inf2) {
+    return 6;
+  }
+
+  return 0;
 }

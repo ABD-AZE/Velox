@@ -2,12 +2,13 @@
 #include "../ast/ast.hpp"
 #include <string>
 #include <unordered_map>
+#include <variant>
 
 enum class InitType { TENTATIVE, ZERO_INITIALIZED, INITIALIZED, UNINITIALIZED };
 
 enum class LinkageType { INTERNAL, EXTERNAL, NONE };
 
-enum class SymbolType { VARIABLE, FUNCTION };
+enum class SymbolType { VARIABLE, FUNCTION, CONSTANT };
 
 enum class AssemblyType
 {
@@ -26,12 +27,15 @@ public:
   InitType initType;
   bool isVariadic = false;
   std::vector<Type> param_types; // for functions
-  std::variant<int, long int, long unsigned int, unsigned int, double>
+  std::variant<int, long int, long unsigned int, unsigned int, char, unsigned char, double>
       value; // for initialized constants (scalars)
   InitializerNode
       *initializer; // non-owning pointer to array initializer in AST
+  std::string stringConstantName; // Name of string constant for pointer initializers
+  std::string stringValue; // Actual string value for string constants
   Type type;
   AssemblyType assemblyType;
+  
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name, SymbolType symbolType, InitType initType,
                    Type type, std::vector<Type> param_types = {})
@@ -73,6 +77,15 @@ public:
             break;
           case TypeKind::DOUBLE:
             value = static_cast<double>(extracted_val);
+            break;
+          case TypeKind::CHAR:
+            value = static_cast<char>(extracted_val);
+            break;
+          case TypeKind::UCHAR:
+            value = static_cast<unsigned char>(extracted_val);
+            break;
+          case TypeKind::SCHAR:
+            value = static_cast<char>(extracted_val);
             break;
           default:
             // handle error

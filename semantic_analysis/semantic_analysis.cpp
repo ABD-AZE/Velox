@@ -1,4 +1,5 @@
 #include "semantic_analysis.hpp"
+#include "../utils/token_classifier.hpp"
 /*
 // defining foo after its usage won't work because we are doing semantic
 analysis in a single pass int foo = 3; int main(void) { int outer = 1; int foo =
@@ -560,8 +561,38 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
                   std::get<SingleInit>(InitNode->data).expression.get())
             : nullptr;
 
+    // Check for string literal initializing a pointer
+    StringLiteralExpression *stringLiteralInit = nullptr;
+    if (InitNode && InitNode->kind == InitializerKind::SINGLE_INIT && 
+        node.type.kind == TypeKind::POINTER) {
+      auto &singleInit = std::get<SingleInit>(InitNode->data);
+      
+      // Check for direct string literal
+      stringLiteralInit = dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
+      
+      // Check for decayed string literal (AddressOf wrapping StringLiteral)
+      if (!stringLiteralInit) {
+        if (auto addrOf = dynamic_cast<AddressOfExpression *>(singleInit.expression.get())) {
+          stringLiteralInit = dynamic_cast<StringLiteralExpression *>(addrOf->variableExpr.get());
+        }
+      }
+      
+      // Validate pointer type if it's a string literal initializer
+      if (stringLiteralInit) {
+        auto ptrType = std::get<PointerType>(node.type.data);
+        // Only char* is allowed, not signed char* or unsigned char*
+        if (ptrType.base->kind != TypeKind::CHAR) {
+          success = 0;
+          errors.push_back("String literal can only initialize pointer to 'char', not '" + 
+                          TypeKindToString(ptrType.base->kind) + "'");
+          return;
+        }
+      }
+    }
+
     // For array types, compound initializers are allowed
     // For scalar types, only constant expressions are allowed
+    // For pointer types initialized with string literals, that's also valid
     bool isValidInit = false;
     if (initType == InitType::INITIALIZED) {
       if (node.type.kind == TypeKind::ARRAY) {
@@ -570,6 +601,9 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
         isValidInit = (InitNode != nullptr) &&
                       isConstantInitializer(InitNode) &&
                       validateInitializerType(InitNode, node.type);
+      } else if (stringLiteralInit) {
+        // Pointer initialized with string literal is valid for static variables
+        isValidInit = true;
       } else {
         // Scalar types must have constant single initializers
         isValidInit = (constInit != nullptr);
@@ -588,6 +622,30 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
     auto global = (!node.storage_class.has_value()) ||
                   (node.storage_class.has_value() &&
                    node.storage_class.value() != StorageClass::STATIC);
+
+    // If this is a pointer initialized with a string literal, create the string constant first
+    std::string stringConstantName;
+    if (stringLiteralInit && initType == InitType::INITIALIZED) {
+      // Generate unique name for the string constant
+      stringConstantName = make_string_name();
+      
+      // Create symbol table entry for the string constant
+      int arraySize = stringLiteralInit->value.length() + 1;
+      Type stringType = Type::Array(std::make_shared<Type>(Type::Char()), arraySize);
+      
+      SymbolTableEntry stringEntry(stringConstantName, SymbolType::CONSTANT, 
+                                   InitType::INITIALIZED, stringType);
+      stringEntry.linkage = LinkageType::INTERNAL;
+      stringEntry.storageClass = StorageClass::STATIC;
+      
+      // Store the actual string value for later use in IR generation
+      stringEntry.stringValue = stringLiteralInit->value;
+      
+      global_symbol_table[stringConstantName] = stringEntry;
+      
+      // Now update the variable's initializer to point to this string constant
+      // This will be handled in the valor.cpp convertSymbolTableToIR function
+    }
 
     if (global_symbol_table.find(node.name) != global_symbol_table.end()) {
       auto old_decl = global_symbol_table[node.name];
@@ -631,6 +689,10 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
         if (node.type.kind == TypeKind::ARRAY && InitNode) {
           global_symbol_table[node.name].initializer = InitNode;
         }
+        // Store string constant name for pointers
+        if (stringLiteralInit && !stringConstantName.empty()) {
+          global_symbol_table[node.name].stringConstantName = stringConstantName;
+        }
         // update value if initialized (only for scalar constants)
         if (constInit) {
           global_symbol_table[node.name].setValue(constInit->value);
@@ -670,6 +732,10 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
         // Store the initializer for arrays
         if (node.type.kind == TypeKind::ARRAY && InitNode) {
           global_symbol_table[node.name].initializer = InitNode;
+        }
+        // Store string constant name for pointers
+        if (stringLiteralInit && !stringConstantName.empty()) {
+          global_symbol_table[node.name].stringConstantName = stringConstantName;
         }
         // Only set value for scalar constants
         if (constInit) {

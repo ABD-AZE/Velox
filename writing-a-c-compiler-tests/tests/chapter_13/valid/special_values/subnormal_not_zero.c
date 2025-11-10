@@ -1,6 +1,6 @@
 int non_zero(double d) { return !d; }
 
-double multiply_by_large_num(double d) { return d * 2e20; }
+double multiply_by_large_num(double d) { return d * 200000000000000000000.0; }
 
 int main(void) {
 

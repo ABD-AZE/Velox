@@ -12,6 +12,7 @@ class IRProgramNode;
 class IRTopLevelNode;
 class IRFunctionNode;
 class IRStaticVariableNode;
+class IRStaticConstantNode;
 class IRInstructionNode;
 class IRValueNode;
 
@@ -19,6 +20,7 @@ using IRProgramPtr = std::unique_ptr<IRProgramNode>;
 using IRTopLevelPtr = std::shared_ptr<IRTopLevelNode>;
 using IRFunctionPtr = std::shared_ptr<IRFunctionNode>;
 using IRStaticVariablePtr = std::shared_ptr<IRStaticVariableNode>;
+using IRStaticConstantPtr = std::shared_ptr<IRStaticConstantNode>;
 using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
 
@@ -43,9 +45,17 @@ enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
 
 // Static initializer types
 enum class StaticInitKind {
-  INITIAL,   // Single scalar value
-  ZERO_INIT, // Zero-initialized (for tentative definitions)
-  COMPOUND   // Compound initializer (list of static_init)
+  INT_INIT,      // int
+  LONG_INIT,     // long
+  UINT_INIT,     // unsigned int
+  ULONG_INIT,    // unsigned long
+  CHAR_INIT,     // char
+  UCHAR_INIT,    // unsigned char
+  DOUBLE_INIT,   // double
+  ZERO_INIT,     // Zero-initialized (for tentative definitions)
+  STRING_INIT,   // ASCII string initializer
+  POINTER_INIT,  // Pointer to static object
+  COMPOUND       // Compound initializer (list of static_init)
 };
 
 // Forward declaration for recursive structure
@@ -56,22 +66,74 @@ struct CompoundStaticInit {
   std::vector<StaticInit> initializers;
 };
 
+// String initializer
+struct StringStaticInit {
+  std::string value;
+  bool null_terminated;
+};
+
+// Pointer initializer
+struct PointerStaticInit {
+  std::string name; // Name of the static object being pointed to
+};
+
 // Static initializer variant
 struct StaticInit {
   StaticInitKind kind;
-  std::variant<std::variant<int, long int, long unsigned int, unsigned int,
-                            double>, // INITIAL
-               int,                  // ZERO_INIT (num bytes)
-               CompoundStaticInit    // COMPOUND
+  std::variant<int,                    // INT_INIT, LONG_INIT, UINT_INIT, ULONG_INIT, CHAR_INIT, UCHAR_INIT, ZERO_INIT (num bytes)
+               double,                 // DOUBLE_INIT
+               StringStaticInit,       // STRING_INIT
+               PointerStaticInit,      // POINTER_INIT
+               CompoundStaticInit      // COMPOUND
                >
       data;
 
   // Factory methods
-  static StaticInit makeInitial(
-      std::variant<int, long int, long unsigned int, unsigned int, double>
-          value) {
+  static StaticInit makeIntInit(int value) {
     StaticInit init;
-    init.kind = StaticInitKind::INITIAL;
+    init.kind = StaticInitKind::INT_INIT;
+    init.data = value;
+    return init;
+  }
+
+  static StaticInit makeLongInit(long value) {
+    StaticInit init;
+    init.kind = StaticInitKind::LONG_INIT;
+    init.data = static_cast<int>(value);
+    return init;
+  }
+
+  static StaticInit makeUIntInit(unsigned int value) {
+    StaticInit init;
+    init.kind = StaticInitKind::UINT_INIT;
+    init.data = static_cast<int>(value);
+    return init;
+  }
+
+  static StaticInit makeULongInit(unsigned long value) {
+    StaticInit init;
+    init.kind = StaticInitKind::ULONG_INIT;
+    init.data = static_cast<int>(value);
+    return init;
+  }
+
+  static StaticInit makeCharInit(char value) {
+    StaticInit init;
+    init.kind = StaticInitKind::CHAR_INIT;
+    init.data = static_cast<int>(value);
+    return init;
+  }
+
+  static StaticInit makeUCharInit(unsigned char value) {
+    StaticInit init;
+    init.kind = StaticInitKind::UCHAR_INIT;
+    init.data = static_cast<int>(value);
+    return init;
+  }
+
+  static StaticInit makeDoubleInit(double value) {
+    StaticInit init;
+    init.kind = StaticInitKind::DOUBLE_INIT;
     init.data = value;
     return init;
   }
@@ -83,11 +145,47 @@ struct StaticInit {
     return init;
   }
 
+  static StaticInit makeStringInit(std::string value, bool null_terminated) {
+    StaticInit init;
+    init.kind = StaticInitKind::STRING_INIT;
+    init.data = StringStaticInit{std::move(value), null_terminated};
+    return init;
+  }
+
+  static StaticInit makePointerInit(std::string name) {
+    StaticInit init;
+    init.kind = StaticInitKind::POINTER_INIT;
+    init.data = PointerStaticInit{std::move(name)};
+    return init;
+  }
+
   static StaticInit makeCompound(std::vector<StaticInit> inits) {
     StaticInit init;
     init.kind = StaticInitKind::COMPOUND;
     init.data = CompoundStaticInit{std::move(inits)};
     return init;
+  }
+
+  // Generic factory method for variant types (for backward compatibility)
+  static StaticInit makeInitial(std::variant<int, long int, long unsigned int, unsigned int, char, unsigned char, double> value) {
+    return std::visit([](auto &&val) -> StaticInit {
+      using T = std::decay_t<decltype(val)>;
+      if constexpr (std::is_same_v<T, int>) {
+        return makeIntInit(val);
+      } else if constexpr (std::is_same_v<T, long int>) {
+        return makeLongInit(val);
+      } else if constexpr (std::is_same_v<T, unsigned int>) {
+        return makeUIntInit(val);
+      } else if constexpr (std::is_same_v<T, long unsigned int>) {
+        return makeULongInit(val);
+      } else if constexpr (std::is_same_v<T, char>) {
+        return makeCharInit(val);
+      } else if constexpr (std::is_same_v<T, unsigned char>) {
+        return makeUCharInit(val);
+      } else if constexpr (std::is_same_v<T, double>) {
+        return makeDoubleInit(val);
+      }
+    }, value);
   }
 };
 
@@ -466,6 +564,21 @@ public:
   IRStaticVariableNode(std::string id, bool isGlobal, Type varType,
                        std::vector<StaticInit> inits = {})
       : identifier(std::move(id)), global(isGlobal), type(varType),
+        init_list(std::move(inits)) {}
+
+  std::string toString() const override;
+};
+
+// Represents constant strings (read-only data)
+class IRStaticConstantNode : public IRTopLevelNode {
+public:
+  std::string identifier;
+  Type type;
+  std::vector<StaticInit> init_list;
+
+  IRStaticConstantNode(std::string id, Type constType,
+                       std::vector<StaticInit> inits = {})
+      : identifier(std::move(id)), type(constType),
         init_list(std::move(inits)) {}
 
   std::string toString() const override;

@@ -77,6 +77,7 @@ public:
 
   bool success;
   int label_counter = 0;
+  int string_counter = 0; // Counter for generating unique string literal names
   std::vector<std::string> errors;
 
 private:
@@ -95,6 +96,10 @@ private:
   std::string make_temp(const std::string &var_name);
   // Helper function for generating unique labels
   std::string make_label();
+  // Helper function for generating unique string literal names
+  std::string make_string_name() {
+    return "string." + std::to_string(string_counter++);
+  }
   // Helper function to check if expression is an lvalue
   bool isLvalue(ASTNode *expr);
   ASTNodePtr convertByAssignment(ASTNodePtr exp, Type &targetType);
