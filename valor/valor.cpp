@@ -76,8 +76,8 @@ std::string IRInstructionNode::toString() const {
        << src2->toString();
     break;
   case IROpType::GREATER_EQUAL:
-    ss << dst->toString() << " = " << src1->toString()
-       << " >= " << src2->toString();
+    ss << dst->toString() << " = " << src1->toString() << " >= "
+       << src2->toString();
     break;
   case IROpType::LOGICAL_AND:
     ss << dst->toString() << " = " << src1->toString() << " && "
@@ -147,7 +147,11 @@ std::string IRInstructionNode::toString() const {
     ss << label << ":";
     break;
   case IROpType::CALL:
-    ss << dst->toString() << " = call " << src1->toString() << ", args: ";
+    if (dst) {
+      ss << dst->toString() << " = call " << src1->toString() << ", args: ";
+    } else {
+      ss << "call " << src1->toString() << ", args: ";
+    }
     if (src2 && src2->type == IRValueType::ARGS) {
       for (size_t i = 0; i < src2->args.size(); ++i) {
         ss << src2->args[i]->toString();
@@ -349,7 +353,8 @@ std::string IRProgramNode::toString() const {
   for (const auto &item : topLevelItems) {
     ss << item->toString();
     // Add newline if it's a static variable (functions already have newlines)
-    if (dynamic_cast<IRStaticVariableNode *>(item.get())) {
+    if (dynamic_cast<IRStaticVariableNode *>(item.get()) || 
+        dynamic_cast<IRStaticConstantNode *>(item.get())) {
       ss << "\n";
     }
   }
@@ -697,7 +702,8 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
 
         // Only handle char arrays
         if (elemType.kind == TypeKind::CHAR ||
-            elemType.kind == TypeKind::UCHAR) {
+            elemType.kind == TypeKind::UCHAR || 
+            elemType.kind == TypeKind::SCHAR) {
           int arraySize = arrayData.size;
           const std::string &str = stringLiteral->value;
           
@@ -900,23 +906,31 @@ void IRGenerator::visit(ConditionalExpression &node) {
                                                       falseLabel);
     currentFunction->addInstruction(std::move(jumpInst));
 
+    // Check if result type is void
+    bool isVoid = (node.type && node.type->kind == TypeKind::VOID);
+
     // Generate IR for 'then' block with lvalue-to-rvalue conversion
     if (node.trueExpr) {
       node.trueExpr->accept(*this);
     }
-    auto trueExprNode = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
-    IRValuePtr trueExprValue =
-        currentExpResult.type == ExpResultType::PLAIN_OPERAND
-            ? currentValue
-            : (trueExprNode && trueExprNode->type
-                   ? convertExpResult(currentExpResult, *trueExprNode->type)
-                   : currentValue);
-    // Create a temporary variable to hold the result with proper type tracking
-    IRValuePtr result = makeTackyVariable(*node.type);
-    // Assign true expression value to result
-    auto copyTrueInst = IRInstructionNode::makeCopy(
-        std::move(trueExprValue), std::make_shared<IRValueNode>(result));
-    currentFunction->addInstruction(std::move(copyTrueInst));
+    
+    IRValuePtr result = nullptr;
+    
+    if (!isVoid) {
+      auto trueExprNode = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
+      IRValuePtr trueExprValue =
+          currentExpResult.type == ExpResultType::PLAIN_OPERAND
+              ? currentValue
+              : (trueExprNode && trueExprNode->type
+                     ? convertExpResult(currentExpResult, *trueExprNode->type)
+                     : currentValue);
+      // Create a temporary variable to hold the result with proper type tracking
+      result = makeTackyVariable(*node.type);
+      // Assign true expression value to result
+      auto copyTrueInst = IRInstructionNode::makeCopy(
+          std::move(trueExprValue), std::make_shared<IRValueNode>(result));
+      currentFunction->addInstruction(std::move(copyTrueInst));
+    }
 
     // Jump to end after 'then' block
     auto jumpToEndInst = IRInstructionNode::makeJump(endLabel);
@@ -926,29 +940,37 @@ void IRGenerator::visit(ConditionalExpression &node) {
     auto falseLabelInst = IRInstructionNode::makeLabel(falseLabel);
     currentFunction->addInstruction(std::move(falseLabelInst));
 
-    // Generate IR for 'false' block if it exists with lvalue-to-rvalue
-    // conversion
+    // Generate IR for 'false' block if it exists with lvalue-to-rvalue conversion
     if (node.falseExpr) {
       (node.falseExpr)->accept(*this);
     }
 
-    auto falseExprNode = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
-    IRValuePtr falseExprValue =
-        currentExpResult.type == ExpResultType::PLAIN_OPERAND
-            ? currentValue
-            : (falseExprNode && falseExprNode->type
-                   ? convertExpResult(currentExpResult, *falseExprNode->type)
-                   : currentValue);
-    // Assign false expression value to result
-    auto copyFalseInst = IRInstructionNode::makeCopy(
-        std::move(falseExprValue), std::make_shared<IRValueNode>(result));
-    ;
-    currentFunction->addInstruction(std::move(copyFalseInst));
+    if (!isVoid) {
+      auto falseExprNode = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
+      IRValuePtr falseExprValue =
+          currentExpResult.type == ExpResultType::PLAIN_OPERAND
+              ? currentValue
+              : (falseExprNode && falseExprNode->type
+                     ? convertExpResult(currentExpResult, *falseExprNode->type)
+                     : currentValue);
+      // Assign false expression value to result
+      auto copyFalseInst = IRInstructionNode::makeCopy(
+          std::move(falseExprValue), std::make_shared<IRValueNode>(result));
+      currentFunction->addInstruction(std::move(copyFalseInst));
+    }
+    
     // End label
     auto endLabelInst = IRInstructionNode::makeLabel(endLabel);
     currentFunction->addInstruction(std::move(endLabelInst));
-    currentValue = result;
-    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    
+    if (!isVoid) {
+      currentValue = result;
+      currentExpResult = ExpResult::makePlainOperand(currentValue);
+    } else {
+      // For void conditional, set dummy value
+      currentValue = IRValueNode::makeConstant(0);
+      currentExpResult = ExpResult::makePlainOperand(currentValue);
+    }
   }
 }
 
@@ -1512,16 +1534,27 @@ void IRGenerator::visit(FunctionCallNode &node) {
   // Create IRValue for function name
   IRValuePtr funcValue = IRValueNode::makeVariable(node.name);
 
-  // Create temporary for result with proper type tracking
-  IRValuePtr result = makeTackyVariable(*node.type);
+  // Check if function returns void
+  IRValuePtr result = nullptr;
+  if (node.type->kind != TypeKind::VOID) {
+    // Create temporary for result with proper type tracking (only for non-void functions)
+    result = makeTackyVariable(*node.type);
+  }
 
-  // Create call instruction
+  // Create call instruction (result will be nullptr for void functions)
   auto callInst = IRInstructionNode::makeCall(
       funcValue, IRValueNode::makeArgs(argValues), result);
   currentFunction->addInstruction(std::move(callInst));
 
-  currentValue = std::move(result);
-  currentExpResult = ExpResult::makePlainOperand(currentValue);
+  if (result) {
+    currentValue = std::move(result);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+  } else {
+    // For void functions, we don't have a meaningful result
+    // Set currentValue to null or a dummy value
+    currentValue = nullptr;
+    currentExpResult = ExpResult::makePlainOperand(nullptr);
+  }
 }
 
 IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
@@ -1625,6 +1658,16 @@ void IRGenerator::visit(GotoStatement &node) { (void)node;}
 void IRGenerator::visit(LabelStatement &node) { (void)node;}
 
 void IRGenerator::visit(CastExpression &node) {
+  // Handle cast to void - just process the inner expression for side effects
+  if (node.targetType.kind == TypeKind::VOID) {
+    // Process the inner expression to execute any side effects
+    node.expression->accept(*this);
+    // Return a dummy value (the caller won't use it)
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
   // Generate IR for the inner expression
   node.expression->accept(*this);
   IRValuePtr result = std::make_shared<IRValueNode>(*currentValue);
@@ -1845,9 +1888,30 @@ void IRGenerator::visit(StringLiteralExpression &node) {
   currentValue = dst;
   currentExpResult = ExpResult::makePlainOperand(dst);
 }
-void IRGenerator::visit(SizeofExpression &node) { (void)node; /* TODO: Implement sizeof */ }
-void IRGenerator::visit(
-    SizeofTypeExpression &node) { (void)node; /* TODO: Implement sizeof type */ }
+void IRGenerator::visit(SizeofExpression &node) {
+  // Get the type of the inner expression WITHOUT evaluating it
+  // We just need the type information, not the runtime value
+  auto exprNode = dynamic_cast<ExpressionNode *>(node.expr.get());
+  if (!exprNode || !exprNode->type) {
+    return;
+  }
+  
+  // Calculate the size in bytes at compile time
+  int sizeInBytes = getTypeSize(*exprNode->type);
+  
+  // Return as an unsigned long constant (size_t)
+  currentValue = IRValueNode::makeConstant(static_cast<unsigned long>(sizeInBytes));
+  currentExpResult = ExpResult::makePlainOperand(currentValue);
+}
+
+void IRGenerator::visit(SizeofTypeExpression &node) {
+  // Calculate the size in bytes at compile time
+  int sizeInBytes = getTypeSize(*node.typeOperand);
+  
+  // Return as an unsigned long constant (size_t)
+  currentValue = IRValueNode::makeConstant(static_cast<unsigned long>(sizeInBytes));
+  currentExpResult = ExpResult::makePlainOperand(currentValue);
+}
 void IRGenerator::visit(ForInit &node) { (void)node; /* TODO: Implement for loops */ }
 void IRGenerator::visit(InitDecl &node) { (void)node; /* TODO: Implement declarations */ }
 void IRGenerator::visit(InitExp &node) { (void)node; /* TODO: Implement expressions */ }
