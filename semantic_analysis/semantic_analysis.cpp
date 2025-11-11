@@ -352,9 +352,17 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
              arrayType.element->kind == TypeKind::UCHAR ||
              arrayType.element->kind == TypeKind::SCHAR)) {
           // Validate string length just like direct string literals
-          if (stringLiteral->value.length() >
-              static_cast<size_t>(arrayType.size)) {
-            return false; // String too long for sub-array
+          auto addressOfExpression =
+              dynamic_cast<AddressOfExpression *>(singleInit.expression.get());
+          if (addressOfExpression) {
+            auto strLiteral = dynamic_cast<StringLiteralExpression *>(
+                addressOfExpression->variableExpr.get());
+            if (strLiteral) {
+              if (strLiteral->value.length() >
+                  static_cast<size_t>(arrayType.size)) {
+                return false; // String too long
+              }
+            }
           }
           // Accept other pointer-to-char expressions (though they shouldn't
           // appear in constant initializers)
@@ -1745,9 +1753,11 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
     }
   }
 
+  // Type check and convert the operand (handles array-to-pointer conversion)
   if (node.operand) {
-    node.operand->accept(*this);
+    node.operand = typecheckAndConvert(std::move(node.operand));
   }
+  
   auto exp = dynamic_cast<ExpressionNode *>(node.operand.get());
   if (exp) {
     node.type = exp->type;
@@ -2077,7 +2087,8 @@ void SemanticAnalyzer::visit(CastExpression &node) {
   }
 
   if (node.expression) {
-    node.expression->accept(*this);
+    // Type check and convert the expression (handles array-to-pointer conversion)
+    node.expression = typecheckAndConvert(std::move(node.expression));
   }
   auto exp = dynamic_cast<ExpressionNode *>(node.expression.get());
   if (!exp || !exp->type) {
