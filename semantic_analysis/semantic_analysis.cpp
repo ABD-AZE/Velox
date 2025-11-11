@@ -12,12 +12,59 @@ analysis in a single pass int foo = 3; int main(void) { int outer = 1; int foo =
 */
 std::unordered_map<std::string, SymbolTableEntry> global_symbol_table;
 
+// Helper function to check if a type is scalar
+// Scalar types include arithmetic types (int, long, double, etc.) and pointers
+// Non-scalar types are void, arrays, and functions
+bool is_scalar(const Type &type) {
+  switch (type.kind) {
+  case TypeKind::VOID:
+  case TypeKind::ARRAY:
+  case TypeKind::FUNC:
+    return false;
+  default:
+    return true;
+  }
+}
+
+// Helper function to check if a type is arithmetic
+// Arithmetic types are all integer types and double
+bool is_arithmetic(const Type &type) {
+  switch (type.kind) {
+  case TypeKind::CHAR:
+  case TypeKind::SCHAR:
+  case TypeKind::UCHAR:
+  case TypeKind::INT:
+  case TypeKind::UINT:
+  case TypeKind::LONG:
+  case TypeKind::ULONG:
+  case TypeKind::DOUBLE:
+    return true;
+  default:
+    return false;
+  }
+}
+
+// Helper function to check if a type is complete
+// A complete type is any type except void
+bool is_complete(const Type &type) {
+  return type.kind != TypeKind::VOID;
+}
+
+// Helper function to check if a type is a pointer to a complete type
+bool is_pointer_to_complete(const Type &type) {
+  if (type.kind == TypeKind::POINTER) {
+    auto ptrType = std::get<PointerType>(type.data);
+    return is_complete(*ptrType.base);
+  }
+  return false;
+}
+
 bool is_null_pointer_constant(ExpressionNode *expr) {
   if (!expr)
     return false;
 
   // Check if it's a constant expression with value 0
-  if (auto constExpr = dynamic_cast<ConstantExpression *>(expr)) {
+  if (auto constExpr = dynamic_cast<ConstantExpression *>(expr)) { 
     return std::visit(
         [](auto &&value) {
           using T = std::decay_t<decltype(value)>;
@@ -32,9 +79,9 @@ bool is_null_pointer_constant(ExpressionNode *expr) {
           }
           return false;
         },
-        constExpr->value);
+        constExpr->value); 
   }
-  return false;
+  return false; 
 }
 
 PointerType SemanticAnalyzer::getCommonPointerType(ExpressionNode *first,
@@ -59,6 +106,14 @@ PointerType SemanticAnalyzer::getCommonPointerType(ExpressionNode *first,
   auto second_ptr_type = std::get<PointerType>(second->type->data);
   if (*(first_ptr_type.base) == *(second_ptr_type.base)) {
     return first_ptr_type;
+  }
+  // Allow implicit conversion between void * and other pointer types
+  else if (first_ptr_type.base->kind == TypeKind::VOID &&
+           second->type->kind == TypeKind::POINTER) {
+    return first_ptr_type; // Return void *
+  } else if (second_ptr_type.base->kind == TypeKind::VOID &&
+             first->type->kind == TypeKind::POINTER) {
+    return second_ptr_type; // Return void *
   } else {
     success = 0;
     errors.push_back("Incompatible pointer types");
@@ -90,6 +145,22 @@ ASTNodePtr SemanticAnalyzer::convertByAssignment(ASTNodePtr exp,
   if (is_null_pointer_constant(expr) && targetType.kind == TypeKind::POINTER) {
     exp = convertTo(std::move(exp), targetType);
     return exp;
+  }
+  // Allow conversion from void * to other pointer types (and vice versa)
+  if (targetType.kind == TypeKind::POINTER && expr->type->kind == TypeKind::POINTER) {
+    auto targetPtrType = std::get<PointerType>(targetType.data);
+    auto exprPtrType = std::get<PointerType>(expr->type->data);
+    
+    // void * to other pointer type
+    if (exprPtrType.base->kind == TypeKind::VOID) {
+      exp = convertTo(std::move(exp), targetType);
+      return exp;
+    }
+    // other pointer type to void *
+    if (targetPtrType.base->kind == TypeKind::VOID) {
+      exp = convertTo(std::move(exp), targetType);
+      return exp;
+    }
   }
   success = 0;
   errors.push_back("Incompatible types in assignment");
@@ -280,17 +351,10 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
             (arrayType.element->kind == TypeKind::CHAR ||
              arrayType.element->kind == TypeKind::UCHAR ||
              arrayType.element->kind == TypeKind::SCHAR)) {
-          // Check if this is a decayed string literal (AddressOf wrapping
-          // StringLiteral)
-          if (auto addrOf = dynamic_cast<AddressOfExpression *>(expr)) {
-            if (auto stringLiteral = dynamic_cast<StringLiteralExpression *>(
-                    addrOf->variableExpr.get())) {
-              // Validate string length just like direct string literals
-              if (stringLiteral->value.length() >
-                  static_cast<size_t>(arrayType.size)) {
-                return false; // String too long for sub-array
-              }
-            }
+          // Validate string length just like direct string literals
+          if (stringLiteral->value.length() >
+              static_cast<size_t>(arrayType.size)) {
+            return false; // String too long for sub-array
           }
           // Accept other pointer-to-char expressions (though they shouldn't
           // appear in constant initializers)
@@ -354,6 +418,41 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
   return false;
 }
 
+// Helper function to validate type specifiers (check for incomplete types)
+bool SemanticAnalyzer::validateTypeSpecifier(const Type &type) {
+  switch (type.kind) {
+  case TypeKind::ARRAY: {
+    // Array element type must be complete
+    const auto &arrayType = std::get<ArrayType>(type.data);
+    if (!is_complete(*arrayType.element)) {
+      success = 0;
+      errors.push_back("Array element type must be complete");
+      return false;
+    }
+    // Recursively validate the element type
+    return validateTypeSpecifier(*arrayType.element);
+  }
+  case TypeKind::POINTER: {
+    // Recursively validate the referenced type
+    const auto &ptrType = std::get<PointerType>(type.data);
+    return validateTypeSpecifier(*ptrType.base);
+  }
+  case TypeKind::FUNC: {
+    // Recursively validate parameter and return types
+    const auto &funType = std::get<FunType>(type.data);
+    for (const auto &paramType : funType.params) {
+      if (!validateTypeSpecifier(paramType)) {
+        return false;
+      }
+    }
+    return validateTypeSpecifier(*funType.ret);
+  }
+  default:
+    // All other types (including void) are valid as type specifiers
+    return true;
+  }
+}
+
 // Constructor
 SemanticAnalyzer::SemanticAnalyzer() : success(true) {}
 
@@ -406,14 +505,32 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
     return;
   }
 
+  // Validate return type specifier
+  if (!validateTypeSpecifier(*funType.ret)) {
+    return; // Error already reported by validateTypeSpecifier
+  }
+
+  // Validate each parameter type BEFORE array-to-pointer decay
+  for (auto &param_type : node.param_types) {
+    // Check for void parameter (extra restriction on void - not allowed)
+    if (param_type.kind == TypeKind::VOID) {
+      success = 0;
+      errors.push_back("Parameter cannot have void type");
+      return;
+    }
+    
+    if (!validateTypeSpecifier(param_type)) {
+      return; // Error already reported by validateTypeSpecifier
+    }
+  }
+
   // Adjust array parameters to pointer parameters
   std::vector<Type> adjusted_params;
   for (auto &param_type : node.param_types) {
     if (param_type.kind == TypeKind::ARRAY) {
-      // Convert Array(elem_t, size) to Pointer(elem_t)
       auto arrayType = std::get<ArrayType>(param_type.data);
-      Type pointerType(TypeKind::POINTER, PointerType(arrayType.element));
-      adjusted_params.push_back(pointerType);
+      adjusted_params.push_back(
+          Type(TypeKind::POINTER, PointerType{arrayType.element}));
     } else {
       adjusted_params.push_back(param_type);
     }
@@ -540,6 +657,18 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
 }
 
 void SemanticAnalyzer::visit(VarDeclNode &node) {
+  // Validate the type specifier before processing the declaration
+  if (!validateTypeSpecifier(node.type)) {
+    return; // Error already reported by validateTypeSpecifier
+  }
+
+  // Check for void variable (extra restriction on void - not allowed)
+  if (node.type.kind == TypeKind::VOID) {
+    success = 0;
+    errors.push_back("Variable cannot have void type");
+    return;
+  }
+
   // FILE SCOPE VARIABLE CHECK
   if (inFileScope) {
     identifier_map[node.name] = {
@@ -1119,24 +1248,44 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
 
 // Statement visitors
 void SemanticAnalyzer::visit(ReturnStatement &node) {
-  if (node.expression) {
-    // Type check and convert return expression (handles array-to-pointer
-    // conversion)
+  if (!currentFunction) {
+    success = 0;
+    errors.push_back("Return statement outside of function");
+    return;
+  }
+
+  // Get the function's return type
+  auto &funType = std::get<FunType>(currentFunction->type.data);
+  Type returnType = *funType.ret;
+
+  // Check if function has void return type
+  if (returnType.kind == TypeKind::VOID) {
+    // Void functions must not return any expression
+    if (node.expression) {
+      success = 0;
+      errors.push_back("Void function cannot return a value");
+      return;
+    }
+  } else {
+    // Non-void functions must return an expression
+    if (!node.expression) {
+      success = 0;
+      errors.push_back("Non-void function must return a value");
+      return;
+    }
+
+    // Type check and convert return expression (handles array-to-pointer conversion)
     node.expression = typecheckAndConvert(std::move(node.expression));
 
     // Convert return value to function's return type
-    if (currentFunction && currentFunction->type.data.index() == 1) {
-      auto &funType = std::get<FunType>(currentFunction->type.data);
-      Type returnType = *funType.ret; // Dereference the shared_ptr
-
-      auto returnExp = dynamic_cast<ExpressionNode *>(node.expression.get());
-      if (returnExp && returnExp->type && *returnExp->type != returnType) {
-        auto castExpr =
-            convertByAssignment(std::move(node.expression), returnType);
-        node.expression = std::move(castExpr);
-      }
+    auto returnExp = dynamic_cast<ExpressionNode *>(node.expression.get());
+    if (returnExp && returnExp->type && *returnExp->type != returnType) {
+      auto castExpr =
+          convertByAssignment(std::move(node.expression), returnType);
+      node.expression = std::move(castExpr);
     }
   }
+  
   node.type = std::make_shared<Type>(currentFunction->type);
 }
 
@@ -1302,6 +1451,12 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
     // Both operands are arithmetic
     if (leftExp->type->kind != TypeKind::POINTER &&
         rightExp->type->kind != TypeKind::POINTER) {
+      // Validate both operands are arithmetic types
+      if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Invalid operands to addition - operands must be arithmetic types");
+        return;
+      }
       // Standard arithmetic addition
       Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
       if (*leftExp->type != commonType) {
@@ -1313,9 +1468,21 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       node.type = std::make_shared<Type>(commonType);
       return;
     }
-    // Pointer + integer
+    // Pointer + integer (validate pointer to complete type)
     else if (leftExp->type->kind == TypeKind::POINTER &&
              rightExp->type->kind != TypeKind::POINTER) {
+      // Check that pointer points to complete type
+      if (!is_pointer_to_complete(*leftExp->type)) {
+        success = 0;
+        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        return;
+      }
+      // Validate that the integer operand is arithmetic (not void, array, etc.)
+      if (!is_arithmetic(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Pointer arithmetic requires integer operand");
+        return;
+      }
       // Convert integer operand to long
       Type longType = Type::Long();
       node.right = convertTo(std::move(node.right), longType);
@@ -1323,9 +1490,21 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       node.type = leftExp->type;
       return;
     }
-    // Integer + pointer
+    // Integer + pointer (validate pointer to complete type)
     else if (rightExp->type->kind == TypeKind::POINTER &&
              leftExp->type->kind != TypeKind::POINTER) {
+      // Check that pointer points to complete type
+      if (!is_pointer_to_complete(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        return;
+      }
+      // Validate that the integer operand is arithmetic (not void, array, etc.)
+      if (!is_arithmetic(*leftExp->type)) {
+        success = 0;
+        errors.push_back("Pointer arithmetic requires integer operand");
+        return;
+      }
       // Convert integer operand to long
       Type longType = Type::Long();
       node.left = convertTo(std::move(node.left), longType);
@@ -1344,6 +1523,12 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
     // Both operands are arithmetic
     if (leftExp->type->kind != TypeKind::POINTER &&
         rightExp->type->kind != TypeKind::POINTER) {
+      // Validate both operands are arithmetic types
+      if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Invalid operands to subtraction - operands must be arithmetic types");
+        return;
+      }
       // Standard arithmetic subtraction
       Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
       if (*leftExp->type != commonType) {
@@ -1355,9 +1540,21 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       node.type = std::make_shared<Type>(commonType);
       return;
     }
-    // Pointer - integer
+    // Pointer - integer (validate pointer to complete type)
     else if (leftExp->type->kind == TypeKind::POINTER &&
              rightExp->type->kind != TypeKind::POINTER) {
+      // Check that pointer points to complete type
+      if (!is_pointer_to_complete(*leftExp->type)) {
+        success = 0;
+        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        return;
+      }
+      // Validate that the integer operand is arithmetic (not void, array, etc.)
+      if (!is_arithmetic(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Pointer arithmetic requires integer operand");
+        return;
+      }
       // Convert integer operand to long
       Type longType = Type::Long();
       node.right = convertTo(std::move(node.right), longType);
@@ -1365,12 +1562,18 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       node.type = leftExp->type;
       return;
     }
-    // Pointer - pointer (must be same type)
+    // Pointer - pointer (must be same type, validate pointer to complete type)
     else if (leftExp->type->kind == TypeKind::POINTER &&
              rightExp->type->kind == TypeKind::POINTER) {
       if (*leftExp->type != *rightExp->type) {
         success = 0;
         errors.push_back("Cannot subtract pointers of different types");
+        return;
+      }
+      // Check that pointers point to complete type
+      if (!is_pointer_to_complete(*leftExp->type)) {
+        success = 0;
+        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
         return;
       }
       // Result is long
@@ -1399,6 +1602,12 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       return;
     } else if (leftExp->type->kind != TypeKind::POINTER &&
                rightExp->type->kind != TypeKind::POINTER) {
+      // Validate both operands are arithmetic types before calling getCommonType
+      if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Invalid operands to relational operator - operands must be arithmetic types");
+        return;
+      }
       // Standard arithmetic comparison
       Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
       if (*leftExp->type != commonType) {
@@ -1434,6 +1643,25 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       }
       node.type = std::make_shared<Type>(Type::Int());
       return;
+    } else if (is_arithmetic(*leftExp->type) && is_arithmetic(*rightExp->type)) {
+      // Both operands are arithmetic - apply usual arithmetic conversions
+      Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
+      if (*leftExp->type != commonType) {
+        auto castExpr = convertByAssignment(std::move(node.left), commonType);
+        node.left = std::move(castExpr);
+      }
+
+      if (*rightExp->type != commonType) {
+        auto castExpr = convertByAssignment(std::move(node.right), commonType);
+        node.right = std::move(castExpr);
+      }
+      node.type = std::make_shared<Type>(Type::Int());
+      return;
+    } else {
+      // Invalid operands - neither pointer nor arithmetic
+      success = 0;
+      errors.push_back("Invalid operands to equality expression");
+      return;
     }
   }
 
@@ -1442,6 +1670,13 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       rightExp->type->kind == TypeKind::POINTER) {
     success = 0;
     errors.push_back("Invalid operator for pointer types in binary expression");
+    return;
+  }
+
+  // Validate both operands are arithmetic before calling getCommonType
+  if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
+    success = 0;
+    errors.push_back("Invalid operands to binary expression - operands must be arithmetic types");
     return;
   }
 
@@ -1516,6 +1751,15 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
   auto exp = dynamic_cast<ExpressionNode *>(node.operand.get());
   if (exp) {
     node.type = exp->type;
+  }
+
+  // Validate scalar operands for logical NOT
+  if (node.op == TokenType::NOT) {
+    if (exp && exp->type && !is_scalar(*exp->type)) {
+      success = 0;
+      errors.push_back("Logical NOT operator requires scalar operand");
+      return;
+    }
   }
 
   // Check for invalid operations on pointers
@@ -1722,46 +1966,63 @@ void SemanticAnalyzer::visit(VariableExpression &node) {
 }
 
 void SemanticAnalyzer::visit(ConditionalExpression &node) {
+  // Type check and convert the condition
   if (node.condition) {
     node.condition = typecheckAndConvert(std::move(node.condition));
   }
+  
+  // Validate that condition is scalar
+  auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+  if (condExpr && condExpr->type) {
+    if (!is_scalar(*condExpr->type)) {
+      success = 0;
+      errors.push_back("Condition in conditional operator must be scalar");
+      return;
+    }
+  }
+  
+  // Type check and convert both branches
   if (node.trueExpr) {
     node.trueExpr = typecheckAndConvert(std::move(node.trueExpr));
   }
   if (node.falseExpr) {
     node.falseExpr = typecheckAndConvert(std::move(node.falseExpr));
   }
+  
   auto trueExp = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
   auto falseExp = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
-  if (trueExp && falseExp && trueExp->type && falseExp->type) {
-    if (trueExp->type->kind == TypeKind::POINTER ||
-        falseExp->type->kind == TypeKind::POINTER) {
-      // Handle pointer conditional expressions
-      PointerType commonPtrType = getCommonPointerType(trueExp, falseExp);
-      Type commonType = Type::Pointer(commonPtrType.base);
-
-      // Convert true expression to common type if needed
-      if (*trueExp->type != commonType) {
-        auto castExpr =
-            convertByAssignment(std::move(node.trueExpr), commonType);
-        node.trueExpr = std::move(castExpr);
-      }
-
-      // Convert false expression to common type if needed
-      if (*falseExp->type != commonType) {
-        auto castExpr =
-            convertByAssignment(std::move(node.falseExpr), commonType);
-        node.falseExpr = std::move(castExpr);
-      }
-
-      node.type = std::make_shared<Type>(commonType);
-      return;
-    }
-    Type commonType = Type::getCommonType(*trueExp->type, *falseExp->type);
+  
+  if (!trueExp || !falseExp || !trueExp->type || !falseExp->type) {
+    success = 0;
+    errors.push_back("Invalid operands in conditional expression");
+    return;
+  }
+  
+  // Check if both operands are void
+  if (trueExp->type->kind == TypeKind::VOID && falseExp->type->kind == TypeKind::VOID) {
+    // Both void - result is void
+    node.type = std::make_shared<Type>(Type::Void());
+    return;
+  }
+  
+  // Check if either operand is void (but not both)
+  if (trueExp->type->kind == TypeKind::VOID || falseExp->type->kind == TypeKind::VOID) {
+    success = 0;
+    errors.push_back("Cannot convert branches of conditional to a common type");
+    return;
+  }
+  
+  // Both operands are non-void - check if they're pointers
+  if (trueExp->type->kind == TypeKind::POINTER ||
+      falseExp->type->kind == TypeKind::POINTER) {
+    // Handle pointer conditional expressions
+    PointerType commonPtrType = getCommonPointerType(trueExp, falseExp);
+    Type commonType = Type::Pointer(commonPtrType.base);
 
     // Convert true expression to common type if needed
     if (*trueExp->type != commonType) {
-      auto castExpr = convertByAssignment(std::move(node.trueExpr), commonType);
+      auto castExpr =
+          convertByAssignment(std::move(node.trueExpr), commonType);
       node.trueExpr = std::move(castExpr);
     }
 
@@ -1773,10 +2034,34 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
     }
 
     node.type = std::make_shared<Type>(commonType);
+    return;
   }
+  
+  // Both operands are arithmetic types
+  Type commonType = Type::getCommonType(*trueExp->type, *falseExp->type);
+
+  // Convert true expression to common type if needed
+  if (*trueExp->type != commonType) {
+    auto castExpr = convertByAssignment(std::move(node.trueExpr), commonType);
+    node.trueExpr = std::move(castExpr);
+  }
+
+  // Convert false expression to common type if needed
+  if (*falseExp->type != commonType) {
+    auto castExpr =
+        convertByAssignment(std::move(node.falseExpr), commonType);
+    node.falseExpr = std::move(castExpr);
+  }
+
+  node.type = std::make_shared<Type>(commonType);
 }
 
 void SemanticAnalyzer::visit(CastExpression &node) {
+  // Validate the target type specifier
+  if (!validateTypeSpecifier(node.targetType)) {
+    return; // Error already reported by validateTypeSpecifier
+  }
+
   // Check if trying to cast to array type
   if (node.targetType.kind == TypeKind::ARRAY) {
     success = 0;
@@ -1784,18 +2069,53 @@ void SemanticAnalyzer::visit(CastExpression &node) {
     return;
   }
 
+  // Check if trying to cast to function type
+  if (node.targetType.kind == TypeKind::FUNC) {
+    success = 0;
+    errors.push_back("Cannot cast to function type");
+    return;
+  }
+
   if (node.expression) {
     node.expression->accept(*this);
   }
   auto exp = dynamic_cast<ExpressionNode *>(node.expression.get());
+  if (!exp || !exp->type) {
+    success = 0;
+    errors.push_back("Cast expression has invalid operand");
+    return;
+  }
+
+  // Check for double/pointer cast restriction (before other checks)
   if ((exp->type->kind == TypeKind::DOUBLE &&
        node.targetType.kind == TypeKind::POINTER) ||
       (exp->type->kind == TypeKind::POINTER &&
        node.targetType.kind == TypeKind::DOUBLE)) {
     success = 0;
-    errors.push_back("Cannot cast from 'double' to pointer type");
+    errors.push_back("Cannot cast between 'double' and pointer type");
     return;
   }
+
+  // If target type is void, cast is always valid (casting to void)
+  if (node.targetType.kind == TypeKind::VOID) {
+    node.type = std::make_shared<Type>(node.targetType);
+    return;
+  }
+
+  // Otherwise, target type must be scalar
+  if (!is_scalar(node.targetType)) {
+    success = 0;
+    errors.push_back("Can only cast to scalar type or void");
+    return;
+  }
+
+  // Inner expression must also be scalar (can't cast non-scalar to scalar)
+  if (!is_scalar(*exp->type)) {
+    success = 0;
+    errors.push_back("Cannot cast non-scalar expression to scalar type");
+    return;
+  }
+
   node.type = std::make_shared<Type>(node.targetType);
 }
 
@@ -1808,6 +2128,14 @@ void SemanticAnalyzer::visit(DereferenceExpression &node) {
   auto exp = dynamic_cast<ExpressionNode *>(node.pointerExpr.get());
   if (exp && exp->type && exp->type->kind == TypeKind::POINTER) {
     auto ptrType = std::get<PointerType>(exp->type->data);
+    
+    // Check for dereferencing pointer to void (extra restriction on void - not allowed)
+    if (ptrType.base->kind == TypeKind::VOID) {
+      success = 0;
+      errors.push_back("Cannot dereference pointer to void");
+      return;
+    }
+    
     node.type = ptrType.base;
   } else {
     success = 0;
@@ -1890,12 +2218,18 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
     return;
   }
 
-  // One operand must be a pointer, the other must be an integer
+  // One operand must be a pointer to complete type, the other must be an integer
   std::shared_ptr<Type> ptrType = nullptr;
 
   if (arrayExpr->type->kind == TypeKind::POINTER &&
       indexExpr->type->kind != TypeKind::POINTER &&
       indexExpr->type->kind != TypeKind::DOUBLE) {
+    // Check that pointer points to complete type
+    if (!is_pointer_to_complete(*arrayExpr->type)) {
+      success = 0;
+      errors.push_back("Cannot subscript pointer to incomplete type");
+      return;
+    }
     ptrType = arrayExpr->type;
     // Convert integer index to long
     Type longType = Type::Long();
@@ -1903,6 +2237,12 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
   } else if (indexExpr->type->kind == TypeKind::POINTER &&
              arrayExpr->type->kind != TypeKind::POINTER &&
              arrayExpr->type->kind != TypeKind::DOUBLE) {
+    // Check that pointer points to complete type
+    if (!is_pointer_to_complete(*indexExpr->type)) {
+      success = 0;
+      errors.push_back("Cannot subscript pointer to incomplete type");
+      return;
+    }
     ptrType = indexExpr->type;
     // Convert integer index to long
     Type longType = Type::Long();
@@ -1926,9 +2266,47 @@ void SemanticAnalyzer::visit(StringLiteralExpression &node) {
       Type::Array(std::make_shared<Type>(Type::Char()), length + 1));
 }
 
-void SemanticAnalyzer::visit(SizeofExpression &node) {(void)node;}
+void SemanticAnalyzer::visit(SizeofExpression &node) {
+  // Type check the inner expression WITHOUT array-to-pointer conversion
+  // We just call accept() directly instead of typecheckAndConvert()
+  if (node.expr) {
+    node.expr->accept(*this);
+  }
+  
+  auto exprNode = dynamic_cast<ExpressionNode *>(node.expr.get());
+  if (!exprNode || !exprNode->type) {
+    success = 0;
+    errors.push_back("sizeof operand has no type");
+    return;
+  }
+  
+  // Check that the type is complete
+  if (!is_complete(*exprNode->type)) {
+    success = 0;
+    errors.push_back("Cannot get the size of an incomplete type");
+    return;
+  }
+  
+  // sizeof always has type unsigned long (size_t)
+  node.type = std::make_shared<Type>(Type::ULong());
+}
 
-void SemanticAnalyzer::visit(SizeofTypeExpression &node) {(void)node;}
+void SemanticAnalyzer::visit(SizeofTypeExpression &node) {
+  // Validate the type specifier
+  if (!validateTypeSpecifier(*node.typeOperand)) {
+    return; // Error already reported by validateTypeSpecifier
+  }
+  
+  // Check that the type is complete
+  if (!is_complete(*node.typeOperand)) {
+    success = 0;
+    errors.push_back("Cannot get the size of an incomplete type");
+    return;
+  }
+  
+  // sizeof always has type unsigned long (size_t)
+  node.type = std::make_shared<Type>(Type::ULong());
+}
 
 void SemanticAnalyzer::visit(DotExpression &node) {(void)node;}
 

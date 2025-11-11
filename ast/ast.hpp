@@ -392,7 +392,6 @@ public:
     } else {
       return type2;
     }
-    return Type::Int();
   }
 
   void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
