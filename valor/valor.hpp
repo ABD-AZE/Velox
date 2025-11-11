@@ -474,7 +474,7 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeReturn(IRValuePtr value) {
+  static IRInstructionPtr makeReturn(IRValuePtr value = nullptr) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::RETURN;
     inst->src1 = std::move(value);
@@ -522,7 +522,7 @@ public:
   }
 
   static IRInstructionPtr makeCall(IRValuePtr function, IRValuePtr arguments,
-                                   IRValuePtr result) {
+                                   IRValuePtr result = nullptr) {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::CALL;
     inst->src1 = std::move(function);
