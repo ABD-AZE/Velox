@@ -20,8 +20,24 @@ AssemblyType getAssemblyType(IRValuePtr irValue)
   }
   else
   {
-    return irValue->constType == TypeKind::LONG ? AssemblyType::QUAD_WORD : AssemblyType::LONG_WORD;
+    if(irValue->constType == TypeKind::INT || irValue->constType == TypeKind::UINT)
+      return AssemblyType::LONG_WORD;
+    return AssemblyType::QUAD_WORD;
   }
+}
+
+bool isUnsigned(IRValuePtr irValue)
+{
+  if (global_symbol_table.find(irValue->name) != global_symbol_table.end())
+  {
+    TypeKind kind = global_symbol_table[irValue->name].type.kind;
+    return (kind == TypeKind::ULONG || kind == TypeKind::UINT || kind == TypeKind::UCHAR);
+  }
+  else{
+    TypeKind kind = irValue->constType;
+    return (kind == TypeKind::ULONG || kind == TypeKind::UINT || kind == TypeKind::UCHAR);
+  }
+  return false;
 }
 
 bool isMemoryAddress(const OperandPtr &operand)
@@ -350,7 +366,12 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
     else if (auto irStaticVar = std::dynamic_pointer_cast<IRStaticVariableNode>(irTopLevel))
     {
       auto init = irStaticVar->init_list[0];
-      int alignment = init.data.index() == 0 ? 4 : 8;
+      int alignment;
+      if(init.kind == StaticInitKind::INT_INIT || init.kind == StaticInitKind::UINT_INIT){
+        alignment = 4;
+      } else if(init.kind == StaticInitKind::LONG_INIT || init.kind == StaticInitKind::ULONG_INIT || init.kind == StaticInitKind::DOUBLE_INIT){
+        alignment = 8;
+      }
       auto asmStaticVar = ASMStaticVariable::createStaticVariable(
           irStaticVar->identifier, irStaticVar->global, alignment, init);
       asmProgram->topLevelItems.push_back(asmStaticVar);
@@ -541,11 +562,9 @@ std::vector<ASMInstructionPtr> Codegen::IRInstructionToASM(const IRInstructionPt
   case IROpType::LESS_THAN:
   case IROpType::LESS_EQUAL:
   {
-    bool isUnsigned = global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::ULONG ||
-                      global_symbol_table[irInstruction->dst->name].type.kind == TypeKind::UINT;
     asmInstructions.push_back(ASMInstruction::createCmp(IRValueToOperand(irInstruction->src1), IRValueToOperand(irInstruction->src2), getAssemblyType(irInstruction->src1)));
     asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst), Immediate::createImmediate(0), AssemblyType::LONG_WORD));
-    asmInstructions.push_back(ASMInstruction::createSetCC(binOptoConditionCode(irInstruction->opType, isUnsigned), IRValueToOperand(irInstruction->dst)));
+    asmInstructions.push_back(ASMInstruction::createSetCC(binOptoConditionCode(irInstruction->opType, isUnsigned(irInstruction->src1)), IRValueToOperand(irInstruction->dst)));
     break;
   }
   case IROpType::LABEL:

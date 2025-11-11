@@ -620,7 +620,12 @@ ASTNodePtr Parser::parsePrimaryExp() {
       std::string lexeme = currentToken.GetLexeme();
       unsigned int value = 0;
       if (!lexeme.empty()) {
-        value = (unsigned int)std::stoul(lexeme);
+        unsigned long temp = std::stoul(lexeme);
+        if (temp <= std::numeric_limits<unsigned int>::max()) {
+          value = static_cast<unsigned int>(temp);
+        } else{
+          throw std::out_of_range("Value exceeds unsigned int range");
+        }
       }
       primaryExpNode = std::make_unique<ConstantExpression>(value);
     } catch (const std::exception &e) {

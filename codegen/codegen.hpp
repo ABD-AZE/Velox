@@ -164,74 +164,49 @@ public:
     {
       ss << TAB << ".globl " << name << "\n";
     }
-    std::visit(
-        [&](auto &&value)
+    if (init.kind == StaticInitKind::ZERO_INIT)
+    {
+      ss << TAB << ".bss\n";
+      ss << TAB << ".align " << alignment << "\n";
+      ss << name << ":\n";
+      ss << TAB << ".zero " << std::get<int>(init.data) << "\n";
+    }
+    else
+    {
+      ss << TAB << ".data\n";
+      ss << TAB << ".align " << alignment << "\n";
+      ss << name << ":\n";
+      std::visit([&](auto &&value)
         {
           using T = std::decay_t<decltype(value)>;
           if constexpr (std::is_same_v<T, int>)
           {
-            ss << TAB << ".bss\n";
-            ss << TAB << ".align " << alignment << "\n";
-            ss << name << ":\n";
-            ss << TAB << ".zero " << alignment << "\n";
+            ss << TAB << ".long " << value << "\n";
           }
-          else if constexpr (std::is_same_v<T, std::variant<int, long int, long unsigned int,
-                                                            unsigned int, double>>)
+          else if constexpr (std::is_same_v<T, long>)
           {
-            std::visit([&](auto &&data)
-                       {
-                using U = std::decay_t<decltype(data)>;
-                ss << TAB << ".data\n";
-                ss << TAB << ".align " << alignment << "\n";
-                ss << name << ":\n";
-                if constexpr (std::is_same_v<U, int>)
-                {
-                  if(data!=0)
-                  ss << TAB << ".long " << data << "\n";
-                  else
-                  ss << TAB << ".zero " << 4 << "\n";
-                }
-                else if constexpr (std::is_same_v<U, long>)
-                {
-                  if(data!=0)
-                  ss << TAB << ".quad " << data << "\n";
-                  else
-                  ss << TAB << ".zero " << 8 << "\n";
-                }
-                else if constexpr (std::is_same_v<U, unsigned long>)
-                {
-                  if(data!=0)
-                  ss << TAB << ".quad " << data << "\n";
-                  else
-                  ss << TAB << ".zero " << 8 << "\n";
-                }
-                else if constexpr (std::is_same_v<U, unsigned int>)
-                {
-                  if(data!=0)
-                  ss << TAB << ".long " << data << "\n";
-                  else
-                  ss << TAB << ".zero " << 4 << "\n";
-                }
-                else if constexpr (std::is_same_v<U, double>)
-                {
-                  union {
-                    double d;
-                    uint64_t u;
-                  } converter;
-                  converter.d = data;
-                  if (data!=0.0)
-                  {
-                    ss << TAB << ".quad " << converter.u << "\n";
-                  }
-                  else
-                  {
-                    ss << TAB << ".zero " << 8 << "\n";
-                  }
-                } },
-                       value);
+            ss << TAB << ".quad " << value << "\n";
+          }
+          else if constexpr (std::is_same_v<T, unsigned long>)
+          {
+            ss << TAB << ".quad " << value << "\n";
+          }
+          else if constexpr (std::is_same_v<T, unsigned int>)
+          {
+            ss << TAB << ".long " << value << "\n";
+          }
+          else if constexpr (std::is_same_v<T, double>)
+          {
+            union {
+              double d;
+              uint64_t u;
+            } converter;
+            converter.d = value;
+            ss << TAB << ".quad " << converter.u << "\n";
           }
         },
         init.data);
+    }
     return ss.str();
   }
 };

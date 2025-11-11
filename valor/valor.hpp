@@ -80,11 +80,16 @@ struct PointerStaticInit {
 // Static initializer variant
 struct StaticInit {
   StaticInitKind kind;
-  std::variant<int,                    // INT_INIT, LONG_INIT, UINT_INIT, ULONG_INIT, CHAR_INIT, UCHAR_INIT, ZERO_INIT (num bytes)
-               double,                 // DOUBLE_INIT
-               StringStaticInit,       // STRING_INIT
-               PointerStaticInit,      // POINTER_INIT
-               CompoundStaticInit      // COMPOUND
+  std::variant<int, // INT_INIT and ZERO_INIT
+                long int,            // LONG_INIT
+                long unsigned int,   // ULONG_INIT
+                unsigned int,       // UINT_INIT
+                char,               // CHAR_INIT
+                unsigned char,      // UCHAR_INIT
+                double,             // DOUBLE_INIT
+                StringStaticInit,   // STRING_INIT
+                PointerStaticInit,  // POINTER_INIT
+                CompoundStaticInit  // COMPOUND
                >
       data;
 
@@ -99,35 +104,35 @@ struct StaticInit {
   static StaticInit makeLongInit(long value) {
     StaticInit init;
     init.kind = StaticInitKind::LONG_INIT;
-    init.data = static_cast<int>(value);
+    init.data = (value);
     return init;
   }
 
   static StaticInit makeUIntInit(unsigned int value) {
     StaticInit init;
     init.kind = StaticInitKind::UINT_INIT;
-    init.data = static_cast<int>(value);
+    init.data = (value);
     return init;
   }
 
   static StaticInit makeULongInit(unsigned long value) {
     StaticInit init;
     init.kind = StaticInitKind::ULONG_INIT;
-    init.data = static_cast<int>(value);
+    init.data = (value);
     return init;
   }
 
   static StaticInit makeCharInit(char value) {
     StaticInit init;
     init.kind = StaticInitKind::CHAR_INIT;
-    init.data = static_cast<int>(value);
+    init.data = (value);
     return init;
   }
 
   static StaticInit makeUCharInit(unsigned char value) {
     StaticInit init;
     init.kind = StaticInitKind::UCHAR_INIT;
-    init.data = static_cast<int>(value);
+    init.data = (value);
     return init;
   }
 

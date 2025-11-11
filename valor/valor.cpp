@@ -212,19 +212,19 @@ std::string IRStaticVariableNode::toString() const {
           ss << "Int(" << std::get<int>(init.data) << ")";
           break;
         case StaticInitKind::LONG_INIT:
-          ss << "Long(" << std::get<int>(init.data) << ")";
+          ss << "Long(" << std::get<long>(init.data) << ")";
           break;
         case StaticInitKind::UINT_INIT:
-          ss << "UInt(" << std::get<int>(init.data) << ")";
+          ss << "UInt(" << std::get<unsigned int>(init.data) << ")";
           break;
         case StaticInitKind::ULONG_INIT:
-          ss << "ULong(" << std::get<int>(init.data) << ")";
+          ss << "ULong(" << std::get<unsigned long>(init.data) << ")";
           break;
         case StaticInitKind::CHAR_INIT:
-          ss << "Char(" << std::get<int>(init.data) << ")";
+          ss << "Char(" << std::get<char>(init.data) << ")";
           break;
         case StaticInitKind::UCHAR_INIT:
-          ss << "UChar(" << std::get<int>(init.data) << ")";
+          ss << "UChar(" << std::get<unsigned char>(init.data) << ")";
           break;
         case StaticInitKind::DOUBLE_INIT:
           ss << "Double(" << std::get<double>(init.data) << ")";
