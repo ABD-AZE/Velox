@@ -132,13 +132,7 @@ ASTNodePtr SemanticAnalyzer::convertByAssignment(ASTNodePtr exp,
   if (*expr->type == targetType) {
     return exp;
   }
-  if (expr->type->kind != TypeKind::ERROR &&
-      expr->type->kind != TypeKind::POINTER &&
-      expr->type->kind != TypeKind::FUNC &&
-      expr->type->kind != TypeKind::ARRAY &&
-      targetType.kind != TypeKind::ERROR &&
-      targetType.kind != TypeKind::POINTER &&
-      targetType.kind != TypeKind::FUNC && targetType.kind != TypeKind::ARRAY) {
+  if (is_arithmetic(*expr->type) && is_arithmetic(targetType)) {
     exp = convertTo(std::move(exp), targetType);
     return exp;
   }
@@ -146,6 +140,14 @@ ASTNodePtr SemanticAnalyzer::convertByAssignment(ASTNodePtr exp,
     exp = convertTo(std::move(exp), targetType);
     return exp;
   }
+
+  //disallow conversions from void type
+  if(expr->type->kind == TypeKind::VOID && targetType.kind != TypeKind::VOID){
+    success = 0;
+    errors.push_back("Cannot convert from void type");
+    return exp;
+  }
+
   // Allow conversion from void * to other pointer types (and vice versa)
   if (targetType.kind == TypeKind::POINTER && expr->type->kind == TypeKind::POINTER) {
     auto targetPtrType = std::get<PointerType>(targetType.data);
@@ -384,17 +386,19 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
       if (is_null_pointer_constant(expr)) {
         return true;
       }
+      // Allow conversion from void* to other pointer types
+      if (expr->type->kind == TypeKind::POINTER) {
+        auto exprPtrType = std::get<PointerType>(expr->type->data);
+        if (exprPtrType.base->kind == TypeKind::VOID) {
+          return true;
+        }
+      }
       // Other types cannot convert to pointer
       return false;
     }
 
     // For non-pointer types, check if arithmetic conversion is possible
-    if (expr->type->kind != TypeKind::POINTER &&
-        expr->type->kind != TypeKind::FUNC &&
-        expr->type->kind != TypeKind::ARRAY &&
-        targetType.kind != TypeKind::POINTER &&
-        targetType.kind != TypeKind::FUNC &&
-        targetType.kind != TypeKind::ARRAY) {
+    if (is_arithmetic(*expr->type) && is_arithmetic(targetType)) {
       return true; // Arithmetic types can convert
     }
 
@@ -1307,6 +1311,16 @@ void SemanticAnalyzer::visit(IfStatement &node) {
   // Resolve condition
   if (node.condition) {
     node.condition->accept(*this);
+    
+    // Check that condition is scalar type
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    if (condExpr && condExpr->type) {
+      if (!is_scalar(*condExpr->type)) {
+        success = 0;
+        errors.push_back("Condition in if statement must be scalar type");
+        return;
+      }
+    }
   }
 
   // Resolve then branch
@@ -1338,6 +1352,16 @@ void SemanticAnalyzer::visit(WhileNode &node) {
   current_label = node.label;
   if (node.condition) {
     node.condition->accept(*this);
+    
+    // Check that condition is scalar type
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    if (condExpr && condExpr->type) {
+      if (!is_scalar(*condExpr->type)) {
+        success = 0;
+        errors.push_back("Condition in while loop must be scalar type");
+        return;
+      }
+    }
   }
   if (node.body) {
     node.body->accept(*this);
@@ -1351,6 +1375,16 @@ void SemanticAnalyzer::visit(DoWhileNode &node) {
   current_label = node.label;
   if (node.condition) {
     node.condition->accept(*this);
+    
+    // Check that condition is scalar type
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
+    if (condExpr && condExpr->type) {
+      if (!is_scalar(*condExpr->type)) {
+        success = 0;
+        errors.push_back("Condition in do-while loop must be scalar type");
+        return;
+      }
+    }
   }
   if (node.body) {
     node.body->accept(*this);
@@ -1372,6 +1406,16 @@ void SemanticAnalyzer::visit(ForNode &node) {
   // Resolve condition
   if (node.condition) {
     node.condition.value()->accept(*this);
+    
+    // Check that condition is scalar type
+    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.value().get());
+    if (condExpr && condExpr->type) {
+      if (!is_scalar(*condExpr->type)) {
+        success = 0;
+        errors.push_back("Condition in for loop must be scalar type");
+        return;
+      }
+    }
   }
 
   // Resolve post
@@ -1450,6 +1494,12 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
 
   // Logical AND and OR don't perform type conversions
   if (node.op == TokenType::LAND || node.op == TokenType::LOR) {
+    // Validate both operands are scalar types
+      if (!is_scalar(*leftExp->type) || !is_scalar(*rightExp->type)) {
+        success = 0;
+        errors.push_back("Logical operators require scalar operands");
+        return;
+      }
     node.type = std::make_shared<Type>(Type::Int());
     return;
   }
@@ -1791,6 +1841,13 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
 
   // Apply integer promotions for - and ~ operators
   if (node.op == TokenType::HYPHEN || node.op == TokenType::TILDE) {
+    // Check if expression is arithmetic
+    if (!is_arithmetic(*node.type)) {
+      success = 0;
+      errors.push_back(
+          "Unary '-' and '~' operators require arithmetic operand");
+      return;
+    }
     if (node.type->kind == TypeKind::CHAR ||
         node.type->kind == TypeKind::UCHAR) {
       // Promote char types to int
@@ -2233,8 +2290,7 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
   std::shared_ptr<Type> ptrType = nullptr;
 
   if (arrayExpr->type->kind == TypeKind::POINTER &&
-      indexExpr->type->kind != TypeKind::POINTER &&
-      indexExpr->type->kind != TypeKind::DOUBLE) {
+      indexExpr->type->kind != TypeKind::DOUBLE && is_arithmetic(*indexExpr->type)) {
     // Check that pointer points to complete type
     if (!is_pointer_to_complete(*arrayExpr->type)) {
       success = 0;
@@ -2246,8 +2302,7 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
     Type longType = Type::Long();
     node.indexExpr = convertTo(std::move(node.indexExpr), longType);
   } else if (indexExpr->type->kind == TypeKind::POINTER &&
-             arrayExpr->type->kind != TypeKind::POINTER &&
-             arrayExpr->type->kind != TypeKind::DOUBLE) {
+             arrayExpr->type->kind != TypeKind::DOUBLE && is_arithmetic(*arrayExpr->type)) {
     // Check that pointer points to complete type
     if (!is_pointer_to_complete(*indexExpr->type)) {
       success = 0;

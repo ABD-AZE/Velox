@@ -1,10 +1,5 @@
-char c = 100;
-unsigned char uc = 250;
-signed char sc = 0;
+void* malloc(int sz);
 
-int update_global_chars(void) {
-  c = c + 10;
-  uc = uc + 10; // wraps around
-  sc = sc - 10;
-  return 0;
+int main(void) {
+    long* arr[1] = {malloc(10)};
 }
