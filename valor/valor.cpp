@@ -221,10 +221,10 @@ std::string IRStaticVariableNode::toString() const {
           ss << "ULong(" << std::get<unsigned long>(init.data) << ")";
           break;
         case StaticInitKind::CHAR_INIT:
-          ss << "Char(" << std::get<char>(init.data) << ")";
+          ss << "Char(" << (int)std::get<char>(init.data) << ")";
           break;
         case StaticInitKind::UCHAR_INIT:
-          ss << "UChar(" << std::get<unsigned char>(init.data) << ")";
+          ss << "UChar(" << (int)std::get<unsigned char>(init.data) << ")";
           break;
         case StaticInitKind::DOUBLE_INIT:
           ss << "Double(" << std::get<double>(init.data) << ")";
