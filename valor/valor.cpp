@@ -1912,9 +1912,9 @@ void IRGenerator::visit(SizeofTypeExpression &node) {
   currentValue = IRValueNode::makeConstant(static_cast<unsigned long>(sizeInBytes));
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
-void IRGenerator::visit(ForInit &node) { (void)node; /* TODO: Implement for loops */ }
-void IRGenerator::visit(InitDecl &node) { (void)node; /* TODO: Implement declarations */ }
-void IRGenerator::visit(InitExp &node) { (void)node; /* TODO: Implement expressions */ }
+void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
+void IRGenerator::visit(InitDecl &node) { node.init->accept(*this); /* TODO: Implement declarations */ }
+void IRGenerator::visit(InitExp &node) { node.init.value()->accept(*this); /* TODO: Implement expressions */ }
 void IRGenerator::visit(Ident &node) { (void)node; /* Not needed for basic IR generation */ }
 void IRGenerator::visit(
     DeclaratorNode &node) { (void)node; /* Not needed for basic IR generation */ }

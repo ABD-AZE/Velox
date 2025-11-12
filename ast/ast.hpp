@@ -1158,17 +1158,11 @@ public:
 
 class ForInit : public ASTNode {
 public:
-  ASTNodePtr init;
-  ForInit() = default;
-  ForInit(ASTNodePtr init) : init(std::move(init)) {}
-
   ~ForInit() override = default;
 
-  void accept(ASTVisitor &visitor) override { visitor.visit(*this); }
+  void accept(ASTVisitor &visitor) override = 0;
 
-  std::unique_ptr<ASTNode> clone() const override {
-    return std::make_unique<ForInit>(init ? init->clone() : nullptr);
-  }
+  std::unique_ptr<ASTNode> clone() const override = 0;
 };
 
 class InitDecl : public ForInit {

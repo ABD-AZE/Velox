@@ -484,13 +484,7 @@ void ASTPrinter::visit(InitExp &node) {
 }
 
 void ASTPrinter::visit(ForInit &node) {
-  print_open("ForInit", indent_);
-  if (node.init) {
-    increaseIndent();
-    node.init->accept(*this);
-    decreaseIndent();
-  }
-  print_close(indent_);
+  
 }
 
 void ASTPrinter::visit(BreakNode &node) {
