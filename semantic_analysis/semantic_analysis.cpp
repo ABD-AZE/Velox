@@ -117,18 +117,19 @@ bool is_arithmetic(const Type &type) {
 }
 
 // Helper function to check if a type is complete
-// A type is complete if it's not void and (for structures) if it's in the type table
+// A type is complete if it's not void and (for structures) if it's in the type
+// table
 bool is_complete(const Type &type) {
   if (type.kind == TypeKind::VOID) {
     return false;
   }
-  
+
   if (type.kind == TypeKind::STRUCT) {
     const auto &structType = std::get<StructType>(type.data);
     // A structure is complete if it's in the type table
     return type_table.find(structType.name) != type_table.end();
   }
-  
+
   return true;
 }
 
@@ -146,7 +147,7 @@ bool is_null_pointer_constant(ExpressionNode *expr) {
     return false;
 
   // Check if it's a constant expression with value 0
-  if (auto constExpr = dynamic_cast<ConstantExpression *>(expr)) { 
+  if (auto constExpr = dynamic_cast<ConstantExpression *>(expr)) {
     return std::visit(
         [](auto &&value) {
           using T = std::decay_t<decltype(value)>;
@@ -161,9 +162,9 @@ bool is_null_pointer_constant(ExpressionNode *expr) {
           }
           return false;
         },
-        constExpr->value); 
+        constExpr->value);
   }
-  return false; 
+  return false;
 }
 
 PointerType SemanticAnalyzer::getCommonPointerType(ExpressionNode *first,
@@ -223,18 +224,19 @@ ASTNodePtr SemanticAnalyzer::convertByAssignment(ASTNodePtr exp,
     return exp;
   }
 
-  //disallow conversions from void type
-  if(expr->type->kind == TypeKind::VOID && targetType.kind != TypeKind::VOID){
+  // disallow conversions from void type
+  if (expr->type->kind == TypeKind::VOID && targetType.kind != TypeKind::VOID) {
     success = 0;
     errors.push_back("Cannot convert from void type");
     return exp;
   }
 
   // Allow conversion from void * to other pointer types (and vice versa)
-  if (targetType.kind == TypeKind::POINTER && expr->type->kind == TypeKind::POINTER) {
+  if (targetType.kind == TypeKind::POINTER &&
+      expr->type->kind == TypeKind::POINTER) {
     auto targetPtrType = std::get<PointerType>(targetType.data);
     auto exprPtrType = std::get<PointerType>(expr->type->data);
-    
+
     // void * to other pointer type
     if (exprPtrType.base->kind == TypeKind::VOID) {
       exp = convertTo(std::move(exp), targetType);
@@ -289,7 +291,8 @@ bool SemanticAnalyzer::isLvalue(ASTNode *expr) {
     return true;
   }
 
-  // Dot expressions are lvalues if their first operand is an lvalue: struct.member
+  // Dot expressions are lvalues if their first operand is an lvalue:
+  // struct.member
   if (auto dotExpr = dynamic_cast<DotExpression *>(expr)) {
     return isLvalue(dotExpr->structExpr.get());
   }
@@ -451,7 +454,8 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
         return true;
       }
 
-      // Also handle the case where string literal was already decayed to pointer
+      // Also handle the case where string literal was already decayed to
+      // pointer
       if (expr->type->kind == TypeKind::POINTER) {
         auto ptrType = std::get<PointerType>(expr->type->data);
         auto arrayType = std::get<ArrayType>(targetType.data);
@@ -512,38 +516,38 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
     return false;
   } else if (init->kind == InitializerKind::COMPOUND_INIT) {
     auto &compoundInit = std::get<CompoundInit>(init->data);
-    
+
     // Handle structure compound initializers
     if (targetType.kind == TypeKind::STRUCT) {
       const auto &structType = std::get<StructType>(targetType.data);
-      
+
       // Look up structure definition in type table
       auto it = type_table.find(structType.name);
       if (it == type_table.end()) {
         return false; // Structure not defined
       }
-      
+
       const StructEntry &structDef = it->second;
-      
+
       // Check if there are too many initializers
       if (compoundInit.initializers.size() > structDef.members.size()) {
         return false; // Too many elements in structure initializer
       }
-      
+
       // Validate each initializer against corresponding member type
       for (size_t i = 0; i < compoundInit.initializers.size(); ++i) {
         const Type &memberType = structDef.members[i].member_type;
-        if (!validateInitializerType(&compoundInit.initializers[i], 
-                                     const_cast<Type&>(memberType))) {
+        if (!validateInitializerType(&compoundInit.initializers[i],
+                                     const_cast<Type &>(memberType))) {
           return false;
         }
       }
-      
+
       // Annotate initializer with target type
       init->type = std::make_shared<Type>(targetType);
       return true;
     }
-    
+
     // Handle array compound initializers
     if (targetType.kind == TypeKind::ARRAY) {
       auto arrayType = std::get<ArrayType>(targetType.data);
@@ -562,7 +566,7 @@ bool SemanticAnalyzer::validateInitializerType(InitializerNode *init,
       }
       return true;
     }
-    
+
     // Compound initializer for non-array, non-structure type is invalid
     return false;
   }
@@ -620,10 +624,11 @@ void SemanticAnalyzer::analyze(ASTNodePtr &ast) {
 void SemanticAnalyzer::pushScope() {
   scope_stack.push_back(identifier_map);
   identifier_map.clear();
-  
-  // Push structure tag map onto stack and mark all entries as not from current scope
+
+  // Push structure tag map onto stack and mark all entries as not from current
+  // scope
   std::map<std::string, StructTagMapEntry> new_struct_map;
-  for (const auto& [tag, entry] : structure_tag_map) {
+  for (const auto &[tag, entry] : structure_tag_map) {
     new_struct_map.emplace(tag, StructTagMapEntry(entry.new_tag, false));
   }
   structure_tag_scope_stack.push_back(structure_tag_map);
@@ -635,7 +640,7 @@ void SemanticAnalyzer::popScope() {
     identifier_map = scope_stack.back();
     scope_stack.pop_back();
   }
-  
+
   // Restore structure tag map
   if (!structure_tag_scope_stack.empty()) {
     structure_tag_map = structure_tag_scope_stack.back();
@@ -643,56 +648,57 @@ void SemanticAnalyzer::popScope() {
   }
 }
 
-// Helper function to resolve type specifiers (replace structure tags with unique IDs)
+// Helper function to resolve type specifiers (replace structure tags with
+// unique IDs)
 Type SemanticAnalyzer::resolveType(const Type &type) {
   switch (type.kind) {
-    case TypeKind::STRUCT: {
-      // Get the structure tag
-      const auto &structType = std::get<StructType>(type.data);
-      std::string tag = structType.name;
-      
-      // Look up the tag in the structure tag map
-      auto it = structure_tag_map.find(tag);
-      if (it == structure_tag_map.end()) {
-        // Structure hasn't been declared yet
-        success = 0;
-        errors.push_back("Specified an undeclared structure type '" + tag + "'");
-        return Type::Error();
-      }
-      
-      // Replace with unique tag
-      std::string unique_tag = it->second.new_tag;
-      return Type::Struct(unique_tag);
+  case TypeKind::STRUCT: {
+    // Get the structure tag
+    const auto &structType = std::get<StructType>(type.data);
+    std::string tag = structType.name;
+
+    // Look up the tag in the structure tag map
+    auto it = structure_tag_map.find(tag);
+    if (it == structure_tag_map.end()) {
+      // Structure hasn't been declared yet
+      success = 0;
+      errors.push_back("Specified an undeclared structure type '" + tag + "'");
+      return Type::Error();
     }
-    
-    case TypeKind::POINTER: {
-      // Recursively resolve the pointed-to type
-      const auto &ptrType = std::get<PointerType>(type.data);
-      Type resolved_base = resolveType(*ptrType.base);
-      return Type::Pointer(std::make_shared<Type>(resolved_base));
+
+    // Replace with unique tag
+    std::string unique_tag = it->second.new_tag;
+    return Type::Struct(unique_tag);
+  }
+
+  case TypeKind::POINTER: {
+    // Recursively resolve the pointed-to type
+    const auto &ptrType = std::get<PointerType>(type.data);
+    Type resolved_base = resolveType(*ptrType.base);
+    return Type::Pointer(std::make_shared<Type>(resolved_base));
+  }
+
+  case TypeKind::ARRAY: {
+    // Recursively resolve the element type
+    const auto &arrayType = std::get<ArrayType>(type.data);
+    Type resolved_elem = resolveType(*arrayType.element);
+    return Type::Array(std::make_shared<Type>(resolved_elem), arrayType.size);
+  }
+
+  case TypeKind::FUNC: {
+    // Recursively resolve parameter and return types
+    const auto &funType = std::get<FunType>(type.data);
+    std::vector<Type> resolved_params;
+    for (const auto &param : funType.params) {
+      resolved_params.push_back(resolveType(param));
     }
-    
-    case TypeKind::ARRAY: {
-      // Recursively resolve the element type
-      const auto &arrayType = std::get<ArrayType>(type.data);
-      Type resolved_elem = resolveType(*arrayType.element);
-      return Type::Array(std::make_shared<Type>(resolved_elem), arrayType.size);
-    }
-    
-    case TypeKind::FUNC: {
-      // Recursively resolve parameter and return types
-      const auto &funType = std::get<FunType>(type.data);
-      std::vector<Type> resolved_params;
-      for (const auto &param : funType.params) {
-        resolved_params.push_back(resolveType(param));
-      }
-      Type resolved_ret = resolveType(*funType.ret);
-      return Type::Function(resolved_params, resolved_ret);
-    }
-    
-    default:
-      // For primitive types (int, long, void, etc.), return unchanged
-      return type;
+    Type resolved_ret = resolveType(*funType.ret);
+    return Type::Function(resolved_params, resolved_ret);
+  }
+
+  default:
+    // For primitive types (int, long, void, etc.), return unchanged
+    return type;
   }
 }
 
@@ -716,18 +722,20 @@ void SemanticAnalyzer::visit(FunctionDefinitionNode &node) {
 
 void SemanticAnalyzer::visit(FunDeclNode &node) {
   // Resolve the function's return type and parameter types
-  Type resolved_return_type = resolveType(*std::get<FunType>(node.type.data).ret);
-  
+  Type resolved_return_type =
+      resolveType(*std::get<FunType>(node.type.data).ret);
+
   std::vector<Type> resolved_param_types;
   for (auto &param_type : node.param_types) {
     resolved_param_types.push_back(resolveType(param_type));
   }
-  
+
   // Update node with resolved types
   node.param_types = resolved_param_types;
-  node.type = Type(TypeKind::FUNC, FunType(resolved_param_types, 
-                                           std::make_shared<Type>(resolved_return_type)));
-  
+  node.type = Type(TypeKind::FUNC,
+                   FunType(resolved_param_types,
+                           std::make_shared<Type>(resolved_return_type)));
+
   // First, check if function returns an array type (which is invalid)
   auto funType = std::get<FunType>(node.type.data);
   if (funType.ret->kind == TypeKind::ARRAY) {
@@ -749,7 +757,7 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
       errors.push_back("Parameter cannot have void type");
       return;
     }
-    
+
     if (!validateTypeSpecifier(param_type)) {
       return; // Error already reported by validateTypeSpecifier
     }
@@ -773,8 +781,9 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
   // Reconstruct the function type with adjusted parameters
   node.type = Type(TypeKind::FUNC, FunType(adjusted_params, funType.ret));
 
-  // For function DEFINITIONS (with body), reject incomplete structure parameters
-  // Function declarations (without body) are allowed to have incomplete parameters
+  // For function DEFINITIONS (with body), reject incomplete structure
+  // parameters Function declarations (without body) are allowed to have
+  // incomplete parameters
   if (node.body.has_value()) {
     // Check if any parameter has incomplete structure type
     for (const auto &param_type : adjusted_params) {
@@ -782,19 +791,21 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
         const auto &structType = std::get<StructType>(param_type.data);
         if (type_table.find(structType.name) == type_table.end()) {
           success = 0;
-          errors.push_back("Function definition cannot have parameter with incomplete structure type");
+          errors.push_back("Function definition cannot have parameter with "
+                           "incomplete structure type");
           return;
         }
       }
     }
-    
+
     // Also check return type for function definitions
     if (funType.ret->kind == TypeKind::STRUCT) {
       const auto &structType = std::get<StructType>(funType.ret->data);
       if (type_table.find(structType.name) == type_table.end()) {
         success = 0;
-        errors.push_back("Function definition cannot have incomplete structure return type");
-          return;
+        errors.push_back(
+            "Function definition cannot have incomplete structure return type");
+        return;
       }
     }
   }
@@ -881,13 +892,13 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
     }
     std::string uniqueName = make_temp(param_name);
     identifier_map[param_name] = {
-      uniqueName, 0}; // default linkage to 0 (internal) for parameters
-      if (hasbody) {
-        Type type;
-        // find type from param_types
-        auto it = &node.param_types[&param_name - &node.param_names[0]];
-        node.param_names[&param_name - &node.param_names[0]] =
-            uniqueName; // rename parameter to unique name
+        uniqueName, 0}; // default linkage to 0 (internal) for parameters
+    if (hasbody) {
+      Type type;
+      // find type from param_types
+      auto it = &node.param_types[&param_name - &node.param_names[0]];
+      node.param_names[&param_name - &node.param_names[0]] =
+          uniqueName; // rename parameter to unique name
       if (it) {
         type = *it;
       }
@@ -916,7 +927,7 @@ void SemanticAnalyzer::visit(FunDeclNode &node) {
 void SemanticAnalyzer::visit(VarDeclNode &node) {
   // Resolve the variable's type first
   node.type = resolveType(node.type);
-  
+
   // Validate the type specifier before processing the declaration
   if (!validateTypeSpecifier(node.type)) {
     return; // Error already reported by validateTypeSpecifier
@@ -930,16 +941,19 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
   }
 
   // Check for incomplete structure types
-  // Exception: extern declarations without initializers are allowed to have incomplete types
-  bool isExternWithoutInit = node.storage_class.has_value() && 
-                              node.storage_class.value() == StorageClass::EXTERN &&
-                              !node.init.has_value();
-  
+  // Exception: extern declarations without initializers are allowed to have
+  // incomplete types
+  bool isExternWithoutInit =
+      node.storage_class.has_value() &&
+      node.storage_class.value() == StorageClass::EXTERN &&
+      !node.init.has_value();
+
   if (!isExternWithoutInit && node.type.kind == TypeKind::STRUCT) {
     const auto &structType = std::get<StructType>(node.type.data);
     if (type_table.find(structType.name) == type_table.end()) {
       success = 0;
-      errors.push_back("Variable declaration cannot have incomplete structure type");
+      errors.push_back(
+          "Variable declaration cannot have incomplete structure type");
       return;
     }
   }
@@ -967,28 +981,32 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
 
     // Check for string literal initializing a pointer
     StringLiteralExpression *stringLiteralInit = nullptr;
-    if (InitNode && InitNode->kind == InitializerKind::SINGLE_INIT && 
+    if (InitNode && InitNode->kind == InitializerKind::SINGLE_INIT &&
         node.type.kind == TypeKind::POINTER) {
       auto &singleInit = std::get<SingleInit>(InitNode->data);
-      
+
       // Check for direct string literal
-      stringLiteralInit = dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
-      
+      stringLiteralInit =
+          dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
+
       // Check for decayed string literal (AddressOf wrapping StringLiteral)
       if (!stringLiteralInit) {
-        if (auto addrOf = dynamic_cast<AddressOfExpression *>(singleInit.expression.get())) {
-          stringLiteralInit = dynamic_cast<StringLiteralExpression *>(addrOf->variableExpr.get());
+        if (auto addrOf = dynamic_cast<AddressOfExpression *>(
+                singleInit.expression.get())) {
+          stringLiteralInit = dynamic_cast<StringLiteralExpression *>(
+              addrOf->variableExpr.get());
         }
       }
-      
+
       // Validate pointer type if it's a string literal initializer
       if (stringLiteralInit) {
         auto ptrType = std::get<PointerType>(node.type.data);
         // Only char* is allowed, not signed char* or unsigned char*
         if (ptrType.base->kind != TypeKind::CHAR) {
           success = 0;
-          errors.push_back("String literal can only initialize pointer to 'char', not '" + 
-                          TypeKindToString(ptrType.base->kind) + "'");
+          errors.push_back(
+              "String literal can only initialize pointer to 'char', not '" +
+              TypeKindToString(ptrType.base->kind) + "'");
           return;
         }
       }
@@ -1000,9 +1018,10 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
     // For structure types, compound initializers are allowed
     bool isValidInit = false;
     if (initType == InitType::INITIALIZED) {
-      if (node.type.kind == TypeKind::ARRAY || node.type.kind == TypeKind::STRUCT) {
-        // Arrays and structures can have compound initializers, but all expressions must be
-        // constant and type-compatible
+      if (node.type.kind == TypeKind::ARRAY ||
+          node.type.kind == TypeKind::STRUCT) {
+        // Arrays and structures can have compound initializers, but all
+        // expressions must be constant and type-compatible
         isValidInit = (InitNode != nullptr) &&
                       isConstantInitializer(InitNode) &&
                       validateInitializerType(InitNode, node.type);
@@ -1028,26 +1047,28 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
                   (node.storage_class.has_value() &&
                    node.storage_class.value() != StorageClass::STATIC);
 
-    // If this is a pointer initialized with a string literal, create the string constant first
+    // If this is a pointer initialized with a string literal, create the string
+    // constant first
     std::string stringConstantName;
     if (stringLiteralInit && initType == InitType::INITIALIZED) {
       // Generate unique name for the string constant
       stringConstantName = make_string_name();
-      
+
       // Create symbol table entry for the string constant
       int arraySize = stringLiteralInit->value.length() + 1;
-      Type stringType = Type::Array(std::make_shared<Type>(Type::Char()), arraySize);
-      
-      SymbolTableEntry stringEntry(stringConstantName, SymbolType::CONSTANT, 
+      Type stringType =
+          Type::Array(std::make_shared<Type>(Type::Char()), arraySize);
+
+      SymbolTableEntry stringEntry(stringConstantName, SymbolType::CONSTANT,
                                    InitType::INITIALIZED, stringType);
       stringEntry.linkage = LinkageType::INTERNAL;
       stringEntry.storageClass = StorageClass::STATIC;
-      
+
       // Store the actual string value for later use in IR generation
       stringEntry.stringValue = stringLiteralInit->value;
-      
+
       global_symbol_table[stringConstantName] = stringEntry;
-      
+
       // Now update the variable's initializer to point to this string constant
       // This will be handled in the valor.cpp convertSymbolTableToIR function
     }
@@ -1091,12 +1112,15 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name].initType = new_initType;
       if (initType == InitType::INITIALIZED) {
         // Store the initializer for arrays and structures
-        if ((node.type.kind == TypeKind::ARRAY || node.type.kind == TypeKind::STRUCT) && InitNode) {
+        if ((node.type.kind == TypeKind::ARRAY ||
+             node.type.kind == TypeKind::STRUCT) &&
+            InitNode) {
           global_symbol_table[node.name].initializer = InitNode;
         }
         // Store string constant name for pointers
         if (stringLiteralInit && !stringConstantName.empty()) {
-          global_symbol_table[node.name].stringConstantName = stringConstantName;
+          global_symbol_table[node.name].stringConstantName =
+              stringConstantName;
         }
         // update value if initialized (only for scalar constants)
         if (constInit) {
@@ -1123,8 +1147,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
         }
       }
       global_symbol_table[node.name].type = node.type;
-      global_symbol_table[node.name].storageClass =
-          StorageClass::STATIC;
+      global_symbol_table[node.name].storageClass = StorageClass::STATIC;
       global_symbol_table[node.name].linkage =
           global ? LinkageType::EXTERNAL : LinkageType::INTERNAL;
     } else {
@@ -1135,12 +1158,15 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[node.name].storageClass = StorageClass::STATIC;
       if (initType == InitType::INITIALIZED) {
         // Store the initializer for arrays and structures
-        if ((node.type.kind == TypeKind::ARRAY || node.type.kind == TypeKind::STRUCT) && InitNode) {
+        if ((node.type.kind == TypeKind::ARRAY ||
+             node.type.kind == TypeKind::STRUCT) &&
+            InitNode) {
           global_symbol_table[node.name].initializer = InitNode;
         }
         // Store string constant name for pointers
         if (stringLiteralInit && !stringConstantName.empty()) {
-          global_symbol_table[node.name].stringConstantName = stringConstantName;
+          global_symbol_table[node.name].stringConstantName =
+              stringConstantName;
         }
         // Only set value for scalar constants
         if (constInit) {
@@ -1267,9 +1293,10 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       // For array types, compound initializers are allowed
       // For scalar types, only constant expressions are allowed
       bool isValidStaticInit = false;
-      if (node.type.kind == TypeKind::ARRAY || node.type.kind == TypeKind::STRUCT) {
-        // Arrays and structures can have compound initializers, but all expressions must be
-        // constant and type-compatible
+      if (node.type.kind == TypeKind::ARRAY ||
+          node.type.kind == TypeKind::STRUCT) {
+        // Arrays and structures can have compound initializers, but all
+        // expressions must be constant and type-compatible
         isValidStaticInit = (InitNode != nullptr) &&
                             isConstantInitializer(InitNode) &&
                             validateInitializerType(InitNode, node.type);
@@ -1290,7 +1317,9 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       global_symbol_table[uniqueName].storageClass = StorageClass::STATIC;
 
       // Store the initializer for arrays and structures
-      if ((node.type.kind == TypeKind::ARRAY || node.type.kind == TypeKind::STRUCT) && InitNode) {
+      if ((node.type.kind == TypeKind::ARRAY ||
+           node.type.kind == TypeKind::STRUCT) &&
+          InitNode) {
         // Deep copy the initializer
         global_symbol_table[uniqueName].initializer = InitNode;
       }
@@ -1349,7 +1378,8 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
 
     // Check for invalid compound initializer on scalar type
     if (InitNode && InitNode->kind == InitializerKind::COMPOUND_INIT &&
-        node.type.kind != TypeKind::ARRAY && node.type.kind != TypeKind::STRUCT) {
+        node.type.kind != TypeKind::ARRAY &&
+        node.type.kind != TypeKind::STRUCT) {
       success = 0;
       errors.push_back("Scalar variable '" + node.name +
                        "' cannot be initialized with compound initializer");
@@ -1367,7 +1397,7 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
       }
     }
 
-    if(InitNode && node.type.kind == TypeKind::STRUCT &&
+    if (InitNode && node.type.kind == TypeKind::STRUCT &&
         InitNode->kind == InitializerKind::COMPOUND_INIT) {
       if (!validateInitializerType(InitNode, node.type)) {
         success = 0;
@@ -1422,130 +1452,139 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
 }
 
 void SemanticAnalyzer::visit(StructDeclarationNode &node) {
-  // If this declaration doesn't specify members, just declare the tag without adding to type table
+  // If this declaration doesn't specify members, just declare the tag without
+  // adding to type table
   if (node.members.empty()) {
     // Look up the tag in the structure tag map
     auto it = structure_tag_map.find(node.name);
-    
+
     std::string unique_tag;
-    
-    // Check if this tag hasn't been declared yet, or if it was declared in an outer scope
+
+    // Check if this tag hasn't been declared yet, or if it was declared in an
+    // outer scope
     if (it == structure_tag_map.end() || !it->second.from_current_scope) {
-      // This declaration introduces a new incomplete type - generate a new unique identifier
+      // This declaration introduces a new incomplete type - generate a new
+      // unique identifier
       unique_tag = make_struct_tag(node.name);
-      
+
       // Add to the structure tag map with from_current_scope = true
       structure_tag_map[node.name] = StructTagMapEntry(unique_tag, true);
     } else {
-      // The tag was already declared in the current scope - use the existing unique ID
+      // The tag was already declared in the current scope - use the existing
+      // unique ID
       unique_tag = it->second.new_tag;
     }
-    
+
     // Update the node's tag with the unique tag
     node.name = unique_tag;
     return;
   }
-  
+
   // This declaration has members - it's a complete type definition
   // Check if this structure is already defined in the current scope
   auto it = structure_tag_map.find(node.name);
-  
+
   std::string unique_tag;
-  
+
   if (it != structure_tag_map.end() && it->second.from_current_scope) {
-    // Structure already declared in current scope - check if it's already complete
+    // Structure already declared in current scope - check if it's already
+    // complete
     unique_tag = it->second.new_tag;
-    
+
     if (type_table.find(unique_tag) != type_table.end()) {
       success = 0;
       errors.push_back("Redefinition of struct '" + node.name + "'");
       return;
     }
   } else {
-    // First declaration in this scope or shadowing outer scope - generate new tag
+    // First declaration in this scope or shadowing outer scope - generate new
+    // tag
     unique_tag = make_struct_tag(node.name);
     structure_tag_map[node.name] = StructTagMapEntry(unique_tag, true);
   }
-  
+
   // Validate that no members share the same name
   std::set<std::string> member_names;
   for (const auto &member : node.members) {
     if (member_names.find(member->name) != member_names.end()) {
       success = 0;
-      errors.push_back("Duplicate member name '" + member->name + "' in struct '" + node.name + "'");
+      errors.push_back("Duplicate member name '" + member->name +
+                       "' in struct '" + node.name + "'");
       return;
     }
     member_names.insert(member->name);
   }
-  
+
   // Process and validate each member declaration
   for (auto &member : node.members) {
     if (member && member->type) {
       // Resolve the member type (replace any structure tags with unique IDs)
       Type resolved_type = resolveType(*member->type);
-      
+
       // Validate the member type
       if (!validateTypeSpecifier(resolved_type)) {
         // Error already reported by validateTypeSpecifier
         return;
       }
-      
-      // Check that member type is complete (members cannot have incomplete types)
+
+      // Check that member type is complete (members cannot have incomplete
+      // types)
       if (!is_complete(resolved_type)) {
         success = 0;
-        errors.push_back("Structure member '" + member->name + 
-                        "' has incomplete type");
+        errors.push_back("Structure member '" + member->name +
+                         "' has incomplete type");
         return;
       }
-      
+
       // Check that member is not a function type
       if (resolved_type.kind == TypeKind::FUNC) {
         success = 0;
-        errors.push_back("Structure member '" + member->name + 
-                        "' cannot have function type");
+        errors.push_back("Structure member '" + member->name +
+                         "' cannot have function type");
         return;
       }
-      
+
       // Update the member's type with the resolved type
       *member->type = resolved_type;
     }
   }
-  
+
   // Calculate member offsets and structure size/alignment
   std::vector<MemberEntry> member_entries;
   int struct_size = 0;
   int struct_alignment = 1;
-  
+
   for (const auto &member : node.members) {
     if (!member || !member->type) {
       continue;
     }
-    
+
     // Get member's alignment and size
     int member_alignment = alignment(*member->type);
     int member_size = type_size(*member->type);
-    
+
     // Calculate member's offset (round up struct_size to member's alignment)
     int member_offset = round_up(struct_size, member_alignment);
-    
+
     // Create member entry
     MemberEntry m(member->name, *member->type, member_offset);
     member_entries.push_back(std::move(m));
-    
+
     // Update structure's alignment (max of all member alignments)
     struct_alignment = std::max(struct_alignment, member_alignment);
-    
+
     // Update structure's size
     struct_size = member_offset + member_size;
   }
-  
+
   // Round up final structure size to its alignment (for padding at the end)
   struct_size = round_up(struct_size, struct_alignment);
-  
+
   // Create struct entry and add to type table
-  StructEntry struct_def(struct_alignment, struct_size, std::move(member_entries));
+  StructEntry struct_def(struct_alignment, struct_size,
+                         std::move(member_entries));
   type_table[unique_tag] = std::move(struct_def);
-  
+
   // Update the node's tag with the unique tag
   node.name = unique_tag;
 }
@@ -1610,7 +1649,7 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
   }
   auto entry = global_symbol_table[node.name];
   auto param_types = entry.param_types;
-  
+
   // Check if function returns an incomplete type (other than void)
   std::visit(
       [&](auto value) {
@@ -1620,7 +1659,8 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
           // Check if return type is incomplete (and not void)
           if (!is_complete(*value.ret) && value.ret->kind != TypeKind::VOID) {
             success = 0;
-            errors.push_back("Cannot call function with incomplete return type");
+            errors.push_back(
+                "Cannot call function with incomplete return type");
             return;
           }
         } else {
@@ -1630,11 +1670,11 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
         }
       },
       entry.type.data);
-  
+
   if (!success) {
     return;
   }
-  
+
   // Resolve all argument expressions
   std::vector<std::shared_ptr<Type>> arg_types;
   for (size_t i = 0; i < node.args.size(); ++i) {
@@ -1659,7 +1699,7 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
     }
   }
   node.param_types = arg_types;
-  
+
   if (entry.symbolType != SymbolType::FUNCTION) {
     success = 0;
     errors.push_back("Variable '" + node.name + "' used as function");
@@ -1669,12 +1709,14 @@ void SemanticAnalyzer::visit(FunctionCallNode &node) {
   auto param_count = entry.type.data.index() == 1
                          ? std::get<FunType>(entry.type.data).params.size()
                          : -1;
-  if((((node.args.size() >= param_count) && entry.isVariadic) || (node.args.size() == param_count)) && param_count != -1ul){
-    return; 
+  if ((((node.args.size() >= param_count) && entry.isVariadic) ||
+       (node.args.size() == param_count)) &&
+      param_count != -1ul) {
+    return;
   }
   success = 0;
   errors.push_back("Function '" + node.name +
-                    "' called with incorrect number of arguments");
+                   "' called with incorrect number of arguments");
   return;
 }
 
@@ -1706,7 +1748,8 @@ void SemanticAnalyzer::visit(ReturnStatement &node) {
       return;
     }
 
-    // Type check and convert return expression (handles array-to-pointer conversion)
+    // Type check and convert return expression (handles array-to-pointer
+    // conversion)
     node.expression = typecheckAndConvert(std::move(node.expression));
 
     // Convert return value to function's return type
@@ -1717,7 +1760,7 @@ void SemanticAnalyzer::visit(ReturnStatement &node) {
       node.expression = std::move(castExpr);
     }
   }
-  
+
   node.type = std::make_shared<Type>(currentFunction->type);
 }
 
@@ -1725,7 +1768,7 @@ void SemanticAnalyzer::visit(ExpressionStatement &node) {
   if (node.expression) {
     // Type check and convert the expression
     node.expression = typecheckAndConvert(std::move(node.expression));
-    
+
     // Check if the expression has incomplete struct type
     auto expr = dynamic_cast<ExpressionNode *>(node.expression.get());
     if (expr && expr->type && expr->type->kind == TypeKind::STRUCT) {
@@ -1743,7 +1786,7 @@ void SemanticAnalyzer::visit(IfStatement &node) {
   // Resolve condition
   if (node.condition) {
     node.condition->accept(*this);
-    
+
     // Check that condition is scalar type
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
     if (condExpr && condExpr->type) {
@@ -1784,7 +1827,7 @@ void SemanticAnalyzer::visit(WhileNode &node) {
   current_label = node.label;
   if (node.condition) {
     node.condition->accept(*this);
-    
+
     // Check that condition is scalar type
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
     if (condExpr && condExpr->type) {
@@ -1807,7 +1850,7 @@ void SemanticAnalyzer::visit(DoWhileNode &node) {
   current_label = node.label;
   if (node.condition) {
     node.condition->accept(*this);
-    
+
     // Check that condition is scalar type
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
     if (condExpr && condExpr->type) {
@@ -1838,9 +1881,10 @@ void SemanticAnalyzer::visit(ForNode &node) {
   // Resolve condition
   if (node.condition) {
     node.condition.value()->accept(*this);
-    
+
     // Check that condition is scalar type
-    auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.value().get());
+    auto condExpr =
+        dynamic_cast<ExpressionNode *>(node.condition.value().get());
     if (condExpr && condExpr->type) {
       if (!is_scalar(*condExpr->type)) {
         success = 0;
@@ -1880,9 +1924,7 @@ void SemanticAnalyzer::visit(ContinueNode &node) {
   }
 }
 
-void SemanticAnalyzer::visit(ForInit &node) {
-  
-}
+void SemanticAnalyzer::visit(ForInit &node) {}
 
 void SemanticAnalyzer::visit(InitDecl &node) {
   auto varnode = dynamic_cast<VarDeclNode *>(node.init.get());
@@ -1926,11 +1968,11 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
   // Logical AND and OR don't perform type conversions
   if (node.op == TokenType::LAND || node.op == TokenType::LOR) {
     // Validate both operands are scalar types
-      if (!is_scalar(*leftExp->type) || !is_scalar(*rightExp->type)) {
-        success = 0;
-        errors.push_back("Logical operators require scalar operands");
-        return;
-      }
+    if (!is_scalar(*leftExp->type) || !is_scalar(*rightExp->type)) {
+      success = 0;
+      errors.push_back("Logical operators require scalar operands");
+      return;
+    }
     node.type = std::make_shared<Type>(Type::Int());
     return;
   }
@@ -1943,7 +1985,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       // Validate both operands are arithmetic types
       if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
         success = 0;
-        errors.push_back("Invalid operands to addition - operands must be arithmetic types");
+        errors.push_back(
+            "Invalid operands to addition - operands must be arithmetic types");
         return;
       }
       // Standard arithmetic addition
@@ -1963,7 +2006,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       // Check that pointer points to complete type
       if (!is_pointer_to_complete(*leftExp->type)) {
         success = 0;
-        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        errors.push_back(
+            "Cannot perform pointer arithmetic on pointer to incomplete type");
         return;
       }
       // Validate that the integer operand is arithmetic (not void, array, etc.)
@@ -1985,7 +2029,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       // Check that pointer points to complete type
       if (!is_pointer_to_complete(*rightExp->type)) {
         success = 0;
-        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        errors.push_back(
+            "Cannot perform pointer arithmetic on pointer to incomplete type");
         return;
       }
       // Validate that the integer operand is arithmetic (not void, array, etc.)
@@ -2015,7 +2060,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       // Validate both operands are arithmetic types
       if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
         success = 0;
-        errors.push_back("Invalid operands to subtraction - operands must be arithmetic types");
+        errors.push_back("Invalid operands to subtraction - operands must be "
+                         "arithmetic types");
         return;
       }
       // Standard arithmetic subtraction
@@ -2035,7 +2081,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       // Check that pointer points to complete type
       if (!is_pointer_to_complete(*leftExp->type)) {
         success = 0;
-        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        errors.push_back(
+            "Cannot perform pointer arithmetic on pointer to incomplete type");
         return;
       }
       // Validate that the integer operand is arithmetic (not void, array, etc.)
@@ -2062,7 +2109,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       // Check that pointers point to complete type
       if (!is_pointer_to_complete(*leftExp->type)) {
         success = 0;
-        errors.push_back("Cannot perform pointer arithmetic on pointer to incomplete type");
+        errors.push_back(
+            "Cannot perform pointer arithmetic on pointer to incomplete type");
         return;
       }
       // Result is long
@@ -2091,10 +2139,12 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       return;
     } else if (leftExp->type->kind != TypeKind::POINTER &&
                rightExp->type->kind != TypeKind::POINTER) {
-      // Validate both operands are arithmetic types before calling getCommonType
+      // Validate both operands are arithmetic types before calling
+      // getCommonType
       if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
         success = 0;
-        errors.push_back("Invalid operands to relational operator - operands must be arithmetic types");
+        errors.push_back("Invalid operands to relational operator - operands "
+                         "must be arithmetic types");
         return;
       }
       // Standard arithmetic comparison
@@ -2132,7 +2182,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
       }
       node.type = std::make_shared<Type>(Type::Int());
       return;
-    } else if (is_arithmetic(*leftExp->type) && is_arithmetic(*rightExp->type)) {
+    } else if (is_arithmetic(*leftExp->type) &&
+               is_arithmetic(*rightExp->type)) {
       // Both operands are arithmetic - apply usual arithmetic conversions
       Type commonType = Type::getCommonType(*leftExp->type, *rightExp->type);
       if (*leftExp->type != commonType) {
@@ -2165,7 +2216,8 @@ void SemanticAnalyzer::visit(BinaryExpression &node) {
   // Validate both operands are arithmetic before calling getCommonType
   if (!is_arithmetic(*leftExp->type) || !is_arithmetic(*rightExp->type)) {
     success = 0;
-    errors.push_back("Invalid operands to binary expression - operands must be arithmetic types");
+    errors.push_back("Invalid operands to binary expression - operands must be "
+                     "arithmetic types");
     return;
   }
 
@@ -2238,7 +2290,7 @@ void SemanticAnalyzer::visit(UnaryExpression &node) {
   if (node.operand) {
     node.operand = typecheckAndConvert(std::move(node.operand));
   }
-  
+
   auto exp = dynamic_cast<ExpressionNode *>(node.operand.get());
   if (exp) {
     node.type = exp->type;
@@ -2307,12 +2359,12 @@ void SemanticAnalyzer::visit(AssignmentExpression &node) {
   }
   // Type check and convert left side (may wrap array in AddrOf for decay)
   node.left = typecheckAndConvert(std::move(node.left));
-  
+
   // Type check and convert right side
   if (node.right) {
     node.right = typecheckAndConvert(std::move(node.right));
   }
-  
+
   // Check if left side is an lvalue
   if (!isLvalue(node.left.get())) {
     success = 0;
@@ -2468,7 +2520,7 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
   if (node.condition) {
     node.condition = typecheckAndConvert(std::move(node.condition));
   }
-  
+
   // Validate that condition is scalar
   auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
   if (condExpr && condExpr->type) {
@@ -2478,7 +2530,7 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
       return;
     }
   }
-  
+
   // Type check and convert both branches
   if (node.trueExpr) {
     node.trueExpr = typecheckAndConvert(std::move(node.trueExpr));
@@ -2486,54 +2538,59 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
   if (node.falseExpr) {
     node.falseExpr = typecheckAndConvert(std::move(node.falseExpr));
   }
-  
+
   auto trueExp = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
   auto falseExp = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
-  
+
   if (!trueExp || !falseExp || !trueExp->type || !falseExp->type) {
     success = 0;
     errors.push_back("Invalid operands in conditional expression");
     return;
   }
-  
+
   // Check if both operands are void
-  if (trueExp->type->kind == TypeKind::VOID && falseExp->type->kind == TypeKind::VOID) {
+  if (trueExp->type->kind == TypeKind::VOID &&
+      falseExp->type->kind == TypeKind::VOID) {
     // Both void - result is void
     node.type = std::make_shared<Type>(Type::Void());
     return;
   }
-  
+
   // Check if either operand is void (but not both)
-  if (trueExp->type->kind == TypeKind::VOID || falseExp->type->kind == TypeKind::VOID) {
+  if (trueExp->type->kind == TypeKind::VOID ||
+      falseExp->type->kind == TypeKind::VOID) {
     success = 0;
     errors.push_back("Cannot convert branches of conditional to a common type");
     return;
   }
-  
+
   // Check if both operands are structures
-  if (trueExp->type->kind == TypeKind::STRUCT && falseExp->type->kind == TypeKind::STRUCT) {
+  if (trueExp->type->kind == TypeKind::STRUCT &&
+      falseExp->type->kind == TypeKind::STRUCT) {
     // Both are structures - they must have the same tag (identical types)
     const auto &trueStructType = std::get<StructType>(trueExp->type->data);
     const auto &falseStructType = std::get<StructType>(falseExp->type->data);
-    
+
     if (trueStructType.name != falseStructType.name) {
       success = 0;
-      errors.push_back("Conditional expression branches have different structure types");
+      errors.push_back(
+          "Conditional expression branches have different structure types");
       return;
     }
-    
+
     // Both branches have the same structure type
     node.type = trueExp->type;
     return;
   }
-  
+
   // Check if only one operand is a structure (error)
-  if (trueExp->type->kind == TypeKind::STRUCT || falseExp->type->kind == TypeKind::STRUCT) {
+  if (trueExp->type->kind == TypeKind::STRUCT ||
+      falseExp->type->kind == TypeKind::STRUCT) {
     success = 0;
     errors.push_back("Cannot convert branches of conditional to a common type");
     return;
   }
-  
+
   // Both operands are non-void - check if they're pointers
   if (trueExp->type->kind == TypeKind::POINTER ||
       falseExp->type->kind == TypeKind::POINTER) {
@@ -2543,8 +2600,7 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
 
     // Convert true expression to common type if needed
     if (*trueExp->type != commonType) {
-      auto castExpr =
-          convertByAssignment(std::move(node.trueExpr), commonType);
+      auto castExpr = convertByAssignment(std::move(node.trueExpr), commonType);
       node.trueExpr = std::move(castExpr);
     }
 
@@ -2558,7 +2614,7 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
     node.type = std::make_shared<Type>(commonType);
     return;
   }
-  
+
   // Both operands are arithmetic types
   Type commonType = Type::getCommonType(*trueExp->type, *falseExp->type);
 
@@ -2570,8 +2626,7 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
 
   // Convert false expression to common type if needed
   if (*falseExp->type != commonType) {
-    auto castExpr =
-        convertByAssignment(std::move(node.falseExpr), commonType);
+    auto castExpr = convertByAssignment(std::move(node.falseExpr), commonType);
     node.falseExpr = std::move(castExpr);
   }
 
@@ -2581,7 +2636,7 @@ void SemanticAnalyzer::visit(ConditionalExpression &node) {
 void SemanticAnalyzer::visit(CastExpression &node) {
   // Resolve the target type first
   node.targetType = resolveType(node.targetType);
-  
+
   // Validate the target type specifier
   if (!validateTypeSpecifier(node.targetType)) {
     return; // Error already reported by validateTypeSpecifier
@@ -2602,7 +2657,8 @@ void SemanticAnalyzer::visit(CastExpression &node) {
   }
 
   if (node.expression) {
-    // Type check and convert the expression (handles array-to-pointer conversion)
+    // Type check and convert the expression (handles array-to-pointer
+    // conversion)
     node.expression = typecheckAndConvert(std::move(node.expression));
   }
   auto exp = dynamic_cast<ExpressionNode *>(node.expression.get());
@@ -2654,21 +2710,22 @@ void SemanticAnalyzer::visit(DereferenceExpression &node) {
   auto exp = dynamic_cast<ExpressionNode *>(node.pointerExpr.get());
   if (exp && exp->type && exp->type->kind == TypeKind::POINTER) {
     auto ptrType = std::get<PointerType>(exp->type->data);
-    
-    // Check for dereferencing pointer to void (extra restriction on void - not allowed)
+
+    // Check for dereferencing pointer to void (extra restriction on void - not
+    // allowed)
     if (ptrType.base->kind == TypeKind::VOID) {
       success = 0;
       errors.push_back("Cannot dereference pointer to void");
       return;
     }
-    
+
     // Check for dereferencing pointer to incomplete struct type
     if (!is_complete(*ptrType.base)) {
       success = 0;
       errors.push_back("Cannot dereference pointer to incomplete type");
       return;
     }
-    
+
     node.type = ptrType.base;
   } else {
     success = 0;
@@ -2687,12 +2744,13 @@ void SemanticAnalyzer::visit(AddressOfExpression &node) {
 
   // Special case: &*ptr doesn't require typechecking the dereference
   // This allows &*ptr for pointers to incomplete types
-  if (auto exp = dynamic_cast<DereferenceExpression *>(node.variableExpr.get())) {
+  if (auto exp =
+          dynamic_cast<DereferenceExpression *>(node.variableExpr.get())) {
     // Just type-check the pointer expression inside the dereference
     if (exp->pointerExpr) {
       exp->pointerExpr = typecheckAndConvert(std::move(exp->pointerExpr));
     }
-    
+
     auto ptrexp = dynamic_cast<ExpressionNode *>(exp->pointerExpr.get());
     if (ptrexp && ptrexp->type && ptrexp->type->kind == TypeKind::POINTER) {
       node.type = ptrexp->type;
@@ -2703,12 +2761,12 @@ void SemanticAnalyzer::visit(AddressOfExpression &node) {
       return;
     }
   }
-  
+
   // For all other cases, type-check the operand normally
   if (node.variableExpr) {
     node.variableExpr->accept(*this);
   }
-  
+
   auto type = Type::Pointer(
       (dynamic_cast<ExpressionNode *>(node.variableExpr.get())->type));
   node.type = std::make_shared<Type>(type);
@@ -2760,11 +2818,13 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
     return;
   }
 
-  // One operand must be a pointer to complete type, the other must be an integer
+  // One operand must be a pointer to complete type, the other must be an
+  // integer
   std::shared_ptr<Type> ptrType = nullptr;
 
   if (arrayExpr->type->kind == TypeKind::POINTER &&
-      indexExpr->type->kind != TypeKind::DOUBLE && is_arithmetic(*indexExpr->type)) {
+      indexExpr->type->kind != TypeKind::DOUBLE &&
+      is_arithmetic(*indexExpr->type)) {
     // Check that pointer points to complete type
     if (!is_pointer_to_complete(*arrayExpr->type)) {
       success = 0;
@@ -2776,7 +2836,8 @@ void SemanticAnalyzer::visit(SubscriptExpression &node) {
     Type longType = Type::Long();
     node.indexExpr = convertTo(std::move(node.indexExpr), longType);
   } else if (indexExpr->type->kind == TypeKind::POINTER &&
-             arrayExpr->type->kind != TypeKind::DOUBLE && is_arithmetic(*arrayExpr->type)) {
+             arrayExpr->type->kind != TypeKind::DOUBLE &&
+             is_arithmetic(*arrayExpr->type)) {
     // Check that pointer points to complete type
     if (!is_pointer_to_complete(*indexExpr->type)) {
       success = 0;
@@ -2812,21 +2873,21 @@ void SemanticAnalyzer::visit(SizeofExpression &node) {
   if (node.expr) {
     node.expr->accept(*this);
   }
-  
+
   auto exprNode = dynamic_cast<ExpressionNode *>(node.expr.get());
   if (!exprNode || !exprNode->type) {
     success = 0;
     errors.push_back("sizeof operand has no type");
     return;
   }
-  
+
   // Check that the type is complete
   if (!is_complete(*exprNode->type)) {
     success = 0;
     errors.push_back("Cannot get the size of an incomplete type");
     return;
   }
-  
+
   // sizeof always has type unsigned long (size_t)
   node.type = std::make_shared<Type>(Type::ULong());
 }
@@ -2834,19 +2895,19 @@ void SemanticAnalyzer::visit(SizeofExpression &node) {
 void SemanticAnalyzer::visit(SizeofTypeExpression &node) {
   // Resolve the type operand first
   *node.typeOperand = resolveType(*node.typeOperand);
-  
+
   // Validate the type specifier
   if (!validateTypeSpecifier(*node.typeOperand)) {
     return; // Error already reported by validateTypeSpecifier
   }
-  
+
   // Check that the type is complete
   if (!is_complete(*node.typeOperand)) {
     success = 0;
     errors.push_back("Cannot get the size of an incomplete type");
     return;
   }
-  
+
   // sizeof always has type unsigned long (size_t)
   node.type = std::make_shared<Type>(Type::ULong());
 }
@@ -2856,24 +2917,24 @@ void SemanticAnalyzer::visit(DotExpression &node) {
   if (node.structExpr) {
     node.structExpr = typecheckAndConvert(std::move(node.structExpr));
   }
-  
+
   auto structExpr = dynamic_cast<ExpressionNode *>(node.structExpr.get());
   if (!structExpr || !structExpr->type) {
     success = 0;
     errors.push_back("Invalid structure expression in member access");
     return;
   }
-  
+
   // Validate that the expression is a structure type
   if (structExpr->type->kind != TypeKind::STRUCT) {
     success = 0;
     errors.push_back("Member access requires structure type");
     return;
   }
-  
+
   // Get the structure tag
   const auto &structType = std::get<StructType>(structExpr->type->data);
-  
+
   // Look up the structure definition in the type table
   auto it = type_table.find(structType.name);
   if (it == type_table.end()) {
@@ -2881,17 +2942,17 @@ void SemanticAnalyzer::visit(DotExpression &node) {
     errors.push_back("Cannot access member of incomplete structure type");
     return;
   }
-  
+
   // Look up the member in the structure definition
   const StructEntry &structDef = it->second;
   const MemberEntry *memberDef = structDef.getMember(node.memberName);
-  
+
   if (!memberDef) {
     success = 0;
     errors.push_back("Structure has no member named '" + node.memberName + "'");
     return;
   }
-  
+
   // Annotate the expression with the member type
   node.type = std::make_shared<Type>(memberDef->member_type);
 }
@@ -2901,34 +2962,34 @@ void SemanticAnalyzer::visit(ArrowExpression &node) {
   if (node.pointerExpr) {
     node.pointerExpr = typecheckAndConvert(std::move(node.pointerExpr));
   }
-  
+
   auto ptrExpr = dynamic_cast<ExpressionNode *>(node.pointerExpr.get());
   if (!ptrExpr || !ptrExpr->type) {
     success = 0;
     errors.push_back("Invalid pointer expression in member access");
     return;
   }
-  
+
   // Validate that the expression is a pointer type
   if (ptrExpr->type->kind != TypeKind::POINTER) {
     success = 0;
     errors.push_back("Arrow operator requires pointer type");
     return;
   }
-  
+
   // Get the pointed-to type
   const auto &ptrType = std::get<PointerType>(ptrExpr->type->data);
-  
+
   // Validate that the pointed-to type is a structure
   if (ptrType.base->kind != TypeKind::STRUCT) {
     success = 0;
     errors.push_back("Arrow operator requires pointer to structure");
     return;
   }
-  
+
   // Get the structure tag
   const auto &structType = std::get<StructType>(ptrType.base->data);
-  
+
   // Look up the structure definition in the type table
   auto it = type_table.find(structType.name);
   if (it == type_table.end()) {
@@ -2936,17 +2997,17 @@ void SemanticAnalyzer::visit(ArrowExpression &node) {
     errors.push_back("Cannot access member of incomplete structure type");
     return;
   }
-  
+
   // Look up the member in the structure definition
   const StructEntry &structDef = it->second;
   const MemberEntry *memberDef = structDef.getMember(node.memberName);
-  
+
   if (!memberDef) {
     success = 0;
     errors.push_back("Structure has no member named '" + node.memberName + "'");
     return;
   }
-  
+
   // Annotate the expression with the member type
   node.type = std::make_shared<Type>(memberDef->member_type);
 }

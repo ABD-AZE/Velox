@@ -1,9 +1,9 @@
 #include "ast/ast_printer.hpp"
+#include "codegen/codegen.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 #include "semantic_analysis/semantic_analysis.hpp"
 #include "valor/valor.hpp"
-#include "codegen/codegen.hpp"
 
 void cleanup(const std::string &filename);
 
@@ -15,6 +15,7 @@ int main(int argc, char *argv[]) {
   bool codegenflag = 0;
   bool asmflag = 0;
   bool objectflag = 0;
+  std::string linklibs = "";
   // if (argc < 2) {
   //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
   //   return 1;
@@ -33,12 +34,13 @@ int main(int argc, char *argv[]) {
       validateflag = 1;
     } else if (arg == "--codegen") {
       codegenflag = 1;
-    } else if (arg == "-S"){
+    } else if (arg == "-S") {
       asmflag = 1;
     } else if (arg == "-c") {
       objectflag = 1;
-    }
-    else {
+    } else if (arg[0] == '-' && arg[1] == 'l') {
+      linklibs += " " + arg;
+    } else {
       source = arg;
     }
   }
@@ -69,7 +71,6 @@ int main(int argc, char *argv[]) {
     cleanup(preprocessedfile);
     return 0;
   }
-
 
   Parser parser(lexer.GetTokens());
   ASTNodePtr &ast = parser.parseProgram();
@@ -124,10 +125,10 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // Code generation 
+  // Code generation
   Codegen codegenerator;
   auto asmProgram = codegenerator.generateCode(irProgram);
-  if(codegenflag){
+  if (codegenflag) {
     cleanup(preprocessedfile);
     return 0;
   }
@@ -138,10 +139,10 @@ int main(int argc, char *argv[]) {
     asmOutputFile << asmProgram->toString();
     asmOutputFile.close();
     std::cout << "Assembly code written to " << asmfile << std::endl;
-  } else{
+  } else {
     std::cerr << "Failed to write assembly code to " << asmfile << std::endl;
   }
-  
+
   if (asmflag) {
     cleanup(preprocessedfile);
     return 0;
@@ -162,10 +163,10 @@ int main(int argc, char *argv[]) {
   }
   // Link to executable
   auto cmd = "gcc -m64 " + asmfile + " -o " +
-             source.substr(0, source.find_last_of('.'));
+             source.substr(0, source.find_last_of('.')) + linklibs;
   ret = system(cmd.c_str());
-  if (ret != 0) { 
-    std::cerr << "Assembly failed." << std::endl;
+  if (ret != 0) {
+    std::cerr << "Linking failed." << std::endl;
   }
   cleanup(preprocessedfile);
   return 0;

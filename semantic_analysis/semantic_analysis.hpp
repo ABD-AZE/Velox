@@ -13,30 +13,32 @@ struct MemberEntry {
   std::string member_name;
   Type member_type;
   int offset; // offset in bytes from start of structure
-  
+
   MemberEntry(std::string name, Type type, int off)
-    : member_name(std::move(name)), member_type(std::move(type)), offset(off) {}
+      : member_name(std::move(name)), member_type(std::move(type)),
+        offset(off) {}
 };
 
 struct StructEntry {
   int alignment;
   int size;
   std::vector<MemberEntry> members; // ordered list of members
-  std::map<std::string, size_t> member_map; // map from member name to index in members vector
-  
+  std::map<std::string, size_t>
+      member_map; // map from member name to index in members vector
+
   // Default constructor
   StructEntry() : alignment(0), size(0) {}
-  
+
   StructEntry(int align, int sz, std::vector<MemberEntry> membs)
-    : alignment(align), size(sz), members(std::move(membs)) {
+      : alignment(align), size(sz), members(std::move(membs)) {
     // Build member map for fast lookup
     for (size_t i = 0; i < members.size(); ++i) {
       member_map[members[i].member_name] = i;
     }
   }
-  
+
   // Look up a member by name
-  const MemberEntry* getMember(const std::string& name) const {
+  const MemberEntry *getMember(const std::string &name) const {
     auto it = member_map.find(name);
     if (it != member_map.end()) {
       return &members[it->second];
@@ -124,24 +126,25 @@ public:
 private:
   // Structure for tracking structure tags
   struct StructTagMapEntry {
-    std::string new_tag;           // unique identifier for the structure
-    bool from_current_scope;       // whether it was defined in current scope
-    
+    std::string new_tag;     // unique identifier for the structure
+    bool from_current_scope; // whether it was defined in current scope
+
     // Default constructor
     StructTagMapEntry() : new_tag(""), from_current_scope(false) {}
-    
+
     StructTagMapEntry(std::string tag, bool current_scope)
-      : new_tag(std::move(tag)), from_current_scope(current_scope) {}
+        : new_tag(std::move(tag)), from_current_scope(current_scope) {}
   };
-  
+
   // stores the updated variable names for the current scope(the bool represents
   // linkage of the variable), the current scope being the last element in the
   // stack
   std::map<std::string, std::pair<std::string, bool>> identifier_map;
-  
-  // Map for tracking structure tags (separate namespace from variables/functions)
+
+  // Map for tracking structure tags (separate namespace from
+  // variables/functions)
   std::map<std::string, StructTagMapEntry> structure_tag_map;
-  
+
   std::string current_label;
   // Helper methods
   void pushScope();
@@ -161,7 +164,8 @@ private:
   std::string make_struct_tag(const std::string &tag_name) {
     return "struct." + tag_name + "." + std::to_string(label_counter++);
   }
-  // Helper function to resolve type specifiers (replace structure tags with unique IDs)
+  // Helper function to resolve type specifiers (replace structure tags with
+  // unique IDs)
   Type resolveType(const Type &type);
   // Helper function to check if expression is an lvalue
   bool isLvalue(ASTNode *expr);
@@ -185,5 +189,6 @@ private:
   // Scope stack for nested blocks
   std::vector<std::map<std::string, std::pair<std::string, bool>>> scope_stack;
   // Scope stack for structure tags
-  std::vector<std::map<std::string, StructTagMapEntry>> structure_tag_scope_stack;
+  std::vector<std::map<std::string, StructTagMapEntry>>
+      structure_tag_scope_stack;
 };
