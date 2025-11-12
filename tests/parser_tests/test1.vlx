@@ -1,5 +1,7 @@
-void* malloc(int sz);
+struct s;
+
+extern struct s a;
 
 int main(void) {
-    long* arr[1] = {malloc(10)};
+  for(a;;);
 }

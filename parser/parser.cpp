@@ -532,10 +532,14 @@ ASTNodePtr Parser::parsePostfixExp() {
       expect(consume().GetType(), TokenType::IDENTIFIER);
       std::string memberName = currentToken.GetLexeme();
       // a->b is equivalent to (*(a)).b
-      ASTNodePtr derefNode = std::make_unique<UnaryExpression>(
-          TokenType::ASTERISK, std::move(postfixExpNode));
-      postfixExpNode =
-          std::make_unique<DotExpression>(std::move(derefNode), memberName);
+      // ASTNodePtr derefNode = std::make_unique<UnaryExpression>(
+      //     TokenType::ASTERISK, std::move(postfixExpNode));
+      // postfixExpNode =
+      //     std::make_unique<DotExpression>(std::move(derefNode), memberName);
+      ASTNodePtr derefNode = std::make_unique<DereferenceExpression>(
+          std::move(postfixExpNode));
+      postfixExpNode = std::make_unique<DotExpression>(
+          std::move(derefNode), memberName);
     } else {
       break;
     }
@@ -1607,9 +1611,9 @@ ASTNodePtr Parser::parseFor() {
     // could be declaration or expression
     if (isSpecifier(peek().GetType())) {
       // semicolon included in parseVariableDeclaration
-      init = parseVariableDeclaration();
+      init = std::make_unique<InitDecl>(parseVariableDeclaration());
     } else {
-      init = parseExpression(0);
+      init = std::make_unique<InitExp>(parseExpression(0));
       expect(consume().GetType(), TokenType::SEMICOLON);
     }
   } else {
