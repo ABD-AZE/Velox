@@ -249,7 +249,7 @@ ASTNodePtr Parser::parseVariableDeclaration() {
     type_spec = parseTypeSpecifierList(type_list);
   }
   auto declarator = parseDeclarator();
-  auto [name, type, param_names, param_types,_] =
+  auto [name, type, param_names, param_types, _] =
       processDeclarator((declarator), (type_spec));
   if (type.kind == TypeKind::FUNC) {
     success = 0;
@@ -536,10 +536,10 @@ ASTNodePtr Parser::parsePostfixExp() {
       //     TokenType::ASTERISK, std::move(postfixExpNode));
       // postfixExpNode =
       //     std::make_unique<DotExpression>(std::move(derefNode), memberName);
-      ASTNodePtr derefNode = std::make_unique<DereferenceExpression>(
-          std::move(postfixExpNode));
-      postfixExpNode = std::make_unique<DotExpression>(
-          std::move(derefNode), memberName);
+      ASTNodePtr derefNode =
+          std::make_unique<DereferenceExpression>(std::move(postfixExpNode));
+      postfixExpNode =
+          std::make_unique<DotExpression>(std::move(derefNode), memberName);
     } else {
       break;
     }
@@ -579,12 +579,12 @@ ASTNodePtr Parser::parsePrimaryExp() {
           }
           primaryExpNode = std::make_unique<ConstantExpression>(value);
         } catch (const std::exception &e3) {
-            // All parsing attempts failed
-            primaryExpNode = std::make_unique<ConstantExpression>(0);
-            success = 0;
-            errors.push_back(ParserErrorInfo(
-                currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
-                currentToken.GetType(), "invalid integer constant"));
+          // All parsing attempts failed
+          primaryExpNode = std::make_unique<ConstantExpression>(0);
+          success = 0;
+          errors.push_back(ParserErrorInfo(
+              currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
+              currentToken.GetType(), "invalid integer constant"));
         }
       }
     }
@@ -627,7 +627,7 @@ ASTNodePtr Parser::parsePrimaryExp() {
         unsigned long temp = std::stoul(lexeme);
         if (temp <= std::numeric_limits<unsigned int>::max()) {
           value = static_cast<unsigned int>(temp);
-        } else{
+        } else {
           throw std::out_of_range("Value exceeds unsigned int range");
         }
       }
@@ -673,15 +673,19 @@ ASTNodePtr Parser::parsePrimaryExp() {
       std::string lexeme = currentToken.GetLexeme();
       double value = 0;
       if (!lexeme.empty()) {
-        value = std::stod(lexeme);
+        // Use strtod instead of stod to properly handle subnormal numbers
+        // stod throws out_of_range for subnormals, but strtod handles them
+        // correctly
+        char *endptr;
+        value = std::strtod(lexeme.c_str(), &endptr);
+        // Check if parsing was successful (endptr should point to end of
+        // string)
+        if (endptr == lexeme.c_str()) {
+          throw std::invalid_argument("invalid double constant");
+        }
       }
       primaryExpNode = std::make_unique<ConstantExpression>(value);
-    } 
-    catch (const std::out_of_range& e) {
-      //convert to inf
-      primaryExpNode = std::make_unique<ConstantExpression>(std::numeric_limits<double>::infinity());
-    }
-    catch (const std::exception &e) {
+    } catch (const std::exception &e) {
       primaryExpNode = std::make_unique<ConstantExpression>((unsigned int)0);
       success = 0;
       errors.push_back(ParserErrorInfo(
@@ -1345,7 +1349,7 @@ ASTNodePtr Parser::parseAbstractDeclarator() {
   }
 }
 
-std::tuple<std::string, Type, std::vector<std::string>, std::vector<Type>, bool >
+std::tuple<std::string, Type, std::vector<std::string>, std::vector<Type>, bool>
 Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
   std::string name;
   std::vector<std::string> param_names;
@@ -1353,7 +1357,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
   Type type = std::move(baseType);
   if (auto ident = dynamic_cast<Ident *>(declaratorNode.get())) {
     name = ident->identifier;
-    return std::make_tuple(name, type, param_names, param_types,false);
+    return std::make_tuple(name, type, param_names, param_types, false);
   } else if (auto pointerDecl =
                  dynamic_cast<PointerDeclarator *>(declaratorNode.get())) {
     type = Type(TypeKind::POINTER, PointerType(std::make_unique<Type>(type)));
@@ -1362,14 +1366,15 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
                  dynamic_cast<FunDeclarator *>(declaratorNode.get())) {
     std::vector<Type> paramtypes;
     bool isVariadic = false;
-    if(funDecl->params.size()!=0 && funDecl->params.back().type.kind  == TypeKind::ERROR) {
+    if (funDecl->params.size() != 0 &&
+        funDecl->params.back().type.kind == TypeKind::ERROR) {
       // variadic function
       funDecl->params.pop_back();
       isVariadic = true;
     }
     for (auto &param : funDecl->params) {
-  
-      auto [param_name, param_type, _, __,___] =
+
+      auto [param_name, param_type, _, __, ___] =
           processDeclarator((param.declarator), (param.type));
       if (param_type.kind == TypeKind::FUNC) {
         success = 0;
@@ -1384,14 +1389,15 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
     type = Type::Function(paramtypes, type);
     Ident *ident = dynamic_cast<Ident *>(funDecl->declarator.get());
     if (ident) {
-      return std::make_tuple(ident->identifier, type, param_names, param_types,isVariadic);
+      return std::make_tuple(ident->identifier, type, param_names, param_types,
+                             isVariadic);
     } else {
       success = 0;
       errors.push_back(ParserErrorInfo(
           currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
           TokenType::WS, "function declarator must have an identifier"));
       // error: function declarator must have an identifier
-      return std::make_tuple("", type, param_names, param_types,false);
+      return std::make_tuple("", type, param_names, param_types, false);
     }
   } else if (auto arrayDecl =
                  dynamic_cast<ArrayDeclarator *>(declaratorNode.get())) {
@@ -1403,7 +1409,7 @@ Parser::processDeclarator(ASTNodePtr &declaratorNode, Type &baseType) {
   errors.push_back(ParserErrorInfo(currentToken.GetLineNumber(),
                                    currentToken.GetColumnNumber(),
                                    TokenType::WS, "unknown declarator type"));
-  return std::make_tuple("", Type::Int(), param_names, param_types,false);
+  return std::make_tuple("", Type::Int(), param_names, param_types, false);
 }
 
 Type Parser::processAbstractDeclarator(ASTNodePtr abstractDeclaratorNode,
@@ -1509,7 +1515,7 @@ std::vector<paraminfo> Parser::parseParams() {
             currentToken.GetLineNumber(), currentToken.GetColumnNumber(),
             peek().GetType(), "trailing comma in parameter list"));
       }
-      if( peek().GetType() == TokenType::ELLIPSIS) {
+      if (peek().GetType() == TokenType::ELLIPSIS) {
         consume(); // consume '...'
         params.push_back(paraminfo(Type::Error(), nullptr));
         expect(peek().GetType(), TokenType::CLOSE_PARENTHESES);

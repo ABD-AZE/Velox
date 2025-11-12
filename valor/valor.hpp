@@ -3,6 +3,7 @@
 #include "../parser/parser.hpp"
 #include "../symbol_table/symbol_table.hpp"
 #include "../token/token.hpp"
+#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
@@ -45,17 +46,17 @@ enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
 
 // Static initializer types
 enum class StaticInitKind {
-  INT_INIT,      // int
-  LONG_INIT,     // long
-  UINT_INIT,     // unsigned int
-  ULONG_INIT,    // unsigned long
-  CHAR_INIT,     // char
-  UCHAR_INIT,    // unsigned char
-  DOUBLE_INIT,   // double
-  ZERO_INIT,     // Zero-initialized (for tentative definitions)
-  STRING_INIT,   // ASCII string initializer
-  POINTER_INIT,  // Pointer to static object
-  COMPOUND       // Compound initializer (list of static_init)
+  INT_INIT,     // int
+  LONG_INIT,    // long
+  UINT_INIT,    // unsigned int
+  ULONG_INIT,   // unsigned long
+  CHAR_INIT,    // char
+  UCHAR_INIT,   // unsigned char
+  DOUBLE_INIT,  // double
+  ZERO_INIT,    // Zero-initialized (for tentative definitions)
+  STRING_INIT,  // ASCII string initializer
+  POINTER_INIT, // Pointer to static object
+  COMPOUND      // Compound initializer (list of static_init)
 };
 
 // Forward declaration for recursive structure
@@ -80,16 +81,16 @@ struct PointerStaticInit {
 // Static initializer variant
 struct StaticInit {
   StaticInitKind kind;
-  std::variant<int, // INT_INIT and ZERO_INIT
-                long int,            // LONG_INIT
-                long unsigned int,   // ULONG_INIT
-                unsigned int,       // UINT_INIT
-                char,               // CHAR_INIT
-                unsigned char,      // UCHAR_INIT
-                double,             // DOUBLE_INIT
-                StringStaticInit,   // STRING_INIT
-                PointerStaticInit,  // POINTER_INIT
-                CompoundStaticInit  // COMPOUND
+  std::variant<int,               // INT_INIT and ZERO_INIT
+               long int,          // LONG_INIT
+               long unsigned int, // ULONG_INIT
+               unsigned int,      // UINT_INIT
+               char,              // CHAR_INIT
+               unsigned char,     // UCHAR_INIT
+               double,            // DOUBLE_INIT
+               StringStaticInit,  // STRING_INIT
+               PointerStaticInit, // POINTER_INIT
+               CompoundStaticInit // COMPOUND
                >
       data;
 
@@ -172,25 +173,114 @@ struct StaticInit {
   }
 
   // Generic factory method for variant types (for backward compatibility)
-  static StaticInit makeInitial(std::variant<int, long int, long unsigned int, unsigned int, char, unsigned char, double> value) {
-    return std::visit([](auto &&val) -> StaticInit {
-      using T = std::decay_t<decltype(val)>;
-      if constexpr (std::is_same_v<T, int>) {
-        return makeIntInit(val);
-      } else if constexpr (std::is_same_v<T, long int>) {
-        return makeLongInit(val);
-      } else if constexpr (std::is_same_v<T, unsigned int>) {
-        return makeUIntInit(val);
-      } else if constexpr (std::is_same_v<T, long unsigned int>) {
-        return makeULongInit(val);
-      } else if constexpr (std::is_same_v<T, char>) {
-        return makeCharInit(val);
-      } else if constexpr (std::is_same_v<T, unsigned char>) {
-        return makeUCharInit(val);
-      } else if constexpr (std::is_same_v<T, double>) {
-        return makeDoubleInit(val);
+  static StaticInit
+  makeInitial(std::variant<int, long int, long unsigned int, unsigned int, char,
+                           unsigned char, double>
+                  value) {
+    return std::visit(
+        [](auto &&val) -> StaticInit {
+          using T = std::decay_t<decltype(val)>;
+          if constexpr (std::is_same_v<T, int>) {
+            return makeIntInit(val);
+          } else if constexpr (std::is_same_v<T, long int>) {
+            return makeLongInit(val);
+          } else if constexpr (std::is_same_v<T, unsigned int>) {
+            return makeUIntInit(val);
+          } else if constexpr (std::is_same_v<T, long unsigned int>) {
+            return makeULongInit(val);
+          } else if constexpr (std::is_same_v<T, char>) {
+            return makeCharInit(val);
+          } else if constexpr (std::is_same_v<T, unsigned char>) {
+            return makeUCharInit(val);
+          } else if constexpr (std::is_same_v<T, double>) {
+            return makeDoubleInit(val);
+          }
+        },
+        value);
+  }
+};
+
+struct StaticInitComparator {
+  bool operator()(const StaticInit &a, const StaticInit &b) const {
+    // First compare by kind
+    if (a.kind != b.kind) {
+      return a.kind < b.kind;
+    }
+
+    // Same kind, now compare values
+    switch (a.kind) {
+    case StaticInitKind::INT_INIT:
+      return std::get<int>(a.data) < std::get<int>(b.data);
+
+    case StaticInitKind::LONG_INIT:
+      return std::get<long>(a.data) < std::get<long>(b.data);
+
+    case StaticInitKind::UINT_INIT:
+      return std::get<unsigned int>(a.data) < std::get<unsigned int>(b.data);
+
+    case StaticInitKind::ULONG_INIT:
+      return std::get<unsigned long>(a.data) < std::get<unsigned long>(b.data);
+
+    case StaticInitKind::DOUBLE_INIT: {
+      // For doubles, use memcmp to distinguish between 0.0 and -0.0
+      double val_a = std::get<double>(a.data);
+      double val_b = std::get<double>(b.data);
+
+      // Use bit representation to compare (distinguishes +0.0 from -0.0)
+      uint64_t bits_a, bits_b;
+      std::memcpy(&bits_a, &val_a, sizeof(double));
+      std::memcpy(&bits_b, &val_b, sizeof(double));
+
+      return bits_a < bits_b;
+    }
+
+    case StaticInitKind::ZERO_INIT:
+      // All zero initializers are equal
+      return false;
+
+    case StaticInitKind::CHAR_INIT:
+      return std::get<char>(a.data) < std::get<char>(b.data);
+
+    case StaticInitKind::UCHAR_INIT:
+      return std::get<unsigned char>(a.data) < std::get<unsigned char>(b.data);
+
+    case StaticInitKind::STRING_INIT: {
+      auto &str_a = std::get<StringStaticInit>(a.data);
+      auto &str_b = std::get<StringStaticInit>(b.data);
+      if (str_a.value != str_b.value) {
+        return str_a.value < str_b.value;
       }
-    }, value);
+      return str_a.null_terminated < str_b.null_terminated;
+    }
+
+    case StaticInitKind::POINTER_INIT: {
+      auto &ptr_a = std::get<PointerStaticInit>(a.data);
+      auto &ptr_b = std::get<PointerStaticInit>(b.data);
+      return ptr_a.name < ptr_b.name;
+    }
+
+    case StaticInitKind::COMPOUND: {
+      auto &comp_a = std::get<CompoundStaticInit>(a.data);
+      auto &comp_b = std::get<CompoundStaticInit>(b.data);
+      if (comp_a.initializers.size() != comp_b.initializers.size()) {
+        return comp_a.initializers.size() < comp_b.initializers.size();
+      }
+      size_t min_size =
+          std::min(comp_a.initializers.size(), comp_b.initializers.size());
+      for (size_t i = 0; i < min_size; ++i) {
+        if (StaticInitComparator()(comp_a.initializers[i],
+                                   comp_b.initializers[i])) {
+          return true;
+        } else if (StaticInitComparator()(comp_b.initializers[i],
+                                          comp_a.initializers[i])) {
+          return false;
+        }
+      }
+      return false;
+    }
+    default:
+      return false;
+    }
   }
 };
 
@@ -740,7 +830,7 @@ public:
   ~Valor() = default;
 
   IRProgramPtr convertToIR(const ASTNodePtr &ast);
-  
+
 private:
   IRGenerator generator;
 };

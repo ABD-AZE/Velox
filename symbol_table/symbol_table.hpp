@@ -10,10 +10,10 @@ enum class LinkageType { INTERNAL, EXTERNAL, NONE };
 
 enum class SymbolType { VARIABLE, FUNCTION, CONSTANT };
 
-enum class AssemblyType
-{
+enum class AssemblyType {
   LONG_WORD,
   QUAD_WORD,
+  DOUBLE_WORD,
 };
 
 extern bool operator==(const StorageClass &a, const LinkageType &b);
@@ -27,15 +27,17 @@ public:
   InitType initType;
   bool isVariadic = false;
   std::vector<Type> param_types; // for functions
-  std::variant<int, long int, long unsigned int, unsigned int, char, unsigned char, double>
+  std::variant<int, long int, long unsigned int, unsigned int, char,
+               unsigned char, double>
       value; // for initialized constants (scalars)
   InitializerNode
       *initializer; // non-owning pointer to array initializer in AST
-  std::string stringConstantName; // Name of string constant for pointer initializers
+  std::string
+      stringConstantName;  // Name of string constant for pointer initializers
   std::string stringValue; // Actual string value for string constants
   Type type;
   AssemblyType assemblyType;
-  
+
   SymbolTableEntry() = default;
   SymbolTableEntry(std::string name, SymbolType symbolType, InitType initType,
                    Type type, std::vector<Type> param_types = {})
@@ -49,13 +51,15 @@ public:
       break;
     case TypeKind::LONG:
     case TypeKind::ULONG:
-    case TypeKind::DOUBLE:
       assemblyType = AssemblyType::QUAD_WORD;
+      break;
+    case TypeKind::DOUBLE:
+      assemblyType = AssemblyType::DOUBLE_WORD;
       break;
     default:
       assemblyType = AssemblyType::LONG_WORD; // default
       break;
-        }
+    }
   }
   void
   setValue(const std::variant<int, long int, long unsigned int, unsigned int,
