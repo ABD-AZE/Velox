@@ -67,6 +67,7 @@ enum class ASMOpType {
   MOVZEROEXTEND,
   CVTTSD2SI, // double to int/long
   CVTTSI2SD, // int/long to double
+  LEA,    // load effective address
 };
 
 enum class UnaryOpType {
@@ -111,6 +112,7 @@ enum class RegisterType {
   R10,
   R11,
   SP,
+  BP,
   XMM0,
   XMM1,
   XMM2,
@@ -349,6 +351,14 @@ public:
       }
       return "%esp";
     }
+    case RegisterType::BP: {
+      if (oneByte) {
+        return "%bpl";
+      } else if (eightByte) {
+        return "%rbp";
+      }
+      return "%ebp";
+    }
     case RegisterType::XMM0:
       return "%xmm0";
     case RegisterType::XMM1:
@@ -414,16 +424,24 @@ public:
   }
 };
 
-/// -4(%rbp) = Stack(4)
-class Stack : public Operand {
+/// -4(%rbp) = Memory(4)
+class Memory : public Operand {
 public:
+  std::shared_ptr<Reg> reg;
   int offset;
-  Stack(int offset) : offset(offset) {}
+  Memory(std::shared_ptr<Reg> reg, int offset) : reg(reg), offset(offset) {}
   std::string toString() const override {
-    return std::to_string(-offset) + "(%rbp)";
+    auto eb = eightByte;
+    auto ob = oneByte;
+    oneByte = 0;
+    eightByte = 1;
+    std::string result = std::to_string(-offset) + "(" + reg->toString() + ")";
+    eightByte = eb;
+    oneByte = ob;
+    return result;
   }
-  static std::shared_ptr<Stack> createStack(int offset) {
-    return std::make_shared<Stack>(offset);
+  static std::shared_ptr<Memory> createMemory(RegisterType reg, int offset) {
+    return std::make_shared<Memory>(Reg::createRegister(reg), offset);
   }
 };
 
@@ -619,6 +637,15 @@ public:
     instr->dst = dst;
     instr->src1 = src;
     instr->assemblyType = assemblyType;
+    return instr;
+  }
+
+  static ASMInstructionPtr createLea(const OperandPtr &dst,
+                                    const OperandPtr &src) {
+    auto instr = std::make_shared<ASMInstruction>();
+    instr->opType = ASMOpType::LEA;
+    instr->dst = dst;
+    instr->src1 = src;
     return instr;
   }
 };

@@ -41,7 +41,7 @@ AssemblyType getAssemblyType(IRValuePtr irValue) {
     else if (irValue->constType == TypeKind::DOUBLE) {
       return AssemblyType::DOUBLE_WORD;
     }
-    return AssemblyType::QUAD_WORD;
+    return AssemblyType::QUAD_WORD; // LONG, ULONG, POINTER
   }
 }
 
@@ -59,7 +59,7 @@ bool isUnsigned(IRValuePtr irValue) {
 }
 
 bool isMemoryAddress(const OperandPtr &operand) {
-  return (std::dynamic_pointer_cast<Stack>(operand) != nullptr ||
+  return (std::dynamic_pointer_cast<Memory>(operand) != nullptr ||
           std::dynamic_pointer_cast<Data>(operand) != nullptr);
 }
 
@@ -316,7 +316,7 @@ std::string ASMInstruction::toString() const {
       break;
     case ConditionCode::NE:
       ss << "setne " << dst->toString();
-      break;
+      break; 
     case ConditionCode::G:
       ss << "setg " << dst->toString();
       break;
@@ -381,6 +381,11 @@ std::string ASMInstruction::toString() const {
     else
       ss << "cvtsi2sdl " << src1->toString() << ", " << dst->toString();
     break;
+  case ASMOpType::LEA:
+    eightByte = 1;
+    ss << "leaq " << src1->toString() << ", " << dst->toString();
+    eightByte = 0;
+    break;
   default:
     break;
   }
@@ -414,7 +419,7 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram) {
       } else if (typekind == TypeKind::INT || typekind == TypeKind::UINT) {
         alignment = 4;
       } else if (typekind == TypeKind::LONG || typekind == TypeKind::ULONG ||
-                 typekind == TypeKind::DOUBLE) {
+                 typekind == TypeKind::DOUBLE || typekind == TypeKind::POINTER) {
         alignment = 8;
       }
       auto asmStaticVar = ASMStaticVariable::createStaticVariable(
@@ -475,7 +480,7 @@ ASMFunctionPtr Codegen::IRFunctionToASM(const IRFunctionPtr &irFunction) {
   int offset = -16; // Parameters start at 16(%rbp)
   for (const auto &[paramType, param] : classified.stackArgs) {
     asmFunction->instructions.push_back(ASMInstruction::createMov(
-        param, Stack::createStack(offset), paramType));
+        param, Memory::createMemory(RegisterType::BP,  offset), paramType));
     offset -= 8;
   }
 
@@ -1122,6 +1127,39 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction) {
     }
     break;
   }
+  case IROpType::LOAD:
+  {
+    asmInstructions.push_back(ASMInstruction::createMov(
+        Reg::createRegister(RegisterType::AX),
+        IRValueToOperand(irInstruction->src1),
+        AssemblyType::QUAD_WORD));
+    asmInstructions.push_back(ASMInstruction::createMov(
+        IRValueToOperand(irInstruction->dst),
+        Memory::createMemory(RegisterType::AX,0),
+         getAssemblyType(irInstruction->dst)));
+    break;
+  }
+  case IROpType::STORE:
+  {
+    asmInstructions.push_back(ASMInstruction::createMov(
+      Reg::createRegister(RegisterType::AX),
+      IRValueToOperand(irInstruction->dst),
+      AssemblyType::QUAD_WORD
+    ));
+    asmInstructions.push_back(ASMInstruction::createMov(
+      Memory::createMemory(RegisterType::AX,0),
+      IRValueToOperand(irInstruction->src1),
+      getAssemblyType(irInstruction->src1)
+    ));
+    break;
+  }
+  case IROpType::GET_ADDRESS:
+  {
+    asmInstructions.push_back(ASMInstruction::createLea(
+        IRValueToOperand(irInstruction->dst),
+        IRValueToOperand(irInstruction->src1)));
+    break;
+  }
   default:
     break;
   }
@@ -1216,11 +1254,11 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast) {
               }
               offset_table[pseudo->name] = offset; // Negative offset from RBP
               instruction->dst =
-                  std::make_shared<Stack>(offset_table[pseudo->name]);
+                  Memory::createMemory(RegisterType::BP,offset_table[pseudo->name]);
             }
           } else {
             instruction->dst =
-                std::make_shared<Stack>(offset_table[pseudo->name]);
+                Memory::createMemory(RegisterType::BP,offset_table[pseudo->name]);
           }
         }
       }
@@ -1251,11 +1289,11 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast) {
               }
               offset_table[pseudo->name] = offset; // Negative offset from RBP
               instruction->src1 =
-                  std::make_shared<Stack>(offset_table[pseudo->name]);
+                  Memory::createMemory(RegisterType::BP, offset_table[pseudo->name]);
             }
           } else {
             instruction->src1 =
-                std::make_shared<Stack>(offset_table[pseudo->name]);
+                Memory::createMemory(RegisterType::BP, offset_table[pseudo->name]);
           }
         }
       }
@@ -1286,11 +1324,11 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast) {
               }
               offset_table[pseudo->name] = offset; // Negative offset from RBP
               instruction->src2 =
-                  std::make_shared<Stack>(offset_table[pseudo->name]);
+                  Memory::createMemory(RegisterType::BP, offset_table[pseudo->name]);
             }
           } else {
             instruction->src2 =
-                std::make_shared<Stack>(offset_table[pseudo->name]);
+                Memory::createMemory(RegisterType::BP, offset_table[pseudo->name]);
           }
         }
       }
@@ -1546,8 +1584,33 @@ void Codegen::finalPass(ASMBasePtr ast) {
                 AssemblyType::QUAD_WORD));
             instruction->src1 = Reg::createRegister(RegisterType::R10);
           }
+          newinstructions.push_back(instruction);
         }
-        newinstructions.push_back(instruction);
+        else if(auto reg = dynamic_cast<Reg *>(instruction->src1.get())) {
+          if(reg->name == RegisterType::XMM0 || reg->name == RegisterType::XMM1 ||
+             reg->name == RegisterType::XMM2 || reg->name == RegisterType::XMM3 ||
+             reg->name == RegisterType::XMM4 || reg->name == RegisterType::XMM5 ||
+             reg->name == RegisterType::XMM6 || reg->name == RegisterType::XMM7 ||
+             reg->name == RegisterType::XMM8 ||  reg->name == RegisterType::XMM9 ||
+             reg->name == RegisterType::XMM10 || reg->name == RegisterType::XMM11 ||
+             reg->name == RegisterType::XMM12 || reg->name == RegisterType::XMM13 ||
+             reg->name == RegisterType::XMM14 || reg->name == RegisterType::XMM15) {
+            // move xmm to memory first
+            newinstructions.push_back(ASMInstruction::createBinary(BinaryOpType::SUB,
+                Reg::createRegister(RegisterType::SP), Immediate::createImmediate(8),
+                AssemblyType::QUAD_WORD));
+            newinstructions.push_back(ASMInstruction::createMov(
+                Memory::createMemory(RegisterType::SP, -8), instruction->src1,
+                AssemblyType::DOUBLE_WORD));
+            instruction->src1 = Memory::createMemory(RegisterType::SP, -8);
+          }
+          else{
+            newinstructions.push_back(instruction);
+          }
+        }
+        else{ 
+          newinstructions.push_back(instruction);
+        }
         break;
       }
       case ASMOpType::MOVZEROEXTEND: {
@@ -1597,6 +1660,19 @@ void Codegen::finalPass(ASMBasePtr ast) {
               instruction->assemblyType));
           instruction->src1 = Reg::createRegister(RegisterType::R10);
           newinstructions.push_back(instruction);
+        } else {
+          newinstructions.push_back(instruction);
+        }
+        break;
+      }
+      case ASMOpType::LEA: {
+        // dst must be a register
+        if (!dynamic_cast<Reg *>(instruction->dst.get())) {
+          newinstructions.push_back(ASMInstruction::createLea(
+              Reg::createRegister(RegisterType::R11), instruction->src1));
+          newinstructions.push_back(ASMInstruction::createMov(
+              instruction->dst, Reg::createRegister(RegisterType::R11),
+              AssemblyType::QUAD_WORD));
         } else {
           newinstructions.push_back(instruction);
         }

@@ -31,13 +31,15 @@ enum class ExpResultType { PLAIN_OPERAND, DEREFERENCED_POINTER };
 struct ExpResult {
   ExpResultType type;
   IRValuePtr value;
+  std::shared_ptr<ExpResult> inner;
 
   static ExpResult makePlainOperand(IRValuePtr val) {
-    return {ExpResultType::PLAIN_OPERAND, std::move(val)};
+    return {ExpResultType::PLAIN_OPERAND, std::move(val), nullptr};
   }
 
-  static ExpResult makeDereferencedPointer(IRValuePtr ptr) {
-    return {ExpResultType::DEREFERENCED_POINTER, std::move(ptr)};
+  static ExpResult makeDereferencedPointer(IRValuePtr ptr,
+                                           std::shared_ptr<ExpResult> inner) {
+    return {ExpResultType::DEREFERENCED_POINTER, std::move(ptr), std::move(inner)};
   }
 };
 
@@ -802,7 +804,7 @@ private:
   IRValuePtr makeTackyVariable(Type varType);
 
   // Helper functions for lvalue conversion
-  IRValuePtr convertExpResult(const ExpResult &result, const Type &exprType);
+  IRValuePtr convertExpResult(ExpResult &result, const Type &exprType);
 
   // Helper function to calculate type size in bytes
   int getTypeSize(const Type &type);

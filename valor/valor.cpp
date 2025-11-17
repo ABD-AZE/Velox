@@ -5,10 +5,12 @@
 #include <sstream>
 
 // IRInstructionNode implementation
-std::string IRInstructionNode::toString() const {
+std::string IRInstructionNode::toString() const
+{
   std::stringstream ss;
 
-  switch (opType) {
+  switch (opType)
+  {
   case IROpType::RETURN:
     ss << "return " << (src1 ? src1->toString() : "");
     break;
@@ -147,15 +149,21 @@ std::string IRInstructionNode::toString() const {
     ss << label << ":";
     break;
   case IROpType::CALL:
-    if (dst) {
+    if (dst)
+    {
       ss << dst->toString() << " = call " << src1->toString() << ", args: ";
-    } else {
+    }
+    else
+    {
       ss << "call " << src1->toString() << ", args: ";
     }
-    if (src2 && src2->type == IRValueType::ARGS) {
-      for (size_t i = 0; i < src2->args.size(); ++i) {
+    if (src2 && src2->type == IRValueType::ARGS)
+    {
+      for (size_t i = 0; i < src2->args.size(); ++i)
+      {
         ss << src2->args[i]->toString();
-        if (i < src2->args.size() - 1) {
+        if (i < src2->args.size() - 1)
+        {
           ss << ", ";
         }
       }
@@ -170,17 +178,21 @@ std::string IRInstructionNode::toString() const {
 }
 
 // IRFunctionNode implementation
-std::string IRFunctionNode::toString() const {
+std::string IRFunctionNode::toString() const
+{
   std::stringstream ss;
   ss << "Function(name=" << identifier
      << ", global=" << (global ? "true" : "false");
 
   // Print parameters
-  if (!parameters.empty()) {
+  if (!parameters.empty())
+  {
     ss << ", params=[";
-    for (size_t i = 0; i < parameters.size(); ++i) {
+    for (size_t i = 0; i < parameters.size(); ++i)
+    {
       ss << parameters[i];
-      if (i < parameters.size() - 1) {
+      if (i < parameters.size() - 1)
+      {
         ss << ", ";
       }
     }
@@ -190,10 +202,14 @@ std::string IRFunctionNode::toString() const {
   ss << ") {\n";
 
   // Print instructions
-  for (const auto &instruction : instructions) {
-    if (instruction->opType == IROpType::LABEL) {
+  for (const auto &instruction : instructions)
+  {
+    if (instruction->opType == IROpType::LABEL)
+    {
       ss << instruction->toString() << "\n";
-    } else {
+    }
+    else
+    {
       ss << "    " << instruction->toString() << "\n";
     }
   }
@@ -202,7 +218,8 @@ std::string IRFunctionNode::toString() const {
 }
 
 // IRStaticVariableNode implementation
-std::string IRStaticVariableNode::toString() const {
+std::string IRStaticVariableNode::toString() const
+{
   std::stringstream ss;
   ss << "StaticVariable(name=" << identifier
      << ", global=" << (global ? "true" : "false")
@@ -210,62 +227,71 @@ std::string IRStaticVariableNode::toString() const {
 
   // Helper lambda to recursively print StaticInit
   std::function<void(const StaticInit &)> printInit =
-      [&](const StaticInit &init) {
-        switch (init.kind) {
-        case StaticInitKind::INT_INIT:
-          ss << "Int(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::LONG_INIT:
-          ss << "Long(" << std::get<long>(init.data) << ")";
-          break;
-        case StaticInitKind::UINT_INIT:
-          ss << "UInt(" << std::get<unsigned int>(init.data) << ")";
-          break;
-        case StaticInitKind::ULONG_INIT:
-          ss << "ULong(" << std::get<unsigned long>(init.data) << ")";
-          break;
-        case StaticInitKind::CHAR_INIT:
-          ss << "Char(" << (int)std::get<char>(init.data) << ")";
-          break;
-        case StaticInitKind::UCHAR_INIT:
-          ss << "UChar(" << (int)std::get<unsigned char>(init.data) << ")";
-          break;
-        case StaticInitKind::DOUBLE_INIT:
-          ss << "Double(" << std::get<double>(init.data) << ")";
-          break;
-        case StaticInitKind::ZERO_INIT:
-          ss << "ZeroInit(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::STRING_INIT: {
-          const auto &stringInit = std::get<StringStaticInit>(init.data);
-          ss << "String(\"" << stringInit.value << "\", null_terminated="
-             << (stringInit.null_terminated ? "true" : "false") << ")";
-          break;
+      [&](const StaticInit &init)
+  {
+    switch (init.kind)
+    {
+    case StaticInitKind::INT_INIT:
+      ss << "Int(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::LONG_INIT:
+      ss << "Long(" << std::get<long>(init.data) << ")";
+      break;
+    case StaticInitKind::UINT_INIT:
+      ss << "UInt(" << std::get<unsigned int>(init.data) << ")";
+      break;
+    case StaticInitKind::ULONG_INIT:
+      ss << "ULong(" << std::get<unsigned long>(init.data) << ")";
+      break;
+    case StaticInitKind::CHAR_INIT:
+      ss << "Char(" << (int)std::get<char>(init.data) << ")";
+      break;
+    case StaticInitKind::UCHAR_INIT:
+      ss << "UChar(" << (int)std::get<unsigned char>(init.data) << ")";
+      break;
+    case StaticInitKind::DOUBLE_INIT:
+      ss << "Double(" << std::get<double>(init.data) << ")";
+      break;
+    case StaticInitKind::ZERO_INIT:
+      ss << "ZeroInit(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::STRING_INIT:
+    {
+      const auto &stringInit = std::get<StringStaticInit>(init.data);
+      ss << "String(\"" << stringInit.value << "\", null_terminated="
+         << (stringInit.null_terminated ? "true" : "false") << ")";
+      break;
+    }
+    case StaticInitKind::POINTER_INIT:
+    {
+      const auto &ptrInit = std::get<PointerStaticInit>(init.data);
+      ss << "Pointer(" << ptrInit.name << ")";
+      break;
+    }
+    case StaticInitKind::COMPOUND:
+    {
+      ss << "{";
+      const auto &compound = std::get<CompoundStaticInit>(init.data);
+      for (size_t i = 0; i < compound.initializers.size(); ++i)
+      {
+        printInit(compound.initializers[i]);
+        if (i < compound.initializers.size() - 1)
+        {
+          ss << ", ";
         }
-        case StaticInitKind::POINTER_INIT: {
-          const auto &ptrInit = std::get<PointerStaticInit>(init.data);
-          ss << "Pointer(" << ptrInit.name << ")";
-          break;
-        }
-        case StaticInitKind::COMPOUND: {
-          ss << "{";
-          const auto &compound = std::get<CompoundStaticInit>(init.data);
-          for (size_t i = 0; i < compound.initializers.size(); ++i) {
-            printInit(compound.initializers[i]);
-            if (i < compound.initializers.size() - 1) {
-              ss << ", ";
-            }
-          }
-          ss << "}";
-          break;
-        }
-        }
-      };
+      }
+      ss << "}";
+      break;
+    }
+    }
+  };
 
   // Print all initializers
-  for (size_t i = 0; i < init_list.size(); ++i) {
+  for (size_t i = 0; i < init_list.size(); ++i)
+  {
     printInit(init_list[i]);
-    if (i < init_list.size() - 1) {
+    if (i < init_list.size() - 1)
+    {
       ss << ", ";
     }
   }
@@ -275,69 +301,79 @@ std::string IRStaticVariableNode::toString() const {
 }
 
 // IRStaticConstantNode implementation
-std::string IRStaticConstantNode::toString() const {
+std::string IRStaticConstantNode::toString() const
+{
   std::stringstream ss;
   ss << "StaticConstant(name=" << identifier
      << ", type=" << TypeKindToString(type.kind) << ", init=[";
 
   // Helper lambda to recursively print StaticInit
   std::function<void(const StaticInit &)> printInit =
-      [&](const StaticInit &init) {
-        switch (init.kind) {
-        case StaticInitKind::INT_INIT:
-          ss << "Int(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::LONG_INIT:
-          ss << "Long(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::UINT_INIT:
-          ss << "UInt(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::ULONG_INIT:
-          ss << "ULong(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::CHAR_INIT:
-          ss << "Char(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::UCHAR_INIT:
-          ss << "UChar(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::DOUBLE_INIT:
-          ss << "Double(" << std::get<double>(init.data) << ")";
-          break;
-        case StaticInitKind::ZERO_INIT:
-          ss << "ZeroInit(" << std::get<int>(init.data) << ")";
-          break;
-        case StaticInitKind::STRING_INIT: {
-          const auto &stringInit = std::get<StringStaticInit>(init.data);
-          ss << "String(\"" << stringInit.value << "\", null_terminated="
-             << (stringInit.null_terminated ? "true" : "false") << ")";
-          break;
+      [&](const StaticInit &init)
+  {
+    switch (init.kind)
+    {
+    case StaticInitKind::INT_INIT:
+      ss << "Int(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::LONG_INIT:
+      ss << "Long(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::UINT_INIT:
+      ss << "UInt(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::ULONG_INIT:
+      ss << "ULong(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::CHAR_INIT:
+      ss << "Char(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::UCHAR_INIT:
+      ss << "UChar(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::DOUBLE_INIT:
+      ss << "Double(" << std::get<double>(init.data) << ")";
+      break;
+    case StaticInitKind::ZERO_INIT:
+      ss << "ZeroInit(" << std::get<int>(init.data) << ")";
+      break;
+    case StaticInitKind::STRING_INIT:
+    {
+      const auto &stringInit = std::get<StringStaticInit>(init.data);
+      ss << "String(\"" << stringInit.value << "\", null_terminated="
+         << (stringInit.null_terminated ? "true" : "false") << ")";
+      break;
+    }
+    case StaticInitKind::POINTER_INIT:
+    {
+      const auto &ptrInit = std::get<PointerStaticInit>(init.data);
+      ss << "Pointer(" << ptrInit.name << ")";
+      break;
+    }
+    case StaticInitKind::COMPOUND:
+    {
+      ss << "{";
+      const auto &compound = std::get<CompoundStaticInit>(init.data);
+      for (size_t i = 0; i < compound.initializers.size(); ++i)
+      {
+        printInit(compound.initializers[i]);
+        if (i < compound.initializers.size() - 1)
+        {
+          ss << ", ";
         }
-        case StaticInitKind::POINTER_INIT: {
-          const auto &ptrInit = std::get<PointerStaticInit>(init.data);
-          ss << "Pointer(" << ptrInit.name << ")";
-          break;
-        }
-        case StaticInitKind::COMPOUND: {
-          ss << "{";
-          const auto &compound = std::get<CompoundStaticInit>(init.data);
-          for (size_t i = 0; i < compound.initializers.size(); ++i) {
-            printInit(compound.initializers[i]);
-            if (i < compound.initializers.size() - 1) {
-              ss << ", ";
-            }
-          }
-          ss << "}";
-          break;
-        }
-        }
-      };
+      }
+      ss << "}";
+      break;
+    }
+    }
+  };
 
   // Print all initializers
-  for (size_t i = 0; i < init_list.size(); ++i) {
+  for (size_t i = 0; i < init_list.size(); ++i)
+  {
     printInit(init_list[i]);
-    if (i < init_list.size() - 1) {
+    if (i < init_list.size() - 1)
+    {
       ss << ", ";
     }
   }
@@ -347,14 +383,17 @@ std::string IRStaticConstantNode::toString() const {
 }
 
 // IRProgramNode implementation
-std::string IRProgramNode::toString() const {
+std::string IRProgramNode::toString() const
+{
   std::stringstream ss;
   ss << "Program(\n";
-  for (const auto &item : topLevelItems) {
+  for (const auto &item : topLevelItems)
+  {
     ss << item->toString();
     // Add newline if it's a static variable (functions already have newlines)
     if (dynamic_cast<IRStaticVariableNode *>(item.get()) ||
-        dynamic_cast<IRStaticConstantNode *>(item.get())) {
+        dynamic_cast<IRStaticConstantNode *>(item.get()))
+    {
       ss << "\n";
     }
   }
@@ -363,7 +402,8 @@ std::string IRProgramNode::toString() const {
 }
 
 // IRGenerator implementation
-IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
+IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast)
+{
   program = std::make_unique<IRProgramNode>();
   tempCounter = 0;
   labelCounter = 0;
@@ -376,7 +416,8 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
   // move the staticvariable to the front
   std::stable_partition(
       program->topLevelItems.begin(), program->topLevelItems.end(),
-      [](const IRTopLevelPtr &item) {
+      [](const IRTopLevelPtr &item)
+      {
         return dynamic_cast<IRStaticVariableNode *>(item.get()) != nullptr;
       });
 
@@ -384,8 +425,10 @@ IRProgramPtr IRGenerator::generateIR(const ASTNodePtr &ast) {
 }
 
 // Helper function to calculate type size in bytes
-int IRGenerator::getTypeSize(const Type &type) {
-  switch (type.kind) {
+int IRGenerator::getTypeSize(const Type &type)
+{
+  switch (type.kind)
+  {
   case TypeKind::INT:
   case TypeKind::UINT:
     return 4;
@@ -397,7 +440,8 @@ int IRGenerator::getTypeSize(const Type &type) {
   case TypeKind::CHAR:
   case TypeKind::UCHAR:
     return 1;
-  case TypeKind::ARRAY: {
+  case TypeKind::ARRAY:
+  {
     const auto &arrayType = std::get<ArrayType>(type.data);
     return arrayType.size * getTypeSize(*arrayType.element);
   }
@@ -406,30 +450,37 @@ int IRGenerator::getTypeSize(const Type &type) {
   }
 }
 
-void IRGenerator::convertSymbolTableToIR() {
+void IRGenerator::convertSymbolTableToIR()
+{
   // Iterate through the global symbol table
-  for (const auto &[name, entry] : global_symbol_table) {
+  for (const auto &[name, entry] : global_symbol_table)
+  {
     // Skip functions
-    if (entry.symbolType == SymbolType::FUNCTION) {
+    if (entry.symbolType == SymbolType::FUNCTION)
+    {
       continue;
     }
 
     // Skip if it doesn't have static storage (we only want static variables)
-    if (entry.storageClass != StorageClass::STATIC) {
+    if (entry.storageClass != StorageClass::STATIC)
+    {
       continue;
     }
 
     // Skip if it has no initializer (not defined in this translation unit)
-    if (entry.initType == InitType::UNINITIALIZED) {
+    if (entry.initType == InitType::UNINITIALIZED)
+    {
       continue;
     }
 
     // Create initializer list
     std::vector<StaticInit> init_list;
 
-    if (entry.type.kind == TypeKind::ARRAY) {
+    if (entry.type.kind == TypeKind::ARRAY)
+    {
       // Check if this is a string constant (has stringValue set)
-      if (!entry.stringValue.empty()) {
+      if (!entry.stringValue.empty())
+      {
         // This is a string constant - create StringInit
         int arraySize = entry.type.kind == TypeKind::ARRAY
                             ? std::get<ArrayType>(entry.type.data).size
@@ -447,47 +498,64 @@ void IRGenerator::convertSymbolTableToIR() {
         int bytesUsed =
             entry.stringValue.length() + (hasNullTerminator ? 1 : 0);
         int paddingBytes = arraySize - bytesUsed;
-        if (paddingBytes > 0) {
+        if (paddingBytes > 0)
+        {
           init_list.push_back(StaticInit::makeZeroInit(paddingBytes));
         }
       }
       // For arrays with stored initializer
-      else if (entry.initType == InitType::INITIALIZED && entry.initializer) {
+      else if (entry.initType == InitType::INITIALIZED && entry.initializer)
+      {
         // Convert the stored InitializerNode to StaticInit, passing array type
         // for padding
         init_list.push_back(
             convertToStaticInit(entry.initializer, &entry.type));
-      } else if (entry.initType == InitType::TENTATIVE ||
-                 entry.initType == InitType::ZERO_INITIALIZED) {
+      }
+      else if (entry.initType == InitType::TENTATIVE ||
+               entry.initType == InitType::ZERO_INITIALIZED)
+      {
         // Use ZeroInit for the entire array
         int arraySize = getTypeSize(entry.type);
         init_list.push_back(StaticInit::makeZeroInit(arraySize));
       }
-    } else if (entry.type.kind == TypeKind::POINTER) {
+    }
+    else if (entry.type.kind == TypeKind::POINTER)
+    {
       // For pointer types
-      if (entry.initType == InitType::INITIALIZED) {
+      if (entry.initType == InitType::INITIALIZED)
+      {
         // Check if this pointer is initialized with a string literal
-        if (!entry.stringConstantName.empty()) {
+        if (!entry.stringConstantName.empty())
+        {
           // Create PointerInit pointing to the string constant
           init_list.push_back(
               StaticInit::makePointerInit(entry.stringConstantName));
-        } else {
+        }
+        else
+        {
           // Regular scalar initialization (shouldn't happen for pointers
           // typically)
           init_list.push_back(StaticInit::makeInitial(entry.value));
         }
-      } else if (entry.initType == InitType::TENTATIVE ||
-                 entry.initType == InitType::ZERO_INITIALIZED) {
+      }
+      else if (entry.initType == InitType::TENTATIVE ||
+               entry.initType == InitType::ZERO_INITIALIZED)
+      {
         // Use ZeroInit for pointers
         int pointerSize = getTypeSize(entry.type);
         init_list.push_back(StaticInit::makeZeroInit(pointerSize));
       }
-    } else {
+    }
+    else
+    {
       // For scalar types
-      if (entry.initType == InitType::INITIALIZED) {
+      if (entry.initType == InitType::INITIALIZED)
+      {
         init_list.push_back(StaticInit::makeInitial(entry.value));
-      } else if (entry.initType == InitType::TENTATIVE ||
-                 entry.initType == InitType::ZERO_INITIALIZED) {
+      }
+      else if (entry.initType == InitType::TENTATIVE ||
+               entry.initType == InitType::ZERO_INITIALIZED)
+      {
         // Use ZeroInit for scalars too
         int scalarSize = getTypeSize(entry.type);
         init_list.push_back(StaticInit::makeZeroInit(scalarSize));
@@ -495,13 +563,16 @@ void IRGenerator::convertSymbolTableToIR() {
     }
 
     // Check if this is a constant (string literals in expressions)
-    if (entry.symbolType == SymbolType::CONSTANT) {
+    if (entry.symbolType == SymbolType::CONSTANT)
+    {
       // Create static constant node (read-only)
       auto staticConst = std::make_shared<IRStaticConstantNode>(
           name, entry.type, std::move(init_list));
       program->addTopLevel(
           std::static_pointer_cast<IRTopLevelNode>(staticConst));
-    } else {
+    }
+    else
+    {
       // Determine if it's global (external linkage) or file-scope (internal
       // linkage)
       bool isGlobal = (entry.linkage == LinkageType::EXTERNAL);
@@ -516,8 +587,10 @@ void IRGenerator::convertSymbolTableToIR() {
 
 // Helper function to recursively pad an array (or nested arrays) with zeros
 void IRGenerator::padArrayWithZeros(const std::string &varName,
-                                    const Type &arrayType, int baseOffset) {
-  if (arrayType.kind != TypeKind::ARRAY) {
+                                    const Type &arrayType, int baseOffset)
+{
+  if (arrayType.kind != TypeKind::ARRAY)
+  {
     // Not an array - shouldn't happen, but handle gracefully
     IRValuePtr zeroValue = IRValueNode::makeConstant(0);
     auto copyInst = IRInstructionNode::makeCopyToOffset(std::move(zeroValue),
@@ -532,11 +605,15 @@ void IRGenerator::padArrayWithZeros(const std::string &varName,
   int arraySize = arrayData.size;
 
   int currentOffset = baseOffset;
-  for (int i = 0; i < arraySize; i++) {
-    if (elemType.kind == TypeKind::ARRAY) {
+  for (int i = 0; i < arraySize; i++)
+  {
+    if (elemType.kind == TypeKind::ARRAY)
+    {
       // Recursively pad nested array
       padArrayWithZeros(varName, elemType, currentOffset);
-    } else {
+    }
+    else
+    {
       // Scalar element - write zero
       IRValuePtr zeroValue = IRValueNode::makeConstant(0);
       auto copyInst = IRInstructionNode::makeCopyToOffset(
@@ -551,18 +628,22 @@ void IRGenerator::padArrayWithZeros(const std::string &varName,
 void IRGenerator::processCompoundInitializer(InitializerNode *init,
                                              const std::string &varName,
                                              const Type &varType,
-                                             int baseOffset) {
+                                             int baseOffset)
+{
   if (!init)
     return;
 
-  if (init->kind == InitializerKind::SINGLE_INIT) {
+  if (init->kind == InitializerKind::SINGLE_INIT)
+  {
     // Single initializer - evaluate expression and copy to offset
     auto &singleInit = std::get<SingleInit>(init->data);
-    if (singleInit.expression) {
+    if (singleInit.expression)
+    {
       // Check if this is a string literal initializing a char array
       auto stringLiteral =
           dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
-      if (stringLiteral && varType.kind == TypeKind::ARRAY) {
+      if (stringLiteral && varType.kind == TypeKind::ARRAY)
+      {
         // Initialize array with string literal byte-by-byte
         const auto &arrayType = std::get<ArrayType>(varType.data);
         int arraySize = arrayType.size;
@@ -571,7 +652,8 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
         // Copy each character from the string
         int currentOffset = baseOffset;
         for (size_t i = 0;
-             i < str.length() && i < static_cast<size_t>(arraySize); ++i) {
+             i < str.length() && i < static_cast<size_t>(arraySize); ++i)
+        {
           IRValuePtr charValue = IRValueNode::makeConstant(
               static_cast<int>(static_cast<unsigned char>(str[i])));
           auto copyInst = IRInstructionNode::makeCopyToOffset(
@@ -581,7 +663,8 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
         }
 
         // Add null terminator if there's room
-        if (str.length() < static_cast<size_t>(arraySize)) {
+        if (str.length() < static_cast<size_t>(arraySize))
+        {
           IRValuePtr nullValue = IRValueNode::makeConstant(0);
           auto copyInst = IRInstructionNode::makeCopyToOffset(
               std::move(nullValue), varName, currentOffset);
@@ -589,7 +672,8 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
           currentOffset += 1;
 
           // Pad remaining bytes with zeros
-          while (currentOffset < baseOffset + arraySize) {
+          while (currentOffset < baseOffset + arraySize)
+          {
             IRValuePtr zeroValue = IRValueNode::makeConstant(0);
             auto padInst = IRInstructionNode::makeCopyToOffset(
                 std::move(zeroValue), varName, currentOffset);
@@ -606,7 +690,8 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
       // Get the expression node to access its type
       auto exprNode =
           dynamic_cast<ExpressionNode *>(singleInit.expression.get());
-      if (exprNode && exprNode->type) {
+      if (exprNode && exprNode->type)
+      {
         IRValuePtr exprValue =
             convertExpResult(currentExpResult, *exprNode->type);
 
@@ -616,11 +701,14 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
         currentFunction->addInstruction(std::move(copyInst));
       }
     }
-  } else if (init->kind == InitializerKind::COMPOUND_INIT) {
+  }
+  else if (init->kind == InitializerKind::COMPOUND_INIT)
+  {
     // Compound initializer - process each element recursively
     auto &compoundInit = std::get<CompoundInit>(init->data);
 
-    if (varType.kind == TypeKind::ARRAY) {
+    if (varType.kind == TypeKind::ARRAY)
+    {
       const auto &arrayType = std::get<ArrayType>(varType.data);
       Type elemType = *arrayType.element;
       int elemSize = getTypeSize(elemType);
@@ -630,19 +718,24 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
       int currentOffset = baseOffset;
       int elementsProvided = compoundInit.initializers.size();
 
-      for (auto &elemInit : compoundInit.initializers) {
+      for (auto &elemInit : compoundInit.initializers)
+      {
         processCompoundInitializer(&elemInit, varName, elemType, currentOffset);
         currentOffset += elemSize;
       }
 
       // Pad remaining elements with zeros (C standard requires this)
-      for (int i = elementsProvided; i < arraySize; i++) {
+      for (int i = elementsProvided; i < arraySize; i++)
+      {
         // For multidimensional arrays or structs, we need to zero-pad the
         // entire element For scalar types, just write a single zero
-        if (elemType.kind == TypeKind::ARRAY) {
+        if (elemType.kind == TypeKind::ARRAY)
+        {
           // Recursively zero-pad nested array
           padArrayWithZeros(varName, elemType, currentOffset);
-        } else {
+        }
+        else
+        {
           // Generate CopyToOffset with zero constant for scalar
           IRValuePtr zeroValue = IRValueNode::makeConstant(0);
           auto copyInst = IRInstructionNode::makeCopyToOffset(
@@ -656,18 +749,23 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
 }
 
 // Helper function to create zero-initialized StaticInit for an array type
-StaticInit IRGenerator::createZeroStaticInit(const Type &type) {
-  if (type.kind == TypeKind::ARRAY) {
+StaticInit IRGenerator::createZeroStaticInit(const Type &type)
+{
+  if (type.kind == TypeKind::ARRAY)
+  {
     const auto &arrayData = std::get<ArrayType>(type.data);
     Type elemType = *arrayData.element;
     int arraySize = arrayData.size;
 
     std::vector<StaticInit> zeroInits;
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = 0; i < arraySize; i++)
+    {
       zeroInits.push_back(createZeroStaticInit(elemType));
     }
     return StaticInit::makeCompound(std::move(zeroInits));
-  } else {
+  }
+  else
+  {
     // Scalar type - return a zero constant
     return StaticInit::makeInitial(0);
   }
@@ -675,16 +773,20 @@ StaticInit IRGenerator::createZeroStaticInit(const Type &type) {
 
 // Helper function to convert InitializerNode to StaticInit
 StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
-                                            const Type *arrayType) {
-  if (!init) {
+                                            const Type *arrayType)
+{
+  if (!init)
+  {
     // Return a zero init for null initializer
     return StaticInit::makeZeroInit(0);
   }
 
-  if (init->kind == InitializerKind::SINGLE_INIT) {
+  if (init->kind == InitializerKind::SINGLE_INIT)
+  {
     // Single initializer - extract constant value
     auto &singleInit = std::get<SingleInit>(init->data);
-    if (singleInit.expression) {
+    if (singleInit.expression)
+    {
       // Check if this is a string literal (possibly wrapped in AddressOf)
       StringLiteralExpression *stringLiteral = nullptr;
 
@@ -693,24 +795,28 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
           dynamic_cast<StringLiteralExpression *>(singleInit.expression.get());
 
       // If not direct, check if it's wrapped in AddressOf
-      if (!stringLiteral) {
+      if (!stringLiteral)
+      {
         auto addressOf =
             dynamic_cast<AddressOfExpression *>(singleInit.expression.get());
-        if (addressOf && addressOf->variableExpr) {
+        if (addressOf && addressOf->variableExpr)
+        {
           stringLiteral = dynamic_cast<StringLiteralExpression *>(
               addressOf->variableExpr.get());
         }
       }
 
       // Handle string literal initialization for char arrays
-      if (stringLiteral && arrayType && arrayType->kind == TypeKind::ARRAY) {
+      if (stringLiteral && arrayType && arrayType->kind == TypeKind::ARRAY)
+      {
         const auto &arrayData = std::get<ArrayType>(arrayType->data);
         Type elemType = *arrayData.element;
 
         // Only handle char arrays
         if (elemType.kind == TypeKind::CHAR ||
             elemType.kind == TypeKind::UCHAR ||
-            elemType.kind == TypeKind::SCHAR) {
+            elemType.kind == TypeKind::SCHAR)
+        {
           int arraySize = arrayData.size;
           const std::string &str = stringLiteral->value;
 
@@ -731,7 +837,8 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
               StaticInit::makeStringInit(str, hasNullTerminator));
 
           // Add ZeroInit for remaining padding if needed
-          if (paddingBytes > 0) {
+          if (paddingBytes > 0)
+          {
             initList.push_back(StaticInit::makeZeroInit(paddingBytes));
           }
 
@@ -744,16 +851,21 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
       // Try constant expression
       auto constExpr =
           dynamic_cast<ConstantExpression *>(singleInit.expression.get());
-      if (constExpr) {
+      if (constExpr)
+      {
         // Extract the constant value and convert to the supported variant type
         return std::visit(
-            [](auto &&val) -> StaticInit {
+            [](auto &&val) -> StaticInit
+            {
               using T = std::decay_t<decltype(val)>;
               if constexpr (std::is_same_v<T, char> ||
-                            std::is_same_v<T, unsigned char>) {
+                            std::is_same_v<T, unsigned char>)
+              {
                 // Convert char types to int
                 return StaticInit::makeInitial(static_cast<int>(val));
-              } else {
+              }
+              else
+              {
                 // int, long, unsigned long, unsigned int, double are directly
                 // supported
                 return StaticInit::makeInitial(val);
@@ -765,7 +877,9 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
     // If not a constant, return zero init (shouldn't happen for static
     // variables)
     return StaticInit::makeZeroInit(4);
-  } else if (init->kind == InitializerKind::COMPOUND_INIT) {
+  }
+  else if (init->kind == InitializerKind::COMPOUND_INIT)
+  {
     // Compound initializer - recursively convert each element
     auto &compoundInit = std::get<CompoundInit>(init->data);
     std::vector<StaticInit> staticInits;
@@ -773,27 +887,35 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
     // Get element type if we have an array type
     const Type *elementType = nullptr;
     int expectedCount = 0;
-    if (arrayType && arrayType->kind == TypeKind::ARRAY) {
+    if (arrayType && arrayType->kind == TypeKind::ARRAY)
+    {
       auto &arrayData = std::get<ArrayType>(arrayType->data);
       elementType = arrayData.element.get();
       expectedCount = arrayData.size;
     }
 
     // Convert provided initializers
-    for (auto &elemInit : compoundInit.initializers) {
+    for (auto &elemInit : compoundInit.initializers)
+    {
       staticInits.push_back(convertToStaticInit(&elemInit, elementType));
     }
 
     // Pad with zero initializers if we have fewer elements than expected
-    if (arrayType && arrayType->kind == TypeKind::ARRAY) {
+    if (arrayType && arrayType->kind == TypeKind::ARRAY)
+    {
       int providedCount = staticInits.size();
-      if (providedCount < expectedCount) {
+      if (providedCount < expectedCount)
+      {
         // Add zero initializers for remaining elements
         // For multidimensional arrays, we need to recursively create zero-inits
-        for (int i = providedCount; i < expectedCount; i++) {
-          if (elementType) {
+        for (int i = providedCount; i < expectedCount; i++)
+        {
+          if (elementType)
+          {
             staticInits.push_back(createZeroStaticInit(*elementType));
-          } else {
+          }
+          else
+          {
             staticInits.push_back(StaticInit::makeInitial(0));
           }
         }
@@ -806,8 +928,10 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
   return StaticInit::makeZeroInit(0);
 }
 
-void IRGenerator::visit(IfStatement &node) {
-  if (node.condition) {
+void IRGenerator::visit(IfStatement &node)
+{
+  if (node.condition)
+  {
     // Generate IR for condition with lvalue-to-rvalue conversion
     node.condition->accept(*this);
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
@@ -828,7 +952,8 @@ void IRGenerator::visit(IfStatement &node) {
     currentFunction->addInstruction(std::move(jumpInst));
 
     // Generate IR for 'then' block
-    if (node.thenBranch) {
+    if (node.thenBranch)
+    {
       node.thenBranch->accept(*this);
     }
 
@@ -841,7 +966,8 @@ void IRGenerator::visit(IfStatement &node) {
     currentFunction->addInstruction(std::move(elseLabelInst));
 
     // Generate IR for 'else' block if it exists
-    if (node.elseBranch) {
+    if (node.elseBranch)
+    {
       (*node.elseBranch)->accept(*this);
     }
 
@@ -851,8 +977,10 @@ void IRGenerator::visit(IfStatement &node) {
   }
 }
 
-void IRGenerator::visit(PostfixExpression &node) {
-  if (node.operand) {
+void IRGenerator::visit(PostfixExpression &node)
+{
+  if (node.operand)
+  {
     // Generate IR for operand with lvalue-to-rvalue conversion
     node.operand->accept(*this);
     auto operandExpr = dynamic_cast<ExpressionNode *>(node.operand.get());
@@ -868,11 +996,16 @@ void IRGenerator::visit(PostfixExpression &node) {
 
     // Convert token type to IR operation
     IROpType irOp;
-    if (node.op == TokenType::INCREMENT_OPERATOR) {
+    if (node.op == TokenType::INCREMENT_OPERATOR)
+    {
       irOp = IROpType::ADD;
-    } else if (node.op == TokenType::DECREMENT_OPERATOR) {
+    }
+    else if (node.op == TokenType::DECREMENT_OPERATOR)
+    {
       irOp = IROpType::SUBTRACT;
-    } else {
+    }
+    else
+    {
       // Unsupported postfix operation
       return;
     }
@@ -896,8 +1029,10 @@ void IRGenerator::visit(PostfixExpression &node) {
     currentExpResult = ExpResult::makePlainOperand(currentValue);
   }
 }
-void IRGenerator::visit(ConditionalExpression &node) {
-  if (node.condition) {
+void IRGenerator::visit(ConditionalExpression &node)
+{
+  if (node.condition)
+  {
     // Generate IR for condition with lvalue-to-rvalue conversion
     node.condition->accept(*this);
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
@@ -921,13 +1056,15 @@ void IRGenerator::visit(ConditionalExpression &node) {
     bool isVoid = (node.type && node.type->kind == TypeKind::VOID);
 
     // Generate IR for 'then' block with lvalue-to-rvalue conversion
-    if (node.trueExpr) {
+    if (node.trueExpr)
+    {
       node.trueExpr->accept(*this);
     }
 
     IRValuePtr result = nullptr;
 
-    if (!isVoid) {
+    if (!isVoid)
+    {
       auto trueExprNode = dynamic_cast<ExpressionNode *>(node.trueExpr.get());
       IRValuePtr trueExprValue =
           currentExpResult.type == ExpResultType::PLAIN_OPERAND
@@ -954,11 +1091,13 @@ void IRGenerator::visit(ConditionalExpression &node) {
 
     // Generate IR for 'false' block if it exists with lvalue-to-rvalue
     // conversion
-    if (node.falseExpr) {
+    if (node.falseExpr)
+    {
       (node.falseExpr)->accept(*this);
     }
 
-    if (!isVoid) {
+    if (!isVoid)
+    {
       auto falseExprNode = dynamic_cast<ExpressionNode *>(node.falseExpr.get());
       IRValuePtr falseExprValue =
           currentExpResult.type == ExpResultType::PLAIN_OPERAND
@@ -976,10 +1115,13 @@ void IRGenerator::visit(ConditionalExpression &node) {
     auto endLabelInst = IRInstructionNode::makeLabel(endLabel);
     currentFunction->addInstruction(std::move(endLabelInst));
 
-    if (!isVoid) {
+    if (!isVoid)
+    {
       currentValue = result;
       currentExpResult = ExpResult::makePlainOperand(currentValue);
-    } else {
+    }
+    else
+    {
       // For void conditional, set dummy value
       currentValue = IRValueNode::makeConstant(0);
       currentExpResult = ExpResult::makePlainOperand(currentValue);
@@ -987,28 +1129,35 @@ void IRGenerator::visit(ConditionalExpression &node) {
   }
 }
 
-void IRGenerator::visit(ProgramNode &node) {
+void IRGenerator::visit(ProgramNode &node)
+{
   // Process all declarations in the program
-  for (const auto &declaration : node.Declarations) {
+  for (const auto &declaration : node.Declarations)
+  {
     declaration->accept(*this);
   }
 }
 
-void IRGenerator::visit(FunctionDefinitionNode &node) {
+void IRGenerator::visit(FunctionDefinitionNode &node)
+{
   (void)node;
   // not used
 }
 
-void IRGenerator::visit(VarDeclNode &node) {
+void IRGenerator::visit(VarDeclNode &node)
+{
   // Skip file-scope variables - they'll be generated from the symbol table
-  if (!currentFunction) {
+  if (!currentFunction)
+  {
     return;
   }
 
   // Skip local static and extern variables - they're in the symbol table
-  if (node.storage_class.has_value()) {
+  if (node.storage_class.has_value())
+  {
     if (node.storage_class.value() == TokenType::STATIC ||
-        node.storage_class.value() == TokenType::EXTERN) {
+        node.storage_class.value() == TokenType::EXTERN)
+    {
       return;
     }
   }
@@ -1017,23 +1166,31 @@ void IRGenerator::visit(VarDeclNode &node) {
   IRValuePtr var = IRValueNode::makeVariable(node.name);
 
   // If there's an initializer, generate IR for it
-  if (node.init) {
+  if (node.init)
+  {
     InitializerNode *initNode =
         dynamic_cast<InitializerNode *>(node.init->get());
     // Check if this is an array with initializer
-    if (initNode && node.type.kind == TypeKind::ARRAY) {
-      if (initNode->kind == InitializerKind::COMPOUND_INIT) {
+    if (initNode && node.type.kind == TypeKind::ARRAY)
+    {
+      if (initNode->kind == InitializerKind::COMPOUND_INIT)
+      {
         // Process compound initializer with CopyToOffset instructions
         processCompoundInitializer(initNode, node.name, node.type, 0);
-      } else if (initNode->kind == InitializerKind::SINGLE_INIT) {
+      }
+      else if (initNode->kind == InitializerKind::SINGLE_INIT)
+      {
         // Check if this is a string literal initializing an array
         auto &singleInit = std::get<SingleInit>(initNode->data);
         auto stringLiteral = dynamic_cast<StringLiteralExpression *>(
             singleInit.expression.get());
-        if (stringLiteral) {
+        if (stringLiteral)
+        {
           // Process string literal as array initializer
           processCompoundInitializer(initNode, node.name, node.type, 0);
-        } else {
+        }
+        else
+        {
           // Single non-string initializer for array - shouldn't happen normally
           (*node.init)->accept(*this);
           IRValuePtr initValue =
@@ -1045,7 +1202,9 @@ void IRGenerator::visit(VarDeclNode &node) {
           currentFunction->addInstruction(std::move(copyInst));
         }
       }
-    } else {
+    }
+    else
+    {
       // Scalar or single initializer
       (*node.init)->accept(*this);
       // After visiting the initializer, currentValue and currentExpResult are
@@ -1063,8 +1222,10 @@ void IRGenerator::visit(VarDeclNode &node) {
   }
 }
 
-void IRGenerator::visit(FunDeclNode &node) {
-  if (!node.body.has_value()) {
+void IRGenerator::visit(FunDeclNode &node)
+{
+  if (!node.body.has_value())
+  {
     return;
   }
 
@@ -1076,13 +1237,15 @@ void IRGenerator::visit(FunDeclNode &node) {
       std::make_shared<IRFunctionNode>(node.name, isGlobal);
 
   // Add parameters
-  for (const auto &param : node.param_names) {
+  for (const auto &param : node.param_names)
+  {
     func->parameters.push_back(param);
   }
 
   currentFunction = func;
   // Generate IR for function body
-  if (node.body) {
+  if (node.body)
+  {
     (*node.body)->accept(*this);
   }
   func->addInstruction(IRInstructionNode::makeReturn(
@@ -1091,32 +1254,41 @@ void IRGenerator::visit(FunDeclNode &node) {
   currentFunction = nullptr;
 }
 
-void IRGenerator::visit(BlockNode &node) {
+void IRGenerator::visit(BlockNode &node)
+{
   // Process all block items
-  for (const auto &item : node.block_items) {
+  for (const auto &item : node.block_items)
+  {
     item->accept(*this);
   }
 }
 
-void IRGenerator::visit(BlockItemNode &node) {
+void IRGenerator::visit(BlockItemNode &node)
+{
   // Delegate to the contained statement or declaration
-  if (node.block_item) {
+  if (node.block_item)
+  {
     node.block_item->accept(*this);
   }
 }
 
-void IRGenerator::visit(ReturnStatement &node) {
+void IRGenerator::visit(ReturnStatement &node)
+{
   IRValuePtr returnValue = nullptr;
 
-  if (node.expression) {
+  if (node.expression)
+  {
     // Generate IR for the return expression
     node.expression->accept(*this);
 
     // Perform lvalue conversion if needed
     auto exprNode = dynamic_cast<ExpressionNode *>(node.expression.get());
-    if (exprNode && exprNode->type) {
+    if (exprNode && exprNode->type)
+    {
       returnValue = convertExpResult(currentExpResult, *exprNode->type);
-    } else if (currentValue) {
+    }
+    else if (currentValue)
+    {
       returnValue = std::make_shared<IRValueNode>(*currentValue);
     }
   }
@@ -1126,27 +1298,32 @@ void IRGenerator::visit(ReturnStatement &node) {
   currentFunction->addInstruction(std::move(returnInst));
 }
 
-void IRGenerator::visit(ExpressionStatement &node) {
-  if (node.expression) {
+void IRGenerator::visit(ExpressionStatement &node)
+{
+  if (node.expression)
+  {
     node.expression->accept(*this);
     // Result is in currentValue but we don't need to do anything with it
   }
 }
 
-void IRGenerator::visit(ConstantExpression &node) {
+void IRGenerator::visit(ConstantExpression &node)
+{
   // Create a constant value
   // Extract the value from the variant
   currentValue = IRValueNode::makeConstant(node.value);
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
 
-void IRGenerator::visit(VariableExpression &node) {
+void IRGenerator::visit(VariableExpression &node)
+{
   // Create a variable reference
   currentValue = IRValueNode::makeVariable(node.identifier);
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
 
-void IRGenerator::visit(UnaryExpression &node) {
+void IRGenerator::visit(UnaryExpression &node)
+{
   // Generate IR for operand with lvalue-to-rvalue conversion
   node.operand->accept(*this);
   auto operandExpr = dynamic_cast<ExpressionNode *>(node.operand.get());
@@ -1163,7 +1340,8 @@ void IRGenerator::visit(UnaryExpression &node) {
   // Convert token type to IR operation
   IROpType irOp = tokenTypeToUnaryIR(node.op);
 
-  if (node.op == INCREMENT_OPERATOR || node.op == DECREMENT_OPERATOR) {
+  if (node.op == INCREMENT_OPERATOR || node.op == DECREMENT_OPERATOR)
+  {
     // Create unary instruction
     // Create constant value of 1
     IRValuePtr one = IRValueNode::makeConstant(1);
@@ -1176,7 +1354,9 @@ void IRGenerator::visit(UnaryExpression &node) {
     inst = IRInstructionNode::makeCopy(std::make_shared<IRValueNode>(*result),
                                        std::move(operand));
     currentFunction->addInstruction(std::move(inst));
-  } else {
+  }
+  else
+  {
     // Create unary instruction
     auto inst = IRInstructionNode::makeUnary(irOp, result, operand);
     currentFunction->addInstruction(std::move(inst));
@@ -1185,9 +1365,11 @@ void IRGenerator::visit(UnaryExpression &node) {
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
 
-void IRGenerator::visit(BinaryExpression &node) {
+void IRGenerator::visit(BinaryExpression &node)
+{
   // Handle short-circuiting operators specially
-  if (node.op == TokenType::LAND) {
+  if (node.op == TokenType::LAND)
+  {
     // Implement && operator with short-circuiting
     // e1 && e2 pattern:
     // <instructions for e1>
@@ -1262,7 +1444,8 @@ void IRGenerator::visit(BinaryExpression &node) {
     return;
   }
 
-  if (node.op == TokenType::LOR) {
+  if (node.op == TokenType::LOR)
+  {
     // Implement || operator with short-circuiting
     // e1 || e2 pattern:
     // <instructions for e1>
@@ -1374,7 +1557,8 @@ void IRGenerator::visit(BinaryExpression &node) {
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
 
-void IRGenerator::visit(AssignmentExpression &node) {
+void IRGenerator::visit(AssignmentExpression &node)
+{
   // Generate IR for right side (value being assigned) - WITH lvalue conversion
   node.right->accept(*this);
   auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
@@ -1389,16 +1573,26 @@ void IRGenerator::visit(AssignmentExpression &node) {
   // Save and restore state to avoid lvalue conversion
   node.left->accept(*this);
   ExpResult leftResult = currentExpResult;
-
+ 
   // Check if left side is a dereferenced pointer or plain variable
-  if (leftResult.type == ExpResultType::DEREFERENCED_POINTER) {
+  if (leftResult.type == ExpResultType::DEREFERENCED_POINTER)
+  {
     // *ptr = value => Store(value, ptr)
+    IRValuePtr leftValue = leftResult.value;
+    while(leftResult.inner)
+    {
+      currentFunction->addInstruction(IRInstructionNode::makeLoad(leftValue,leftValue));
+      leftValue = leftResult.value;
+      leftResult = *leftResult.inner;
+    }
     auto storeInst = IRInstructionNode::makeStore(rightValue, leftResult.value);
     currentFunction->addInstruction(storeInst);
     // Assignment result is the assigned value
     currentValue = rightValue;
     currentExpResult = ExpResult::makePlainOperand(rightValue);
-  } else {
+  }
+  else
+  {
     // Normal variable assignment => Copy(value, var)
     IRValuePtr leftValue = leftResult.value;
     auto copyInst = IRInstructionNode::makeCopy(rightValue, leftValue);
@@ -1411,25 +1605,29 @@ void IRGenerator::visit(AssignmentExpression &node) {
 
 void IRGenerator::visit(CompoundStatement &node) { node.block->accept(*this); }
 
-void IRGenerator::visit(BreakNode &node) {
+void IRGenerator::visit(BreakNode &node)
+{
   IRInstructionPtr breakInst =
       IRInstructionNode::makeJump("break_" + node.label);
   currentFunction->addInstruction(std::move(breakInst));
 }
 
-void IRGenerator::visit(ContinueNode &node) {
+void IRGenerator::visit(ContinueNode &node)
+{
   IRInstructionPtr continueInst =
       IRInstructionNode::makeJump("continue_" + node.label);
   currentFunction->addInstruction(std::move(continueInst));
 }
 
-void IRGenerator::visit(DoWhileNode &node) {
+void IRGenerator::visit(DoWhileNode &node)
+{
   std::string startLabel = generateLabelName();
   // Start label
   auto startLabelInst = IRInstructionNode::makeLabel(startLabel);
   currentFunction->addInstruction(std::move(startLabelInst));
   // Generate IR for body
-  if (node.body) {
+  if (node.body)
+  {
     node.body->accept(*this);
   }
   // continue label
@@ -1438,7 +1636,8 @@ void IRGenerator::visit(DoWhileNode &node) {
 
   // Generate IR for condition
   IRValuePtr conditionValue;
-  if (node.condition) {
+  if (node.condition)
+  {
     node.condition->accept(*this);
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
     conditionValue =
@@ -1457,7 +1656,8 @@ void IRGenerator::visit(DoWhileNode &node) {
   currentFunction->addInstruction(std::move(breakLabel));
 }
 
-void IRGenerator::visit(WhileNode &node) {
+void IRGenerator::visit(WhileNode &node)
+{
   auto continueLabel = "continue_" + node.label;
   auto breakLabel = "break_" + node.label;
   auto startInstr = IRInstructionNode::makeLabel(continueLabel);
@@ -1466,7 +1666,8 @@ void IRGenerator::visit(WhileNode &node) {
   // condition instructions
   auto conditionValue = std::make_shared<IRValueNode>();
   // always true for while and do while
-  if (node.condition) {
+  if (node.condition)
+  {
     node.condition->accept(*this);
     auto condExpr = dynamic_cast<ExpressionNode *>(node.condition.get());
     conditionValue =
@@ -1480,7 +1681,8 @@ void IRGenerator::visit(WhileNode &node) {
   jumpInstr = IRInstructionNode::makeJumpIfZero(conditionValue, breakLabel);
   currentFunction->addInstruction(std::move(jumpInstr));
   // body instructions
-  if (node.body) {
+  if (node.body)
+  {
     node.body->accept(*this);
   }
   // jump back to continue
@@ -1491,9 +1693,11 @@ void IRGenerator::visit(WhileNode &node) {
   currentFunction->addInstruction(std::move(breakInstr));
 }
 
-void IRGenerator::visit(ForNode &node) {
+void IRGenerator::visit(ForNode &node)
+{
   // instructions for init
-  if (node.init) {
+  if (node.init)
+  {
     node.init->accept(*this);
   }
   // start label
@@ -1506,7 +1710,8 @@ void IRGenerator::visit(ForNode &node) {
   IRInstructionPtr jumpInstr;
   IRValuePtr conditionValue;
   // if condition is not present then no need for an additional jump instruction
-  if (node.condition) {
+  if (node.condition)
+  {
     (*node.condition)->accept(*this);
     auto condExpr = dynamic_cast<ExpressionNode *>((*node.condition).get());
     conditionValue =
@@ -1519,14 +1724,16 @@ void IRGenerator::visit(ForNode &node) {
     currentFunction->addInstruction(std::move(jumpInstr));
   }
   // body instructions
-  if (node.body) {
+  if (node.body)
+  {
     node.body->accept(*this);
   }
   // continue label
   auto continueLabelInstr = IRInstructionNode::makeLabel(continueLabel);
   currentFunction->addInstruction(std::move(continueLabelInstr));
   // post instructions
-  if (node.post) {
+  if (node.post)
+  {
     (*node.post)->accept(*this);
   }
   // jump back to start
@@ -1537,10 +1744,12 @@ void IRGenerator::visit(ForNode &node) {
   currentFunction->addInstruction(std::move(breakInstr));
 }
 
-void IRGenerator::visit(FunctionCallNode &node) {
+void IRGenerator::visit(FunctionCallNode &node)
+{
   // Generate IR for arguments
   std::vector<IRValuePtr> argValues;
-  for (const auto &arg : node.args) {
+  for (const auto &arg : node.args)
+  {
     arg->accept(*this);
     argValues.push_back(std::make_shared<IRValueNode>(*currentValue));
   }
@@ -1550,7 +1759,8 @@ void IRGenerator::visit(FunctionCallNode &node) {
 
   // Check if function returns void
   IRValuePtr result = nullptr;
-  if (node.type->kind != TypeKind::VOID) {
+  if (node.type->kind != TypeKind::VOID)
+  {
     // Create temporary for result with proper type tracking (only for non-void
     // functions)
     result = makeTackyVariable(*node.type);
@@ -1561,10 +1771,13 @@ void IRGenerator::visit(FunctionCallNode &node) {
       funcValue, IRValueNode::makeArgs(argValues), result);
   currentFunction->addInstruction(std::move(callInst));
 
-  if (result) {
+  if (result)
+  {
     currentValue = std::move(result);
     currentExpResult = ExpResult::makePlainOperand(currentValue);
-  } else {
+  }
+  else
+  {
     // For void functions, we don't have a meaningful result
     // Set currentValue to null or a dummy value
     currentValue = nullptr;
@@ -1572,8 +1785,10 @@ void IRGenerator::visit(FunctionCallNode &node) {
   }
 }
 
-IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
-  switch (tokenType) {
+IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType)
+{
+  switch (tokenType)
+  {
   case TokenType::PLUS:
     return IROpType::ADD;
   case TokenType::HYPHEN:
@@ -1617,8 +1832,10 @@ IROpType IRGenerator::tokenTypeToBinaryIR(TokenType tokenType) {
   }
 }
 
-IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType) {
-  switch (tokenType) {
+IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType)
+{
+  switch (tokenType)
+  {
   case TokenType::HYPHEN:
     return IROpType::NEGATE;
   case TokenType::TILDE:
@@ -1630,12 +1847,14 @@ IROpType IRGenerator::tokenTypeToUnaryIR(TokenType tokenType) {
   }
 }
 
-IRValuePtr IRGenerator::createTemporary() {
+IRValuePtr IRGenerator::createTemporary()
+{
   return IRValueNode::makeTemporary(generateTempName());
 }
 
 // Helper function for generating TACKY variables with type tracking
-IRValuePtr IRGenerator::makeTackyVariable(Type varType) {
+IRValuePtr IRGenerator::makeTackyVariable(Type varType)
+{
   std::string varName = generateTempName();
 
   // Add to symbol table with type and LocalAttr
@@ -1649,22 +1868,35 @@ IRValuePtr IRGenerator::makeTackyVariable(Type varType) {
 }
 
 // Helper function to convert ExpResult to IRValuePtr with lvalue conversion
-IRValuePtr IRGenerator::convertExpResult(const ExpResult &result,
-                                         const Type &exprType) {
-  if (result.type == ExpResultType::PLAIN_OPERAND) {
+IRValuePtr IRGenerator::convertExpResult(ExpResult &result,
+                                         const Type &exprType)
+{
+  if (result.type == ExpResultType::PLAIN_OPERAND)
+  {
     // Plain operand - just return as is
     return result.value;
-  } else {
-    // Dereferenced pointer - emit Load instruction
+  }
+  else
+  {
     IRValuePtr dst = makeTackyVariable(exprType);
-    auto loadInst = IRInstructionNode::makeLoad(result.value, dst);
+    IRValuePtr src = result.value;
+    IRValuePtr ptrdst = makeTackyVariable(Type::ULong());
+    while (result.inner)
+    {
+      currentFunction->addInstruction(IRInstructionNode::makeLoad(src, ptrdst));
+      src = ptrdst;
+      result = *result.inner;
+    }
+    // Dereferenced pointer - emit Load instruction
+    auto loadInst = IRInstructionNode::makeLoad(src, dst);
     currentFunction->addInstruction(loadInst);
     return dst;
   }
 }
 
 // Valor class implementation
-IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
+IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast)
+{
   return generator.generateIR(ast);
 }
 
@@ -1672,9 +1904,11 @@ IRProgramPtr Valor::convertToIR(const ASTNodePtr &ast) {
 void IRGenerator::visit(GotoStatement &node) { (void)node; }
 void IRGenerator::visit(LabelStatement &node) { (void)node; }
 
-void IRGenerator::visit(CastExpression &node) {
+void IRGenerator::visit(CastExpression &node)
+{
   // Handle cast to void - just process the inner expression for side effects
-  if (node.targetType.kind == TypeKind::VOID) {
+  if (node.targetType.kind == TypeKind::VOID)
+  {
     // Process the inner expression to execute any side effects
     node.expression->accept(*this);
     // Return a dummy value (the caller won't use it)
@@ -1685,14 +1919,22 @@ void IRGenerator::visit(CastExpression &node) {
 
   // Generate IR for the inner expression
   node.expression->accept(*this);
-  IRValuePtr result = std::make_shared<IRValueNode>(*currentValue);
+  IRValuePtr result;
+  auto exp = dynamic_cast<ExpressionNode *>(node.expression.get());
+  if (currentExpResult.type == ExpResultType::PLAIN_OPERAND)
+    result = std::make_shared<IRValueNode>(*currentValue);
+  else
+  {
+    // Need to load the value from the dereferenced pointer
+    result = convertExpResult(currentExpResult, *exp->type);
+  }
 
   // Get the type we're casting from (the inner expression's type)
-  auto exp = dynamic_cast<ExpressionNode *>(node.expression.get());
   Type innerType = *exp->type;
 
   // If already the correct type, no cast needed
-  if (node.targetType == innerType) {
+  if (node.targetType == innerType)
+  {
     currentValue = result;
     currentExpResult = ExpResult::makePlainOperand(currentValue);
     return;
@@ -1705,16 +1947,19 @@ void IRGenerator::visit(CastExpression &node) {
   Type effectiveInnerType = innerType;
   Type effectiveTargetType = node.targetType;
 
-  if (innerType.kind == TypeKind::POINTER) {
+  if (innerType.kind == TypeKind::POINTER)
+  {
     effectiveInnerType = Type::ULong();
   }
-  if (node.targetType.kind == TypeKind::POINTER) {
+  if (node.targetType.kind == TypeKind::POINTER)
+  {
     effectiveTargetType = Type::ULong();
   }
 
   if (effectiveTargetType.kind == TypeKind::DOUBLE &&
       (effectiveInnerType.kind == TypeKind::INT ||
-       effectiveInnerType.kind == TypeKind::LONG)) {
+       effectiveInnerType.kind == TypeKind::LONG))
+  {
 
     auto longToDoubleInst =
         IRInstructionNode::makeLongToDouble(std::move(result), dst);
@@ -1722,9 +1967,11 @@ void IRGenerator::visit(CastExpression &node) {
     currentValue = dst;
     currentExpResult = ExpResult::makePlainOperand(currentValue);
     return;
-  } else if ((effectiveTargetType.kind == TypeKind::INT ||
-              effectiveTargetType.kind == TypeKind::LONG) &&
-             effectiveInnerType.kind == TypeKind::DOUBLE) {
+  }
+  else if ((effectiveTargetType.kind == TypeKind::INT ||
+            effectiveTargetType.kind == TypeKind::LONG) &&
+           effectiveInnerType.kind == TypeKind::DOUBLE)
+  {
     // Double to Int/Long
     auto doubleToLongInst =
         IRInstructionNode::makeDoubleToLong(std::move(result), dst);
@@ -1732,9 +1979,11 @@ void IRGenerator::visit(CastExpression &node) {
     currentValue = dst;
     currentExpResult = ExpResult::makePlainOperand(currentValue);
     return;
-  } else if (effectiveInnerType.kind == TypeKind::DOUBLE &&
-             (effectiveTargetType.kind == TypeKind::UINT ||
-              effectiveTargetType.kind == TypeKind::ULONG)) {
+  }
+  else if (effectiveInnerType.kind == TypeKind::DOUBLE &&
+           (effectiveTargetType.kind == TypeKind::UINT ||
+            effectiveTargetType.kind == TypeKind::ULONG))
+  {
     // Double to Unsigned Int/Long
     auto doubleToULongInst =
         IRInstructionNode::makeDoubleToULong(std::move(result), dst);
@@ -1742,9 +1991,11 @@ void IRGenerator::visit(CastExpression &node) {
     currentValue = dst;
     currentExpResult = ExpResult::makePlainOperand(currentValue);
     return;
-  } else if ((effectiveInnerType.kind == TypeKind::UINT ||
-              effectiveInnerType.kind == TypeKind::ULONG) &&
-             effectiveTargetType.kind == TypeKind::DOUBLE) {
+  }
+  else if ((effectiveInnerType.kind == TypeKind::UINT ||
+            effectiveInnerType.kind == TypeKind::ULONG) &&
+           effectiveTargetType.kind == TypeKind::DOUBLE)
+  {
 
     auto ulongToDoubleInst =
         IRInstructionNode::makeULongToDouble(std::move(result), dst);
@@ -1754,23 +2005,30 @@ void IRGenerator::visit(CastExpression &node) {
     return;
   }
 
-  if (size(effectiveTargetType.kind) == size(effectiveInnerType.kind)) {
+  if (size(effectiveTargetType.kind) == size(effectiveInnerType.kind))
+  {
     // Same size cast - use copy
     auto copyInst = IRInstructionNode::makeCopy(
         std::move(result), std::make_shared<IRValueNode>(*dst));
     currentFunction->addInstruction(std::move(copyInst));
-  } else if (size(effectiveTargetType.kind) < size(effectiveInnerType.kind)) {
+  }
+  else if (size(effectiveTargetType.kind) < size(effectiveInnerType.kind))
+  {
     // Truncation
     auto truncInst = IRInstructionNode::makeTruncate(std::move(result), dst);
     currentFunction->addInstruction(std::move(truncInst));
-  } else if (effectiveInnerType.kind == TypeKind::INT ||
-             effectiveInnerType.kind == TypeKind::LONG ||
-             effectiveInnerType.kind == TypeKind::DOUBLE) {
+  }
+  else if (effectiveInnerType.kind == TypeKind::INT ||
+           effectiveInnerType.kind == TypeKind::LONG ||
+           effectiveInnerType.kind == TypeKind::DOUBLE)
+  {
     // Sign extension
     auto signExtInst =
         IRInstructionNode::makeSignExtend(std::move(result), dst);
     currentFunction->addInstruction(std::move(signExtInst));
-  } else {
+  }
+  else
+  {
     // Zero extension
     auto zeroExtInst =
         IRInstructionNode::makeZeroExtend(std::move(result), dst);
@@ -1780,60 +2038,69 @@ void IRGenerator::visit(CastExpression &node) {
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
 
-void IRGenerator::visit(DereferenceExpression &node) {
+void IRGenerator::visit(DereferenceExpression &node)
+{
   // Process the pointer expression and perform lvalue conversion
-  if (node.pointerExpr) {
+  if (node.pointerExpr)
+  {
     node.pointerExpr->accept(*this);
-    IRValuePtr ptr = currentValue;
+    auto ptr = currentExpResult;
 
     // Store as dereferenced pointer in currentExpResult
     // The actual Load will happen during lvalue conversion if needed
-    currentExpResult = ExpResult::makeDereferencedPointer(ptr);
-    // For compatibility, also store in currentValue (will be loaded if needed)
-    currentValue = ptr;
+    if (ptr.type != ExpResultType::DEREFERENCED_POINTER)
+      currentExpResult = ExpResult::makeDereferencedPointer(ptr.value, nullptr);
+    else
+    {
+      currentExpResult = ExpResult::makeDereferencedPointer(ptr.value, std::make_shared<ExpResult>(ptr));
+    }
+    // // For compatibility, also store in currentValue (will be loaded if needed)
+    // currentValue = ptr;
   }
 }
 
-void IRGenerator::visit(AddressOfExpression &node) {
-  if (node.variableExpr) {
+void IRGenerator::visit(AddressOfExpression &node)
+{
+  if (node.variableExpr)
+  {
     // Process the inner expression WITHOUT lvalue conversion
     // We need to check if it's a dereference or a regular variable
     auto *derefExpr =
         dynamic_cast<DereferenceExpression *>(node.variableExpr.get());
 
-    if (derefExpr) {
+    if (derefExpr)
+    {
       // &*ptr => just ptr (cancel out dereference)
-      if (derefExpr->pointerExpr) {
+      if (derefExpr->pointerExpr)
+      {
         derefExpr->pointerExpr->accept(*this);
-        // Result is already the pointer, no GetAddress needed
-        currentExpResult = ExpResult::makePlainOperand(currentValue);
       }
-    } else {
+    }
+    else
+    {
       // Regular variable or other expression - use GetAddress
       node.variableExpr->accept(*this);
 
       // Check if result is a dereferenced pointer or plain variable
-      if (currentExpResult.type == ExpResultType::DEREFERENCED_POINTER) {
-        // Taking address of something already dereferenced - just return the
-        // pointer
-        currentValue = currentExpResult.value;
-        currentExpResult = ExpResult::makePlainOperand(currentValue);
-      } else {
+      if (currentExpResult.type != ExpResultType::DEREFERENCED_POINTER)
+      {
         // Plain variable - emit GetAddress instruction
         IRValuePtr src = currentValue;
         IRValuePtr dst = makeTackyVariable(*node.type);
         auto getAddrInst = IRInstructionNode::makeGetAddress(src, dst);
         currentFunction->addInstruction(getAddrInst);
         currentValue = dst;
-        currentExpResult = ExpResult::makePlainOperand(dst);
+        currentExpResult = ExpResult::makePlainOperand(dst);      
       }
     }
   }
 }
-void IRGenerator::visit(StringLiteralExpression &node) {
+void IRGenerator::visit(StringLiteralExpression &node)
+{
   // Check if we're in a function (expression context) or not (static
   // initializer)
-  if (!currentFunction) {
+  if (!currentFunction)
+  {
     // String literal in static context - already handled by semantic analyzer
     return;
   }
@@ -1872,11 +2139,13 @@ void IRGenerator::visit(StringLiteralExpression &node) {
   currentValue = dst;
   currentExpResult = ExpResult::makePlainOperand(dst);
 }
-void IRGenerator::visit(SizeofExpression &node) {
+void IRGenerator::visit(SizeofExpression &node)
+{
   // Get the type of the inner expression WITHOUT evaluating it
   // We just need the type information, not the runtime value
   auto exprNode = dynamic_cast<ExpressionNode *>(node.expr.get());
-  if (!exprNode || !exprNode->type) {
+  if (!exprNode || !exprNode->type)
+  {
     return;
   }
 
@@ -1889,7 +2158,8 @@ void IRGenerator::visit(SizeofExpression &node) {
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
 
-void IRGenerator::visit(SizeofTypeExpression &node) {
+void IRGenerator::visit(SizeofTypeExpression &node)
+{
   // Calculate the size in bytes at compile time
   int sizeInBytes = getTypeSize(*node.typeOperand);
 
@@ -1898,70 +2168,90 @@ void IRGenerator::visit(SizeofTypeExpression &node) {
       IRValueNode::makeConstant(static_cast<unsigned long>(sizeInBytes));
   currentExpResult = ExpResult::makePlainOperand(currentValue);
 }
-void IRGenerator::visit(ForInit &node) { /* TODO: Implement for loops */ }
-void IRGenerator::visit(InitDecl &node) {
+void IRGenerator::visit(ForInit &node) { (void)node; /* TODO: Implement for loop initializations */ }
+void IRGenerator::visit(InitDecl &node)
+{
   node.init->accept(*this); /* TODO: Implement declarations */
 }
-void IRGenerator::visit(InitExp &node) {
+void IRGenerator::visit(InitExp &node)
+{
   node.init.value()->accept(*this); /* TODO: Implement expressions */
 }
-void IRGenerator::visit(Ident &node) {
+void IRGenerator::visit(Ident &node)
+{
   (void)node; /* Not needed for basic IR generation */
 }
-void IRGenerator::visit(DeclaratorNode &node) {
+void IRGenerator::visit(DeclaratorNode &node)
+{
   (void)node; /* Not needed for basic IR generation */
 }
-void IRGenerator::visit(PointerDeclarator &node) {
+void IRGenerator::visit(PointerDeclarator &node)
+{
   (void)node; /* Not needed for basic IR generation */
 }
-void IRGenerator::visit(FunDeclarator &node) {
+void IRGenerator::visit(FunDeclarator &node)
+{
   (void)node; /* Not needed for basic IR generation */
 }
-void IRGenerator::visit(paraminfo &node) {
+void IRGenerator::visit(paraminfo &node)
+{
   (void)node; /* Not needed for basic IR generation */
 }
 void IRGenerator::visit(AbstractPointer &node) { (void)node; }
 void IRGenerator::visit(AbstractBase &node) { (void)node; }
-void IRGenerator::visit(Type &node) {
+void IRGenerator::visit(Type &node)
+{
   (void)node; /* Not needed for basic IR generation */
 }
-void IRGenerator::visit(DeclarationNode &node) {
+void IRGenerator::visit(DeclarationNode &node)
+{
   (void)node; /* Handle declarations if needed */
 }
 void IRGenerator::visit(NullStatement &node) { (void)node; /* Nothing to do */ }
 void IRGenerator::visit(ArrayDeclarator &node) { (void)node; }
 void IRGenerator::visit(AbstractArray &node) { (void)node; }
-void IRGenerator::visit(InitializerNode &node) {
-  if (node.kind == InitializerKind::SINGLE_INIT) {
+void IRGenerator::visit(InitializerNode &node)
+{
+  if (node.kind == InitializerKind::SINGLE_INIT)
+  {
     auto &singleInit = std::get<SingleInit>(node.data);
-    if (singleInit.expression) {
+    if (singleInit.expression)
+    {
       singleInit.expression->accept(*this);
     }
-  } else if (node.kind == InitializerKind::COMPOUND_INIT) {
+  }
+  else if (node.kind == InitializerKind::COMPOUND_INIT)
+  {
     auto &initList = std::get<CompoundInit>(node.data);
-    for (auto &init : initList.initializers) {
+    for (auto &init : initList.initializers)
+    {
       init.accept(*this);
     }
   }
 }
-void IRGenerator::visit(SubscriptExpression &node) {
+void IRGenerator::visit(SubscriptExpression &node)
+{
   // Process array expression
-  if (node.arrayExpr) {
+  if (node.arrayExpr)
+  {
     node.arrayExpr->accept(*this);
   }
   auto arrayExprNode = dynamic_cast<ExpressionNode *>(node.arrayExpr.get());
-  if (!arrayExprNode || !arrayExprNode->type) {
+  if (!arrayExprNode || !arrayExprNode->type)
+  {
     return;
   }
   IRValuePtr arrayValue =
       convertExpResult(currentExpResult, *arrayExprNode->type);
 
   // Process index expression
-  if (node.indexExpr) {
+  if (node.indexExpr)
+  {
     node.indexExpr->accept(*this);
   }
   auto indexExprNode = dynamic_cast<ExpressionNode *>(node.indexExpr.get());
-  if (!indexExprNode || !indexExprNode->type) {
+  if (!indexExprNode || !indexExprNode->type)
+  {
     return;
   }
   IRValuePtr indexValue =
@@ -1971,15 +2261,20 @@ void IRGenerator::visit(SubscriptExpression &node) {
   IRValuePtr ptrValue;
   IRValuePtr offsetValue;
 
-  if (arrayExprNode->type->kind == TypeKind::POINTER) {
+  if (arrayExprNode->type->kind == TypeKind::POINTER)
+  {
     // arrayExpr is the pointer, indexExpr is the offset
     ptrValue = std::move(arrayValue);
     offsetValue = std::move(indexValue);
-  } else if (indexExprNode->type->kind == TypeKind::POINTER) {
+  }
+  else if (indexExprNode->type->kind == TypeKind::POINTER)
+  {
     // indexExpr is the pointer, arrayExpr is the offset (e.g., idx[arr])
     ptrValue = std::move(indexValue);
     offsetValue = std::move(arrayValue);
-  } else {
+  }
+  else
+  {
     // Neither is a pointer - error case
     return;
   }
@@ -1996,7 +2291,7 @@ void IRGenerator::visit(SubscriptExpression &node) {
 
   // Return DereferencedPointer since subscripting is equivalent to *(ptr +
   // index)
-  currentExpResult = ExpResult::makeDereferencedPointer(result);
+  currentExpResult = ExpResult::makeDereferencedPointer(result, nullptr);
   currentValue = result;
 }
 

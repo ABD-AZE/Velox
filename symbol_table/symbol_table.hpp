@@ -51,6 +51,7 @@ public:
       break;
     case TypeKind::LONG:
     case TypeKind::ULONG:
+    case TypeKind::POINTER:
       assemblyType = AssemblyType::QUAD_WORD;
       break;
     case TypeKind::DOUBLE:
