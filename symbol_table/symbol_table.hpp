@@ -14,6 +14,7 @@ enum class AssemblyType {
   LONG_WORD,
   QUAD_WORD,
   DOUBLE_WORD,
+  BYTE_ARRAY,
 };
 
 extern bool operator==(const StorageClass &a, const LinkageType &b);
@@ -56,6 +57,9 @@ public:
       break;
     case TypeKind::DOUBLE:
       assemblyType = AssemblyType::DOUBLE_WORD;
+      break;
+    case TypeKind::ARRAY:
+      assemblyType = AssemblyType::BYTE_ARRAY;
       break;
     default:
       assemblyType = AssemblyType::LONG_WORD; // default
