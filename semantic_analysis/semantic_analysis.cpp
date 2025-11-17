@@ -1924,7 +1924,7 @@ void SemanticAnalyzer::visit(ContinueNode &node) {
   }
 }
 
-void SemanticAnalyzer::visit(ForInit &node) {}
+void SemanticAnalyzer::visit(ForInit &node) {(void)node;}
 
 void SemanticAnalyzer::visit(InitDecl &node) {
   auto varnode = dynamic_cast<VarDeclNode *>(node.init.get());

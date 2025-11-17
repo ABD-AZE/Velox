@@ -483,7 +483,7 @@ void ASTPrinter::visit(InitExp &node) {
   print_close(indent_);
 }
 
-void ASTPrinter::visit(ForInit &node) {}
+void ASTPrinter::visit(ForInit &node) { (void)node; }
 
 void ASTPrinter::visit(BreakNode &node) {
   print_open("Break", indent_);
