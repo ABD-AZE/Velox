@@ -70,7 +70,7 @@
 
 #### Syntax Restrictions
 - **Multiple declarations**: Declaration like `int x, y;` are not supported. Use separate lines: `int x;` and `int y;`
-- **Empty parameter lists**: You must explicitly add `void`. Write `int foo(void);` instead of `int foo();`
+- **Self-referencing initializers**: Initializers cannot reference the variable being declared. `int a = a + 1;` is not supported. Declare first, then assign: `int a; a = a + 1;`
 - **Unnamed parameters**: Function declarations must name all parameters. Write `int foo(int a, int b);` instead of `int foo(int, int);`
 - **Array parameters**: Not supported. Rewrite `int foo(int a[])` to `int foo(int *a)`
 - **Const keyword**: Not supported
@@ -88,7 +88,7 @@
 
 ## Resources
 
-Our compiler implementation draws primarily from Nora Sandler's **"Writing a C Compiler"** book, the test suite credit also goes to Nora Sandler.
+Our compiler implementation draws primarily from Nora Sandler's **"Writing a C Compiler"** book, the test suite credit also goes to Nora Sandler. The test suite can be found at: https://github.com/nlsandler/writing-a-c-compiler-tests
 
 ## Building Velox
 
@@ -165,8 +165,6 @@ find -name "*.[ch]pp" | xargs clang-format -i
 3. Make your changes
 4. Ensure your code is formatted
 5. Submit a pull request
-
-More detailed contribution guidelines will be added as the project evolves.
 
 ## Authors
 
