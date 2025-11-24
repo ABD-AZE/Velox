@@ -1,0 +1,55 @@
+// Test function calls with arguments and return values
+int printf(char* fmt, ...);
+
+// Function declarations
+int add(int a, int b);
+int multiply(int x, int y);
+float divide(float a, float b);
+void printMessage(char* msg);
+int max(int a, int b, int c);
+
+int main() {
+    int result1 = add(5, 3);
+    printf("5 + 3 = %d\n", result1);
+    
+    int result2 = multiply(4, 7);
+    printf("4 * 7 = %d\n", result2);
+    
+    float result3 = divide(10.0, 3.0);
+    printf("10.0 / 3.0 = %f\n", result3);
+    
+    printMessage("Hello from function!\n");
+    
+    int maxVal = max(15, 23, 8);
+    printf("Max of (15, 23, 8) = %d\n", maxVal);
+    
+    return 0;
+}
+
+// Function definitions
+int add(int a, int b) {
+    return a + b;
+}
+
+int multiply(int x, int y) {
+    return x * y;
+}
+
+float divide(float a, float b) {
+    return a / b;
+}
+
+void printMessage(char* msg) {
+    printf("%s", msg);
+}
+
+int max(int a, int b, int c) {
+    int m = a;
+    if (b > m) {
+        m = b;
+    }
+    if (c > m) {
+        m = c;
+    }
+    return m;
+}

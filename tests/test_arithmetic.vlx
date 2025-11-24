@@ -1,0 +1,33 @@
+// Test arithmetic operators: +, -, *, /, %
+int printf(char* fmt, ...);
+
+int main() {
+    int a = 10;
+    int b = 3;
+    
+    // Addition
+    int sum = a + b;
+    printf("Addition: %d + %d = %d\n", a, b, sum);
+    
+    // Subtraction
+    int diff = a - b;
+    printf("Subtraction: %d - %d = %d\n", a, b, diff);
+    
+    // Multiplication
+    int prod = a * b;
+    printf("Multiplication: %d * %d = %d\n", a, b, prod);
+    
+    // Division
+    int quot = a / b;
+    printf("Division: %d / %d = %d\n", a, b, quot);
+    
+    // Modulus
+    int rem = a % b;
+    printf("Modulus: %d %% %d = %d\n", a, b, rem);
+    
+    // Complex expression
+    int result = (a + b) * (a - b) / 2;
+    printf("Complex: (%d + %d) * (%d - %d) / 2 = %d\n", a, b, a, b, result);
+    
+    return 0;
+}

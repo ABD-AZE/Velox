@@ -1,0 +1,28 @@
+// Test variadic functions (variable arguments)
+int printf(char* fmt, ...);
+
+// Note: If your compiler doesn't support stdarg.h,
+// this test demonstrates the concept but may need library support
+
+// Simple variadic function to sum integers
+// First argument is count of numbers
+int sum_all(int count, ...) {
+    // This is a simplified version - full implementation needs va_list
+    // For demonstration purposes only
+    return 0;
+}
+
+int main() {
+    // Printf itself is a variadic function
+    printf("Printf is variadic:\n");
+    printf("Integer: %d\n", 42);
+    printf("String: %s\n", "Hello");
+    printf("Multiple: %d, %d, %d\n", 1, 2, 3);
+    printf("Mixed: %s has %d apples\n", "John", 5);
+    
+    // Note: Full variadic function support requires va_list, va_start, va_arg, va_end
+    // which typically come from stdarg.h
+    printf("\nVariadic functions require library support (stdarg.h)\n");
+    
+    return 0;
+}

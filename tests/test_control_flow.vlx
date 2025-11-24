@@ -1,0 +1,50 @@
+// Test goto, break, and continue statements
+int printf(char* fmt, ...);
+
+int main() {
+    int i;
+    
+    // Break statement
+    printf("Break example: ");
+    for (i = 1; i <= 10; i = i + 1) {
+        if (i == 6) {
+            break;
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    
+    // Continue statement
+    printf("Continue example (skip evens): ");
+    for (i = 1; i <= 10; i = i + 1) {
+        if (i % 2 == 0) {
+            continue;
+        }
+        printf("%d ", i);
+    }
+    printf("\n");
+    
+    // Goto statement
+    printf("Goto example: ");
+    i = 1;
+    start:
+    if (i <= 5) {
+        printf("%d ", i);
+        i = i + 1;
+        goto start;
+    }
+    printf("\n");
+    
+    // Goto for error handling
+    int error = 0;
+    printf("Simulating error handling...\n");
+    if (error) {
+        goto cleanup;
+    }
+    printf("No errors!\n");
+    
+    cleanup:
+    printf("Cleanup complete.\n");
+    
+    return 0;
+}

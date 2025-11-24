@@ -1,0 +1,47 @@
+// Test recursive functions
+int printf(char* fmt, ...);
+
+// Recursive factorial
+int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+// Recursive fibonacci
+int fibonacci(int n) {
+    if (n <= 1) {
+        return n;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// Recursive sum
+int sum(int n) {
+    if (n == 0) {
+        return 0;
+    }
+    return n + sum(n - 1);
+}
+
+// Recursive power
+int power(int base, int exp) {
+    if (exp == 0) {
+        return 1;
+    }
+    return base * power(base, exp - 1);
+}
+
+int main() {
+    printf("Factorial of 5: %d\n", factorial(5));
+    printf("Factorial of 7: %d\n", factorial(7));
+    
+    printf("Fibonacci of 10: %d\n", fibonacci(10));
+    
+    printf("Sum 1 to 10: %d\n", sum(10));
+    
+    printf("2^8 = %d\n", power(2, 8));
+    
+    return 0;
+}

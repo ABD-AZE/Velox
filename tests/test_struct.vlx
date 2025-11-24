@@ -1,0 +1,44 @@
+// Test structure definition and usage
+int printf(char* fmt, ...);
+
+struct Point {
+    int x;
+    int y;
+};
+
+struct Student {
+    char name[20];
+    int age;
+    float gpa;
+};
+
+int main() {
+    // Create and initialize struct
+    struct Point p1;
+    p1.x = 10;
+    p1.y = 20;
+    
+    printf("Point: (%d, %d)\n", p1.x, p1.y);
+    
+    // Struct with initialization
+    struct Point p2 = {30, 40};
+    printf("Point 2: (%d, %d)\n", p2.x, p2.y);
+    
+    // More complex struct
+    struct Student s;
+    s.name[0] = 'J';
+    s.name[1] = 'o';
+    s.name[2] = 'h';
+    s.name[3] = 'n';
+    s.name[4] = '\0';
+    s.age = 20;
+    s.gpa = 3.8;
+    
+    printf("Student: %s, Age: %d\n", s.name, s.age);
+    
+    // Pointer to struct
+    struct Point* ptr = &p1;
+    printf("Accessing via pointer: (%d, %d)\n", ptr->x, ptr->y);
+    
+    return 0;
+}

@@ -1,0 +1,30 @@
+// Test printf and scanf functions
+int printf(char* fmt, ...);
+int scanf(char* fmt, ...);
+
+int main() {
+    int num;
+    char ch;
+    float f;
+    
+    // Printf tests
+    printf("Enter an integer: ");
+    scanf("%d", &num);
+    printf("You entered: %d\n", num);
+    
+    printf("Enter a character: ");
+    scanf(" %c", &ch);
+    printf("You entered: %c\n", ch);
+    
+    printf("Enter a float: ");
+    scanf("%f", &f);
+    printf("You entered: %f\n", f);
+    
+    // Multiple values
+    int a, b;
+    printf("Enter two integers: ");
+    scanf("%d %d", &a, &b);
+    printf("Sum: %d + %d = %d\n", a, b, a + b);
+    
+    return 0;
+}

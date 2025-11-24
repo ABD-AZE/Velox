@@ -1,0 +1,43 @@
+// Test for, while, and do-while loops
+int printf(char* fmt, ...);
+
+int main() {
+    int i;
+    
+    // For loop
+    printf("For loop: ");
+    for (i = 1; i <= 5; i = i + 1) {
+        printf("%d ", i);
+    }
+    printf("\n");
+    
+    // While loop
+    printf("While loop: ");
+    i = 1;
+    while (i <= 5) {
+        printf("%d ", i);
+        i = i + 1;
+    }
+    printf("\n");
+    
+    // Do-while loop
+    printf("Do-while loop: ");
+    i = 1;
+    do {
+        printf("%d ", i);
+        i = i + 1;
+    } while (i <= 5);
+    printf("\n");
+    
+    // Nested loop
+    printf("Nested loop:\n");
+    for (i = 1; i <= 3; i = i + 1) {
+        int j;
+        for (j = 1; j <= 3; j = j + 1) {
+            printf("%d,%d ", i, j);
+        }
+        printf("\n");
+    }
+    
+    return 0;
+}
