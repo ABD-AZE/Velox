@@ -4,176 +4,278 @@
 #include "parser/parser.hpp"
 #include "semantic_analysis/semantic_analysis.hpp"
 #include "valor/valor.hpp"
+#include <cstdio>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <vector>
 
-void cleanup(const std::string &filename);
+struct CompilerOptions {
+  std::string inputFile;
+  std::string outputFile;
+  bool stopAfterLex = false;
+  bool stopAfterParse = false;
+  bool stopAfterValidate = false;
+  bool stopAfterIR = false;
+  bool stopAfterCodegen = false;
+  bool stopAfterAsm = false;
+  bool stopAfterObject = false;
+  bool verbose = false;
+  std::vector<std::string> linkLibs;
+};
 
-int main(int argc, char *argv[]) {
-  bool lexflag = 0;
-  bool parseflag = 0;
-  bool irflag = 0;
-  bool validateflag = 0;
-  bool codegenflag = 0;
-  bool asmflag = 0;
-  bool objectflag = 0;
-  std::string linklibs = "";
-  // if (argc < 2) {
-  //   std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
-  //   return 1;
-  // }
-  std::string source = "tests/parser_tests/test1.vlx";
-  // set the flags based on --parse and --lex options
+void printUsage(const char *progName) {
+  std::cerr << "Usage: " << progName << " [options] <source-file>\n\n";
+  std::cerr << "Options:\n";
+  std::cerr << "  -o <file>      Place output in <file>\n";
+  std::cerr << "  -S             Compile only; generate assembly file\n";
+  std::cerr << "  -c             Compile and assemble; generate object file\n";
+  std::cerr << "  -l<library>    Link with library\n";
+  std::cerr << "  --lex          Stop after lexical analysis\n";
+  std::cerr << "  --parse        Stop after parsing\n";
+  std::cerr << "  --validate     Stop after semantic analysis\n";
+  std::cerr << "  --tacky        Stop after IR generation\n";
+  std::cerr << "  --codegen      Stop after code generation\n";
+  std::cerr << "  -v, --verbose  Enable verbose output\n";
+  std::cerr << "  -h, --help     Display this help message\n";
+}
+
+bool parseArguments(int argc, char *argv[], CompilerOptions &opts) {
+  if (argc < 2) {
+    return false;
+  }
+
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if (arg == "--parse") {
-      parseflag = 1;
+
+    if (arg == "-h" || arg == "--help") {
+      return false;
+    } else if (arg == "-v" || arg == "--verbose") {
+      opts.verbose = true;
     } else if (arg == "--lex") {
-      lexflag = 1;
-    } else if (arg == "--tacky") {
-      irflag = 1;
+      opts.stopAfterLex = true;
+    } else if (arg == "--parse") {
+      opts.stopAfterParse = true;
     } else if (arg == "--validate") {
-      validateflag = 1;
+      opts.stopAfterValidate = true;
+    } else if (arg == "--tacky") {
+      opts.stopAfterIR = true;
     } else if (arg == "--codegen") {
-      codegenflag = 1;
+      opts.stopAfterCodegen = true;
     } else if (arg == "-S") {
-      asmflag = 1;
+      opts.stopAfterAsm = true;
     } else if (arg == "-c") {
-      objectflag = 1;
-    } else if (arg[0] == '-' && arg[1] == 'l') {
-      linklibs += " " + arg;
+      opts.stopAfterObject = true;
+    } else if (arg == "-o") {
+      if (i + 1 < argc) {
+        opts.outputFile = argv[++i];
+      } else {
+        std::cerr << "Error: -o requires an argument\n";
+        return false;
+      }
+    } else if (arg.substr(0, 2) == "-l") {
+      opts.linkLibs.push_back(arg);
+    } else if (arg[0] == '-') {
+      std::cerr << "Error: Unknown option: " << arg << "\n";
+      return false;
     } else {
-      source = arg;
+      if (!opts.inputFile.empty()) {
+        std::cerr << "Error: Multiple input files specified\n";
+        return false;
+      }
+      opts.inputFile = arg;
     }
   }
-  if (source.empty()) {
+
+  if (opts.inputFile.empty()) {
+    std::cerr << "Error: No input file specified\n";
+    return false;
+  }
+
+  return true;
+}
+
+std::string getBaseName(const std::string &path) {
+  size_t lastDot = path.find_last_of('.');
+  size_t lastSlash = path.find_last_of('/');
+
+  if (lastSlash == std::string::npos) {
+    lastSlash = 0;
+  } else {
+    lastSlash++;
+  }
+
+  if (lastDot != std::string::npos && lastDot > lastSlash) {
+    return path.substr(lastSlash, lastDot - lastSlash);
+  }
+  return path.substr(lastSlash);
+}
+
+void cleanupFile(const std::string &filename) { std::remove(filename.c_str()); }
+
+int main(int argc, char *argv[]) {
+  CompilerOptions opts;
+
+  if (!parseArguments(argc, argv, opts)) {
+    printUsage(argv[0]);
     return 1;
   }
-  // run the preprocessor
-  std::string preprocessedfile =
-      source.substr(0, source.find_last_of('.')) + ".i";
-  std::string command = "gcc -E -P -x c " + source + " -o " + preprocessedfile;
-  int ret = system(command.c_str());
+
+  std::string baseName = getBaseName(opts.inputFile);
+  std::string preprocessedFile = baseName + ".i";
+  std::string asmFile = baseName + ".s";
+  std::string objFile = baseName + ".o";
+  std::string exeFile = opts.outputFile.empty() ? baseName : opts.outputFile;
+
+  // Preprocessing
+  std::string ppCmd =
+      "gcc -E -P -x c " + opts.inputFile + " -o " + preprocessedFile + " 2>&1";
+  int ret = system(ppCmd.c_str());
   if (ret != 0) {
-    std::cerr << "Preprocessing failed." << std::endl;
-    cleanup(preprocessedfile);
+    std::cerr << "velox: error: preprocessing failed\n";
+    cleanupFile(preprocessedFile);
     return 1;
   }
-  source = preprocessedfile;
-  Lexer lexer(source);
+
+  // Lexical Analysis
+  Lexer lexer(preprocessedFile);
   lexer.GenerateTokens();
+
   if (!lexer.success) {
-    std::cerr << "Lexical analysis failed with errors." << std::endl;
+    std::cerr << "velox: error: lexical analysis failed\n";
     lexer.PrintErrors();
-    cleanup(preprocessedfile);
+    cleanupFile(preprocessedFile);
     return 1;
   }
-  lexer.PrintTokens();
-  if (lexflag) {
-    cleanup(preprocessedfile);
+
+  if (opts.verbose) {
+    lexer.PrintTokens();
+  }
+
+  if (opts.stopAfterLex) {
+    cleanupFile(preprocessedFile);
     return 0;
   }
 
+  // Parsing
   Parser parser(lexer.GetTokens());
   ASTNodePtr &ast = parser.parseProgram();
+
   if (!parser.isSuccessful()) {
-    std::cerr << "Parsing failed with errors." << std::endl;
+    std::cerr << "velox: error: parsing failed\n";
     parser.printErrors();
-    cleanup(preprocessedfile);
+    cleanupFile(preprocessedFile);
     return 1;
   }
 
-  std::cout << "=== AST (Before Semantic Analysis) ===" << std::endl;
-  ASTPrinter::print(ast);
+  if (opts.verbose) {
+    std::cout << "=== AST (Before Semantic Analysis) ===\n";
+    ASTPrinter::print(ast);
+  }
 
-  if (parseflag) {
-    cleanup(preprocessedfile);
+  if (opts.stopAfterParse) {
+    cleanupFile(preprocessedFile);
     return 0;
   }
 
-  // Run semantic analysis
+  // Semantic Analysis
   SemanticAnalyzer semanticAnalyzer;
   semanticAnalyzer.analyze(ast);
 
   if (!semanticAnalyzer.success) {
-    std::cerr << "Semantic analysis failed with errors." << std::endl;
+    std::cerr << "velox: error: semantic analysis failed\n";
     for (const auto &error : semanticAnalyzer.errors) {
-      std::cerr << "  " << error << std::endl;
+      std::cerr << "  " << error << "\n";
     }
-    cleanup(preprocessedfile);
+    cleanupFile(preprocessedFile);
     return 1;
   }
 
-  std::cout << "\n=== AST (After Semantic Analysis) ===" << std::endl;
-  ASTPrinter::print(ast);
-  if (validateflag) {
-    cleanup(preprocessedfile);
+  if (opts.verbose) {
+    std::cout << "\n=== AST (After Semantic Analysis) ===\n";
+    ASTPrinter::print(ast);
+  }
+
+  if (opts.stopAfterValidate) {
+    cleanupFile(preprocessedFile);
     return 0;
   }
 
-  // Generate IR
+  // IR Generation
   Valor valor(semanticAnalyzer.label_counter);
   auto irProgram = valor.convertToIR(ast);
-  std::cout << "\n=== IR ===" << std::endl;
-  std::cout << irProgram->toString() << std::endl;
-  // writing the IR in a file
-  std::ofstream irFile("output.ir");
-  if (irFile.is_open()) {
-    irFile << irProgram->toString();
-    irFile.close();
+
+  if (opts.verbose) {
+    std::cout << "\n=== IR ===\n";
+    std::cout << irProgram->toString() << std::endl;
   }
-  if (irflag) {
-    cleanup(preprocessedfile);
+
+  if (opts.stopAfterIR) {
+    cleanupFile(preprocessedFile);
     return 0;
   }
 
-  // Code generation
+  // Code Generation
   Codegen codegenerator;
   auto asmProgram = codegenerator.generateCode(irProgram);
-  if (codegenflag) {
-    cleanup(preprocessedfile);
+
+  if (opts.stopAfterCodegen) {
+    cleanupFile(preprocessedFile);
     return 0;
-  }
-  std::string asmfile;
-  asmfile = source.substr(0, source.find_last_of('.')) + ".s";
-  std::ofstream asmOutputFile(asmfile);
-  if (asmOutputFile.is_open()) {
-    asmOutputFile << asmProgram->toString();
-    asmOutputFile.close();
-    std::cout << "Assembly code written to " << asmfile << std::endl;
-  } else {
-    std::cerr << "Failed to write assembly code to " << asmfile << std::endl;
   }
 
-  if (asmflag) {
-    cleanup(preprocessedfile);
-    return 0;
-  }
-  // Assemble to object file
-  std::string objfile;
-  objfile = source.substr(0, source.find_last_of('.')) + ".o";
-  auto cmd2 = "gcc -m64 -c " + asmfile + " -o " + objfile;
-  ret = system(cmd2.c_str());
-  if (ret != 0) {
-    std::cerr << "Assembly to object file failed." << std::endl;
-    cleanup(preprocessedfile);
+  // Write Assembly File
+  std::ofstream asmOutputFile(asmFile);
+  if (!asmOutputFile.is_open()) {
+    std::cerr << "velox: error: cannot create assembly file: " << asmFile
+              << "\n";
+    cleanupFile(preprocessedFile);
     return 1;
   }
-  if (objectflag) {
-    cleanup(preprocessedfile);
+  asmOutputFile << asmProgram->toString();
+  asmOutputFile.close();
+
+  cleanupFile(preprocessedFile);
+
+  if (opts.stopAfterAsm) {
+    if (!opts.outputFile.empty()) {
+      std::rename(asmFile.c_str(), opts.outputFile.c_str());
+    }
     return 0;
   }
-  // Link to executable
-  auto cmd = "gcc -m64 " + asmfile + " -o " +
-             source.substr(0, source.find_last_of('.')) + linklibs;
-  ret = system(cmd.c_str());
-  if (ret != 0) {
-    std::cerr << "Linking failed." << std::endl;
-  }
-  cleanup(preprocessedfile);
-  return 0;
-}
 
-void cleanup(const std::string &filename) {
-  if (std::remove(filename.c_str()) != 0) {
-    std::cerr << "Error deleting file: " << filename << std::endl;
+  // Assemble to Object File
+  std::string asmCmd = "gcc -m64 -c " + asmFile + " -o " + objFile + " 2>&1";
+  ret = system(asmCmd.c_str());
+  if (ret != 0) {
+    std::cerr << "velox: error: assembly failed\n";
+    cleanupFile(asmFile);
+    return 1;
   }
+
+  cleanupFile(asmFile);
+
+  if (opts.stopAfterObject) {
+    if (!opts.outputFile.empty()) {
+      std::rename(objFile.c_str(), opts.outputFile.c_str());
+    }
+    return 0;
+  }
+
+  // Link to Executable
+  std::string linkCmd = "gcc -m64 " + objFile + " -o " + exeFile;
+  for (const auto &lib : opts.linkLibs) {
+    linkCmd += " " + lib;
+  }
+  linkCmd += " 2>&1";
+
+  ret = system(linkCmd.c_str());
+  cleanupFile(objFile);
+
+  if (ret != 0) {
+    std::cerr << "velox: error: linking failed\n";
+    return 1;
+  }
+
+  return 0;
 }
