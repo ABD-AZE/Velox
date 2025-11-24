@@ -1,0 +1,30 @@
+// Test basic pointer operations
+int printf(char* fmt, ...);
+
+int main() {
+    int x = 42;
+    int* ptr = &x;
+    
+    // Pointer basics
+    printf("Value of x: %d\n", x);
+    printf("Address of x: %p\n", &x);
+    printf("Value of ptr: %p\n", ptr);
+    printf("Value pointed to by ptr: %d\n", *ptr);
+    
+    // Modify through pointer
+    *ptr = 100;
+    printf("After *ptr = 100, x = %d\n", x);
+    
+    // Pointer arithmetic with array
+    int arr[5] = {1, 2, 3, 4, 5};
+    int* p = arr;
+    
+    printf("Array elements using pointer: ");
+    int i;
+    for (i = 0; i < 5; i = i + 1) {
+        printf("%d ", *(p + i));
+    }
+    printf("\n");
+    
+    return 0;
+}

@@ -1,0 +1,40 @@
+// Test static keyword
+int printf(char* fmt, ...);
+
+// Static global variable (file scope)
+static int globalCount = 0;
+
+// Function with static local variable
+int counter() {
+    static int count = 0;
+    count = count + 1;
+    return count;
+}
+
+// Another function with static local
+int accumulate(int val) {
+    static int sum = 0;
+    sum = sum + val;
+    return sum;
+}
+
+int main() {
+    printf("Testing static local variable:\n");
+    
+    // Call counter multiple times
+    printf("Counter call 1: %d\n", counter());
+    printf("Counter call 2: %d\n", counter());
+    printf("Counter call 3: %d\n", counter());
+    
+    // Test accumulator
+    printf("\nTesting accumulator:\n");
+    printf("Accumulate 5: %d\n", accumulate(5));
+    printf("Accumulate 10: %d\n", accumulate(10));
+    printf("Accumulate 3: %d\n", accumulate(3));
+    
+    // Test static global
+    globalCount = 100;
+    printf("\nGlobal count: %d\n", globalCount);
+    
+    return 0;
+}

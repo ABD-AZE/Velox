@@ -1,0 +1,52 @@
+// Test dynamic memory allocation (malloc, free, calloc)
+int printf(char* fmt, ...);
+void* malloc(int size);
+void free(void* ptr);
+void* calloc(int num, int size);
+
+int main() {
+    // Allocate memory for an integer
+    int* ptr = (int*)malloc(sizeof(int));
+    if (ptr == 0) {
+        printf("Memory allocation failed!\n");
+        return 1;
+    }
+    
+    *ptr = 42;
+    printf("Value at allocated memory: %d\n", *ptr);
+    free(ptr);
+    
+    // Allocate array dynamically
+    int size = 5;
+    int* arr = (int*)malloc(size * sizeof(int));
+    if (arr == 0) {
+        printf("Array allocation failed!\n");
+        return 1;
+    }
+    
+    // Initialize array
+    int i;
+    for (i = 0; i < size; i = i + 1) {
+        arr[i] = i * 10;
+    }
+    
+    printf("Dynamic array: ");
+    for (i = 0; i < size; i = i + 1) {
+        printf("%d ", arr[i]);
+    }
+    printf("\n");
+    free(arr);
+    
+    // Calloc (allocates and zeros memory)
+    int* zeros = (int*)calloc(5, sizeof(int));
+    if (zeros != 0) {
+        printf("Calloc'd array: ");
+        for (i = 0; i < 5; i = i + 1) {
+            printf("%d ", zeros[i]);
+        }
+        printf("\n");
+        free(zeros);
+    }
+    
+    return 0;
+}

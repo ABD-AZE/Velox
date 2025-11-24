@@ -1,0 +1,38 @@
+// Test logical operators: &&, ||, !, ==, !=, <, >, <=, >=
+int printf(char* fmt, ...);
+
+int main() {
+    int a = 5;
+    int b = 10;
+    int c = 5;
+    
+    // Equality
+    printf("Equality: %d == %d is %d\n", a, b, a == b);
+    printf("Equality: %d == %d is %d\n", a, c, a == c);
+    
+    // Inequality
+    printf("Inequality: %d != %d is %d\n", a, b, a != b);
+    
+    // Less than
+    printf("Less than: %d < %d is %d\n", a, b, a < b);
+    
+    // Greater than
+    printf("Greater than: %d > %d is %d\n", a, b, a > b);
+    
+    // Less than or equal
+    printf("Less than or equal: %d <= %d is %d\n", a, c, a <= c);
+    
+    // Greater than or equal
+    printf("Greater than or equal: %d >= %d is %d\n", a, c, a >= c);
+    
+    // Logical AND
+    printf("Logical AND: (%d < %d) && (%d > 0) is %d\n", a, b, a, (a < b) && (a > 0));
+    
+    // Logical OR
+    printf("Logical OR: (%d > %d) || (%d > 0) is %d\n", a, b, a, (a > b) || (a > 0));
+    
+    // Logical NOT
+    printf("Logical NOT: !(%d > %d) is %d\n", a, b, !(a > b));
+    
+    return 0;
+}
