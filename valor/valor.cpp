@@ -3,6 +3,7 @@
 #include <functional>
 #include <iostream>
 #include <sstream>
+#include <cassert>
 
 // IRInstructionNode implementation
 std::string IRInstructionNode::toString() const
@@ -692,8 +693,53 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
           dynamic_cast<ExpressionNode *>(singleInit.expression.get());
       if (exprNode && exprNode->type)
       {
+        // Get the value, performing lvalue-to-rvalue conversion if needed
         IRValuePtr exprValue =
-            convertExpResult(currentExpResult, *exprNode->type);
+            currentExpResult.type == ExpResultType::PLAIN_OPERAND
+                ? currentValue
+                : convertExpResult(currentExpResult, *exprNode->type);
+        
+        // Now check if we need type conversion to match the target type
+        // Create a mutable copy for comparison
+        Type mutableVarType = varType;
+        if (*exprNode->type != mutableVarType)
+        {
+          // Need to convert the expression type to the target type
+          IRValuePtr convertedValue = makeTackyVariable(varType);
+          
+          // Emit the appropriate conversion instruction
+          Type srcType = *exprNode->type;
+          Type dstType = varType;
+          
+          // Handle pointer types - treat as ULong
+          if (srcType.kind == TypeKind::POINTER) {
+            srcType = Type::ULong();
+          }
+          if (dstType.kind == TypeKind::POINTER) {
+            dstType = Type::ULong();
+          }
+          
+          if (size(dstType.kind) == size(srcType.kind)) {
+            // Same size - just copy
+            auto copyInst = IRInstructionNode::makeCopy(
+                std::move(exprValue), std::make_shared<IRValueNode>(*convertedValue));
+            currentFunction->addInstruction(std::move(copyInst));
+          } else if (size(dstType.kind) < size(srcType.kind)) {
+            // Truncation
+            auto truncInst = IRInstructionNode::makeTruncate(std::move(exprValue), convertedValue);
+            currentFunction->addInstruction(std::move(truncInst));
+          } else if (srcType.kind == TypeKind::INT || srcType.kind == TypeKind::LONG) {
+            // Sign extension for signed types
+            auto signExtInst = IRInstructionNode::makeSignExtend(std::move(exprValue), convertedValue);
+            currentFunction->addInstruction(std::move(signExtInst));
+          } else {
+            // Zero extension for unsigned types
+            auto zeroExtInst = IRInstructionNode::makeZeroExtend(std::move(exprValue), convertedValue);
+            currentFunction->addInstruction(std::move(zeroExtInst));
+          }
+          
+          exprValue = convertedValue;
+        }
 
         // Generate CopyToOffset instruction
         auto copyInst = IRInstructionNode::makeCopyToOffset(
@@ -1521,6 +1567,87 @@ void IRGenerator::visit(BinaryExpression &node)
     return;
   }
 
+  // Handle pointer arithmetic specially
+  if ((node.op == TokenType::PLUS || node.op == TokenType::HYPHEN))
+  {
+    // Generate IR for left operand with lvalue-to-rvalue conversion
+    node.left->accept(*this);
+    auto leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
+    IRValuePtr leftValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (leftExpr && leftExpr->type
+                   ? convertExpResult(currentExpResult, *leftExpr->type)
+                   : currentValue);
+
+    // Generate IR for right operand with lvalue-to-rvalue conversion
+    node.right->accept(*this);
+    auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
+    IRValuePtr rightValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (rightExpr && rightExpr->type
+                   ? convertExpResult(currentExpResult, *rightExpr->type)
+                   : currentValue);
+
+    // Check for pointer + integer or integer + pointer
+    if (leftExpr && leftExpr->type && leftExpr->type->kind == TypeKind::POINTER &&
+        rightExpr && rightExpr->type && rightExpr->type->kind != TypeKind::POINTER)
+    {
+      // pointer + integer
+      const auto& ptrType = std::get<PointerType>(leftExpr->type->data);
+      int scale = getTypeSize(*ptrType.base);
+      IRValuePtr result = makeTackyVariable(Type::ULong());
+      
+      auto addPtrInst = IRInstructionNode::makeAddPtr(
+          std::move(leftValue), std::move(rightValue), scale, result);
+      currentFunction->addInstruction(std::move(addPtrInst));
+      
+      currentValue = std::move(result);
+      currentExpResult = ExpResult::makePlainOperand(currentValue);
+      return;
+    }
+    else if (rightExpr && rightExpr->type && rightExpr->type->kind == TypeKind::POINTER &&
+             leftExpr && leftExpr->type && leftExpr->type->kind != TypeKind::POINTER)
+    {
+      // integer + pointer
+      const auto& ptrType = std::get<PointerType>(rightExpr->type->data);
+      int scale = getTypeSize(*ptrType.base);
+      IRValuePtr result = makeTackyVariable(Type::ULong());
+      
+      auto addPtrInst = IRInstructionNode::makeAddPtr(
+          std::move(rightValue), std::move(leftValue), scale, result);
+      currentFunction->addInstruction(std::move(addPtrInst));
+      
+      currentValue = std::move(result);
+      currentExpResult = ExpResult::makePlainOperand(currentValue);
+      return;
+    }
+    else if (node.op == TokenType::HYPHEN && 
+             leftExpr && leftExpr->type && leftExpr->type->kind == TypeKind::POINTER &&
+             rightExpr && rightExpr->type && rightExpr->type->kind != TypeKind::POINTER)
+    {
+      // pointer - integer
+      const auto& ptrType = std::get<PointerType>(leftExpr->type->data);
+      int scale = getTypeSize(*ptrType.base);
+      
+      // Negate the right value
+      IRValuePtr negatedRight = makeTackyVariable(*rightExpr->type);
+      auto negInst = IRInstructionNode::makeUnary(
+          IROpType::NEGATE, negatedRight, std::make_shared<IRValueNode>(*rightValue));
+      currentFunction->addInstruction(std::move(negInst));
+      
+      IRValuePtr result = makeTackyVariable(Type::ULong());
+      auto addPtrInst = IRInstructionNode::makeAddPtr(
+          std::move(leftValue), std::move(negatedRight), scale, result);
+      currentFunction->addInstruction(std::move(addPtrInst));
+      
+      currentValue = std::move(result);
+      currentExpResult = ExpResult::makePlainOperand(currentValue);
+      return;
+    }
+  }
+
   // Handle regular binary operations (non-short-circuiting)
   // Generate IR for left operand with lvalue-to-rvalue conversion
   node.left->accept(*this);
@@ -2086,11 +2213,22 @@ void IRGenerator::visit(AddressOfExpression &node)
       {
         // Plain variable - emit GetAddress instruction
         IRValuePtr src = currentValue;
-        IRValuePtr dst = makeTackyVariable(*node.type);
+        IRValuePtr dst = makeTackyVariable(Type::ULong());
         auto getAddrInst = IRInstructionNode::makeGetAddress(src, dst);
         currentFunction->addInstruction(getAddrInst);
         currentValue = dst;
         currentExpResult = ExpResult::makePlainOperand(dst);      
+      }
+      else {
+        // Dereferenced pointer - need to get the original pointer
+        IRValuePtr src = currentExpResult.value;
+        while(currentExpResult.inner)
+        {
+          currentFunction->addInstruction(IRInstructionNode::makeLoad(src,src));
+          currentExpResult = *currentExpResult.inner;
+        }
+        currentValue = src;
+        currentExpResult = ExpResult::makePlainOperand(src);
       }
     }
   }
@@ -2129,7 +2267,7 @@ void IRGenerator::visit(StringLiteralExpression &node)
 
   // Generate GetAddress instruction to load the string's address
   IRValuePtr stringVar = IRValueNode::makeVariable(stringName);
-  IRValuePtr dst = createTemporary();
+  IRValuePtr dst = makeTackyVariable(Type::ULong());
 
   auto getAddrInst =
       IRInstructionNode::makeGetAddress(std::move(stringVar), dst);
@@ -2284,7 +2422,7 @@ void IRGenerator::visit(SubscriptExpression &node)
   int scale = getTypeSize(*node.type);
 
   // Generate AddPtr instruction: result = ptr + (offset * scale)
-  IRValuePtr result = createTemporary();
+  IRValuePtr result = makeTackyVariable(Type::ULong());
   auto addPtrInst = IRInstructionNode::makeAddPtr(
       std::move(ptrValue), std::move(offsetValue), scale, result);
   currentFunction->addInstruction(std::move(addPtrInst));
