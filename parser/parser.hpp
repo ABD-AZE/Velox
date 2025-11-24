@@ -18,8 +18,7 @@
 
 extern std::map<TokenType, int> Precedence;
 
-struct ParserErrorInfo
-{
+struct ParserErrorInfo {
   int lineNumber;
   int columnNumber;
   std::string expected;
@@ -30,8 +29,7 @@ struct ParserErrorInfo
         actualToken(actual) {}
 };
 
-class Parser
-{
+class Parser {
 public:
   Parser(const std::vector<Token> &tokens);
   // Error handling and status
