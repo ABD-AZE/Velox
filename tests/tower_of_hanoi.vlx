@@ -1,0 +1,175 @@
+/* Tower of Hanoi - Interactive Step-by-Step Solver
+ * Tests: recursion, function calls, pointers, arrays, I/O, control flow
+ */
+
+int printf(char *format, ...);
+int scanf(char *format, ...);
+int getchar();
+
+/* Global state to track moves */
+int move_count;
+int total_moves;
+int paused;
+
+/* Structure to represent a tower */
+struct Tower {
+    int disks[10];
+    int top;
+};
+
+struct Tower towers[3];
+
+/* Initialize a tower */
+void init_tower(struct Tower *t) {
+    t->top = -1;
+}
+
+/* Push disk onto tower */
+void push(struct Tower *t, int disk) {
+    t->top = t->top + 1;
+    t->disks[t->top] = disk;
+}
+
+/* Pop disk from tower */
+int pop(struct Tower *t) {
+    int disk = t->disks[t->top];
+    t->top = t->top - 1;
+    return disk;
+}
+
+/* Display all three towers */
+void display_towers(int n) {
+    int i; int j;
+    
+    printf("\n");
+    printf("===== Move %d of %d =====\n", move_count, total_moves);
+    printf("Tower A     Tower B     Tower C\n");
+    printf("-------     -------     -------\n");
+    
+    for (i = n - 1; i >= 0; i = i - 1) {
+        /* Tower A */
+        if (i <= towers[0].top) {
+            printf("  [%d]  ", towers[0].disks[i]);
+        } else {
+            printf("   |   ");
+        }
+        
+        printf("    ");
+        
+        /* Tower B */
+        if (i <= towers[1].top) {
+            printf("  [%d]  ", towers[1].disks[i]);
+        } else {
+            printf("   |   ");
+        }
+        
+        printf("    ");
+        
+        /* Tower C */
+        if (i <= towers[2].top) {
+            printf("  [%d]  ", towers[2].disks[i]);
+        } else {
+            printf("   |   ");
+        }
+        
+        printf("\n");
+    }
+    
+    printf("-------     -------     -------\n");
+    printf("   A           B           C\n\n");
+}
+
+/* Move disk and display */
+void move_disk(int from, int to, int n, int interactive) {
+    int disk = pop(&towers[from]);
+    push(&towers[to], disk);
+    
+    move_count = move_count + 1;
+    
+    if (interactive) {
+        display_towers(n);
+        printf("Press Enter for next move...");
+        getchar();
+    }
+}
+
+/* Tower of Hanoi recursive solver */
+void solve_hanoi(int num_disks, int from, int to, int aux, int n, int interactive) {
+    if (num_disks == 1) {
+        move_disk(from, to, n, interactive);
+        return;
+    }
+    
+    solve_hanoi(num_disks - 1, from, aux, to, n, interactive);
+    move_disk(from, to, n, interactive);
+    solve_hanoi(num_disks - 1, aux, to, from, n, interactive);
+}
+
+/* Calculate total moves needed */
+int calculate_moves(int n) {
+    if (n == 0) {
+        return 0;
+    }
+    return 2 * calculate_moves(n - 1) + 1;
+}
+
+int main() {
+    int n;
+    int i;
+    int choice;
+    
+    printf("========================================\n");
+    printf("    Tower of Hanoi - Solver\n");
+    printf("========================================\n\n");
+    
+    printf("Enter number of disks (1-10): ");
+    scanf("%d", &n);
+    
+    if (n < 1 || n > 10) {
+        printf("Invalid number! Using 3 disks.\n");
+        n = 3;
+    }
+    
+    /* Calculate total moves */
+    total_moves = calculate_moves(n);
+    move_count = 0;
+    
+    /* Initialize towers */
+    init_tower(&towers[0]);
+    init_tower(&towers[1]);
+    init_tower(&towers[2]);
+    
+    /* Setup initial tower A with disks */
+    for (i = n; i >= 1; i = i - 1) {
+        push(&towers[0], i);
+    }
+    
+    printf("\nInitial state:\n");
+    display_towers(n);
+    
+    printf("\nChoose mode:\n");
+    printf("1. Step-by-step (press Enter for each move)\n");
+    printf("2. Automatic (show all moves)\n");
+    printf("Enter choice: ");
+    scanf("%d", &choice);
+    
+    /* Clear input buffer */
+    getchar();
+    
+    if (choice == 1) {
+        printf("\n--- Step-by-step mode ---\n");
+        printf("Press Enter to begin...");
+        getchar();
+        solve_hanoi(n, 0, 2, 1, n, 1);
+    } else {
+        printf("\n--- Automatic mode ---\n");
+        solve_hanoi(n, 0, 2, 1, n, 0);
+        display_towers(n);
+    }
+    
+    printf("\n========================================\n");
+    printf("Puzzle solved in %d moves!\n", total_moves);
+    printf("========================================\n");
+    
+    return 0;
+}
