@@ -1,5 +1,6 @@
 #include "valor.hpp"
 #include "../utils/token_classifier.hpp"
+#include "../semantic_analysis/semantic_analysis.hpp"
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -136,6 +137,9 @@ std::string IRInstructionNode::toString() const
   case IROpType::COPY_TO_OFFSET:
     ss << "copy_to_offset(" << src1->toString() << ", " << label << ", "
        << offset << ")";
+    break;
+  case IROpType::COPY_FROM_OFFSET:
+    ss << dst->toString() << " = copy_from_offset(" << label << ", " << offset << ")";
     break;
   case IROpType::JUMP:
     ss << "jump " << label;
@@ -800,6 +804,47 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
         currentOffset += elemSize;
       }
     }
+    else if (varType.kind == TypeKind::STRUCT)
+    {
+      // Struct initializer - process each member
+      // Look up struct definition from type table
+      const StructType &structType = std::get<StructType>(varType.data);
+      const std::string &structTag = structType.name;
+      auto it = type_table.find(structTag);
+      if (it == type_table.end())
+      {
+        std::cerr << "Error: Struct " << structTag << " not found in type table" << std::endl;
+        return;
+      }
+
+      const StructEntry &structEntry = it->second;
+      const auto &members = structEntry.members;
+
+      // Process each initializer for the corresponding member
+      int initIndex = 0;
+      for (const auto &member : members)
+      {
+        if (initIndex < static_cast<int>(compoundInit.initializers.size()))
+        {
+          // Process initializer for this member
+          processCompoundInitializer(&compoundInit.initializers[initIndex],
+                                     varName,
+                                     member.member_type,
+                                     baseOffset + member.offset);
+          initIndex++;
+        }
+        else
+        {
+          // No initializer provided for this member - zero-initialize it
+          // For now, just initialize with zero constant
+          // TODO: Handle nested structs/arrays properly
+          IRValuePtr zeroValue = IRValueNode::makeConstant(0);
+          auto copyInst = IRInstructionNode::makeCopyToOffset(
+              std::move(zeroValue), varName, baseOffset + member.offset);
+          currentFunction->addInstruction(std::move(copyInst));
+        }
+      }
+    }
   }
 }
 
@@ -1260,6 +1305,27 @@ void IRGenerator::visit(VarDeclNode &node)
         }
       }
     }
+    else if (initNode && node.type.kind == TypeKind::STRUCT)
+    {
+      // Struct with initializer
+      if (initNode->kind == InitializerKind::COMPOUND_INIT)
+      {
+        // Process compound initializer with CopyToOffset instructions for each member
+        processCompoundInitializer(initNode, node.name, node.type, 0);
+      }
+      else
+      {
+        // Single initializer for struct - shouldn't happen normally but handle it
+        (*node.init)->accept(*this);
+        IRValuePtr initValue =
+            currentExpResult.type == ExpResultType::PLAIN_OPERAND
+                ? currentValue
+                : convertExpResult(currentExpResult, node.type);
+        auto copyInst =
+            IRInstructionNode::makeCopy(std::move(initValue), std::move(var));
+        currentFunction->addInstruction(std::move(copyInst));
+      }
+    }
     else
     {
       // Scalar or single initializer
@@ -1714,8 +1780,17 @@ void IRGenerator::visit(AssignmentExpression &node)
   node.left->accept(*this);
   ExpResult leftResult = currentExpResult;
 
-  // Check if left side is a dereferenced pointer or plain variable
-  if (leftResult.type == ExpResultType::DEREFERENCED_POINTER)
+  // Check if left side is a dereferenced pointer, subobject, or plain variable
+  if (leftResult.type == ExpResultType::SUBOBJECT)
+  {
+    // struct.member = value => CopyToOffset(value, struct, offset)
+    auto copyInst = IRInstructionNode::makeCopyToOffset(rightValue, leftResult.base, leftResult.offset);
+    currentFunction->addInstruction(copyInst);
+    // Assignment result is the assigned value
+    currentValue = rightValue;
+    currentExpResult = ExpResult::makePlainOperand(rightValue);
+  }
+  else if (leftResult.type == ExpResultType::DEREFERENCED_POINTER)
   {
     // *ptr = value => Store(value, ptr)
     IRValuePtr leftValue = leftResult.value;
@@ -2019,6 +2094,14 @@ IRValuePtr IRGenerator::convertExpResult(ExpResult &result,
     // Plain operand - just return as is
     return result.value;
   }
+  else if (result.type == ExpResultType::SUBOBJECT)
+  {
+    // SubObject - emit CopyFromOffset instruction
+    IRValuePtr dst = makeTackyVariable(exprType);
+    auto copyInst = IRInstructionNode::makeCopyFromOffset(result.base, result.offset, dst);
+    currentFunction->addInstruction(copyInst);
+    return dst;
+  }
   else
   {
     IRValuePtr dst = makeTackyVariable(exprType);
@@ -2243,8 +2326,30 @@ void IRGenerator::visit(AddressOfExpression &node)
       // Regular variable or other expression - use GetAddress
       node.variableExpr->accept(*this);
 
-      // Check if result is a dereferenced pointer or plain variable
-      if (currentExpResult.type != ExpResultType::DEREFERENCED_POINTER)
+      // Check result type
+      if (currentExpResult.type == ExpResultType::SUBOBJECT)
+      {
+        // &struct.member => GetAddress(struct) + AddPtr(offset)
+        IRValuePtr basePtr = makeTackyVariable(Type::ULong());
+        IRValuePtr baseVar = IRValueNode::makeVariable(currentExpResult.base);
+        auto getAddrInst = IRInstructionNode::makeGetAddress(baseVar, basePtr);
+        currentFunction->addInstruction(getAddrInst);
+
+        // Add member offset if non-zero
+        if (currentExpResult.offset != 0)
+        {
+          IRValuePtr offsetValue = IRValueNode::makeConstant(static_cast<long>(currentExpResult.offset));
+          IRValuePtr resultPtr = makeTackyVariable(Type::ULong());
+          currentFunction->addInstruction(IRInstructionNode::makeAddPtr(basePtr, offsetValue, 1, resultPtr));
+          currentValue = resultPtr;
+        }
+        else
+        {
+          currentValue = basePtr;
+        }
+        currentExpResult = ExpResult::makePlainOperand(currentValue);
+      }
+      else if (currentExpResult.type != ExpResultType::DEREFERENCED_POINTER)
       {
         // Plain variable - emit GetAddress instruction
         IRValuePtr src = currentValue;
@@ -2473,6 +2578,153 @@ void IRGenerator::visit(StructDeclarationNode &node) { (void)node; }
 
 void IRGenerator::visit(MemberDeclarationNode &node) { (void)node; }
 
-void IRGenerator::visit(DotExpression &node) { (void)node; }
+void IRGenerator::visit(DotExpression &node)
+{
+  // Process the structure expression WITHOUT lvalue conversion
+  node.structExpr->accept(*this);
+  ExpResult innerObject = currentExpResult;
 
-void IRGenerator::visit(ArrowExpression &node) { (void)node; }
+  // Get structure type from the expression
+  auto structExpr = dynamic_cast<ExpressionNode *>(node.structExpr.get());
+  if (!structExpr || !structExpr->type || structExpr->type->kind != TypeKind::STRUCT)
+  {
+    // Error: not a structure type
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  // Look up structure definition in type table
+  const auto &structType = std::get<StructType>(structExpr->type->data);
+  auto it = type_table.find(structType.name);
+  if (it == type_table.end())
+  {
+    // Error: structure not found in type table
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  const StructEntry &structEntry = it->second;
+  const MemberEntry *member = structEntry.getMember(node.memberName);
+  if (!member)
+  {
+    // Error: member not found
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  int memberOffset = member->offset;
+
+  // Handle different cases based on what the inner object is
+  if (innerObject.type == ExpResultType::PLAIN_OPERAND)
+  {
+    // struct.member where struct is a plain variable
+    // Return SubObject(base, offset)
+    std::string baseName = innerObject.value->name;
+    currentExpResult = ExpResult::makeSubObject(baseName, memberOffset);
+    currentValue = innerObject.value; // Keep the value for potential use
+  }
+  else if (innerObject.type == ExpResultType::SUBOBJECT)
+  {
+    // Nested member access: struct1.struct2.member
+    // Add offsets together
+    currentExpResult = ExpResult::makeSubObject(innerObject.base, innerObject.offset + memberOffset);
+    currentValue = innerObject.value;
+  }
+  else if (innerObject.type == ExpResultType::DEREFERENCED_POINTER)
+  {
+    // (*ptr).member - add offset to pointer and dereference
+    IRValuePtr ptr = innerObject.value;
+
+    // If there's chaining, resolve it
+    while (innerObject.inner)
+    {
+      IRValuePtr temp = makeTackyVariable(Type::ULong());
+      currentFunction->addInstruction(IRInstructionNode::makeLoad(ptr, temp));
+      ptr = temp;
+      innerObject = *innerObject.inner;
+    }
+
+    // Add member offset to pointer if offset is non-zero
+    if (memberOffset != 0)
+    {
+      IRValuePtr offsetValue = IRValueNode::makeConstant(static_cast<long>(memberOffset));
+      IRValuePtr resultPtr = makeTackyVariable(Type::ULong());
+      currentFunction->addInstruction(IRInstructionNode::makeAddPtr(ptr, offsetValue, 1, resultPtr));
+      ptr = resultPtr;
+    }
+
+    // Return dereferenced pointer
+    currentExpResult = ExpResult::makeDereferencedPointer(ptr, nullptr);
+    currentValue = ptr;
+  }
+}
+
+void IRGenerator::visit(ArrowExpression &node)
+{
+  // ptr->member is equivalent to (*ptr).member
+  // Process the pointer expression WITH lvalue conversion
+  node.pointerExpr->accept(*this);
+  auto pointerExpr = dynamic_cast<ExpressionNode *>(node.pointerExpr.get());
+  IRValuePtr ptrValue = currentExpResult.type == ExpResultType::PLAIN_OPERAND
+                            ? currentValue
+                            : (pointerExpr && pointerExpr->type
+                                   ? convertExpResult(currentExpResult, *pointerExpr->type)
+                                   : currentValue);
+
+  // Get the pointed-to structure type
+  if (!pointerExpr || !pointerExpr->type || pointerExpr->type->kind != TypeKind::POINTER)
+  {
+    // Error: not a pointer type
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  const auto &ptrType = std::get<PointerType>(pointerExpr->type->data);
+  if (ptrType.base->kind != TypeKind::STRUCT)
+  {
+    // Error: not a pointer to structure
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  // Look up structure definition
+  const auto &structType = std::get<StructType>(ptrType.base->data);
+  auto it = type_table.find(structType.name);
+  if (it == type_table.end())
+  {
+    // Error: structure not found
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  const StructEntry &structEntry = it->second;
+  const MemberEntry *member = structEntry.getMember(node.memberName);
+  if (!member)
+  {
+    // Error: member not found
+    currentValue = IRValueNode::makeConstant(0);
+    currentExpResult = ExpResult::makePlainOperand(currentValue);
+    return;
+  }
+
+  int memberOffset = member->offset;
+
+  // Add member offset to pointer if non-zero
+  if (memberOffset != 0)
+  {
+    IRValuePtr offsetValue = IRValueNode::makeConstant(static_cast<long>(memberOffset));
+    IRValuePtr resultPtr = makeTackyVariable(Type::ULong());
+    currentFunction->addInstruction(IRInstructionNode::makeAddPtr(ptrValue, offsetValue, 1, resultPtr));
+    ptrValue = resultPtr;
+  }
+
+  // Return dereferenced pointer
+  currentExpResult = ExpResult::makeDereferencedPointer(ptrValue, nullptr);
+  currentValue = ptrValue;
+}
