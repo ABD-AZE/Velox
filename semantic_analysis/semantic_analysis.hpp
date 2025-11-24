@@ -177,6 +177,8 @@ private:
   // Helper function to check if an initializer contains only constant
   // expressions
   bool isConstantInitializer(InitializerNode *init);
+  // Helper function to recursively convert initializer elements to match target type
+  void convertInitializerTypes(InitializerNode *init, const Type &targetType);
   // Helper function to validate initializer type compatibility with target type
   bool validateInitializerType(InitializerNode *init, Type &targetType);
   // Helper function to validate type specifiers (check for incomplete types)

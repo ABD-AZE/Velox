@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include <cassert>
 std::unordered_map<std::string, int> offset_table;
 
 std::vector<ASMStaticVariablePtr>
@@ -50,6 +51,7 @@ AssemblyType getAssemblyType(IRValuePtr irValue)
     {
       return AssemblyType::DOUBLE_WORD;
     }
+    assert(irValue->constType == TypeKind::LONG || irValue->constType == TypeKind::ULONG || irValue->constType == TypeKind::POINTER);
     return AssemblyType::QUAD_WORD; // LONG, ULONG, POINTER
   }
 }
@@ -497,6 +499,7 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
         ArrayType arr = std::get<ArrayType>(irStaticVar->type.data);
         int elementSize;
         int elementAlignment;
+        int numElements = arr.size;
         if (arr.element->kind == TypeKind::UCHAR || arr.element->kind == TypeKind::CHAR)
         {
           elementSize = 1;
@@ -513,8 +516,39 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
           elementSize = 8;
           elementAlignment = 8;
         }
+        else if (arr.element->kind == TypeKind::ARRAY)
+        {
+          // Nested array - recursively get the scalar element type
+          Type* scalarType = arr.element.get();
+          while (scalarType->kind == TypeKind::ARRAY)
+          {
+            numElements *= std::get<ArrayType>(scalarType->data).size;
+            scalarType = std::get<ArrayType>(scalarType->data).element.get();
+          }
+          
+          // Determine scalar element size and alignment
+          if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR)
+          {
+            elementSize = 1;
+            elementAlignment = 1;
+          }
+          else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
+          {
+            elementSize = 4;
+            elementAlignment = 4;
+          }
+          else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
+                   scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
+          {
+            elementSize = 8;
+            elementAlignment = 8;
+          }
+        }
+        else {
+          assert(false && "Unsupported array element type for static variable");
+        }
 
-        int totalSize = elementSize * arr.size;
+        int totalSize = elementSize * numElements;
 
         // Arrays that are 16 bytes or larger use 16-byte alignment
         if (totalSize >= 16)
@@ -1385,9 +1419,9 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
           IRValueToOperand(irInstruction->src2),
           AssemblyType::QUAD_WORD));
       asmInstructions.push_back(ASMInstruction::createLea(
+          IRValueToOperand(irInstruction->dst),
           Indexed::createIndexed(
-              RegisterType::AX, RegisterType::DX, irInstruction->scale),
-          IRValueToOperand(irInstruction->dst)));
+              RegisterType::AX, RegisterType::DX, irInstruction->scale)));
       break;
     }
     // variable index and other scale
@@ -1406,9 +1440,9 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
         Immediate::createImmediate(irInstruction->scale),
         AssemblyType::QUAD_WORD));
     asmInstructions.push_back(ASMInstruction::createLea(
+        IRValueToOperand(irInstruction->dst),
         Indexed::createIndexed(
-            RegisterType::AX, RegisterType::DX, 1),
-        IRValueToOperand(irInstruction->dst)));
+            RegisterType::AX, RegisterType::DX, 1)));
     break;
   }
   default:
@@ -1540,6 +1574,7 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 // Get array size and alignment
                 const auto &arrayType = std::get<ArrayType>(entry.type.data);
                 int elementSize = 0;
+                int numElements = arrayType.size;
                 if (arrayType.element->kind == TypeKind::INT ||
                     arrayType.element->kind == TypeKind::UINT)
                 {
@@ -1560,20 +1595,47 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 }
                 else if (arrayType.element->kind == TypeKind::ARRAY)
                 {
-                  // Nested array - calculate size recursively
-                  elementSize = getTypeSize(*arrayType.element);
+                  // Nested array - recursively get the scalar element type
+                  Type* scalarType = arrayType.element.get();
+                  while (scalarType->kind == TypeKind::ARRAY)
+                  {
+                    numElements *= std::get<ArrayType>(scalarType->data).size;
+                    scalarType = std::get<ArrayType>(scalarType->data).element.get();
+                  }
+                  
+                  // Determine scalar element size and alignment
+                  if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
+                      scalarType->kind == TypeKind::SCHAR)
+                  {
+                    elementSize = 1;
+                  }
+                  else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
+                  {
+                    elementSize = 4;
+                  }
+                  else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
+                           scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
+                  {
+                    elementSize = 8;
+                  }
                 }
 
-                int totalSize = elementSize * arrayType.size;
+                int totalSize = elementSize * numElements;
 
-                // Determine alignment based on element size
-                int alignment = elementSize;
-                if (alignment > 16)
-                  alignment = 16; // Max alignment is 16
+                // Determine alignment based on total size and scalar element size
+                int alignment;
+                if (totalSize >= 16)
+                {
+                  alignment = 16;
+                }
+                else
+                {
+                  alignment = elementSize;
+                }
 
                 // Align offset
-                offset = (offset + alignment - 1) & ~(alignment - 1);
                 offset += totalSize;
+                offset = (offset + alignment - 1) & ~(alignment - 1);
                 offset_table[pseudoMem->name] = offset;
               }
             }
@@ -1615,6 +1677,7 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 // Get array size and alignment
                 const auto &arrayType = std::get<ArrayType>(entry.type.data);
                 int elementSize = 0;
+                int numElements = arrayType.size;
                 if (arrayType.element->kind == TypeKind::INT ||
                     arrayType.element->kind == TypeKind::UINT)
                 {
@@ -1635,20 +1698,47 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 }
                 else if (arrayType.element->kind == TypeKind::ARRAY)
                 {
-                  // Nested array - calculate size recursively
-                  elementSize = getTypeSize(*arrayType.element);
+                  // Nested array - recursively get the scalar element type
+                  Type* scalarType = arrayType.element.get();
+                  while (scalarType->kind == TypeKind::ARRAY)
+                  {
+                    numElements *= std::get<ArrayType>(scalarType->data).size;
+                    scalarType = std::get<ArrayType>(scalarType->data).element.get();
+                  }
+                  
+                  // Determine scalar element size and alignment
+                  if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
+                      scalarType->kind == TypeKind::SCHAR)
+                  {
+                    elementSize = 1;
+                  }
+                  else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
+                  {
+                    elementSize = 4;
+                  }
+                  else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
+                           scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
+                  {
+                    elementSize = 8;
+                  }
                 }
 
-                int totalSize = elementSize * arrayType.size;
+                int totalSize = elementSize * numElements;
 
-                // Determine alignment based on element size
-                int alignment = elementSize;
-                if (alignment > 16)
-                  alignment = 16; // Max alignment is 16
+                // Determine alignment based on total size and scalar element size
+                int alignment;
+                if (totalSize >= 16)
+                {
+                  alignment = 16;
+                }
+                else
+                {
+                  alignment = elementSize;
+                }
 
                 // Align offset
-                offset = (offset + alignment - 1) & ~(alignment - 1);
                 offset += totalSize;
+                offset = (offset + alignment - 1) & ~(alignment - 1);
                 offset_table[pseudoMem->name] = offset;
               }
             }
@@ -1690,6 +1780,7 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 // Get array size and alignment
                 const auto &arrayType = std::get<ArrayType>(entry.type.data);
                 int elementSize = 0;
+                int numElements = arrayType.size;
                 if (arrayType.element->kind == TypeKind::INT ||
                     arrayType.element->kind == TypeKind::UINT)
                 {
@@ -1710,20 +1801,47 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 }
                 else if (arrayType.element->kind == TypeKind::ARRAY)
                 {
-                  // Nested array - calculate size recursively
-                  elementSize = getTypeSize(*arrayType.element);
+                  // Nested array - recursively get the scalar element type
+                  Type* scalarType = arrayType.element.get();
+                  while (scalarType->kind == TypeKind::ARRAY)
+                  {
+                    numElements *= std::get<ArrayType>(scalarType->data).size;
+                    scalarType = std::get<ArrayType>(scalarType->data).element.get();
+                  }
+                  
+                  // Determine scalar element size and alignment
+                  if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
+                      scalarType->kind == TypeKind::SCHAR)
+                  {
+                    elementSize = 1;
+                  }
+                  else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
+                  {
+                    elementSize = 4;
+                  }
+                  else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
+                           scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
+                  {
+                    elementSize = 8;
+                  }
                 }
 
-                int totalSize = elementSize * arrayType.size;
+                int totalSize = elementSize * numElements;
 
-                // Determine alignment based on element size
-                int alignment = elementSize;
-                if (alignment > 16)
-                  alignment = 16; // Max alignment is 16
+                // Determine alignment based on total size and scalar element size
+                int alignment;
+                if (totalSize >= 16)
+                {
+                  alignment = 16;
+                }
+                else
+                {
+                  alignment = elementSize;
+                }
 
                 // Align offset
-                offset = (offset + alignment - 1) & ~(alignment - 1);
                 offset += totalSize;
+                offset = (offset + alignment - 1) & ~(alignment - 1);
                 offset_table[pseudoMem->name] = offset;
               }
             }
