@@ -622,6 +622,23 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
           elementSize = 8;
           elementAlignment = 8;
         }
+        else if (arr.element->kind == TypeKind::STRUCT)
+        {
+          // Struct element - look up size and alignment in type_table
+          const std::string &structTag = std::get<StructType>(arr.element->data).name;
+          auto it = type_table.find(structTag);
+          if (it != type_table.end())
+          {
+            elementSize = it->second.size;
+            elementAlignment = it->second.alignment;
+          }
+          else
+          {
+            // Fallback if struct not found in type_table
+            elementSize = 8;
+            elementAlignment = 8;
+          }
+        }
         else if (arr.element->kind == TypeKind::ARRAY)
         {
           // Nested array - recursively get the scalar element type
@@ -649,6 +666,23 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
           {
             elementSize = 8;
             elementAlignment = 8;
+          }
+          else if (scalarType->kind == TypeKind::STRUCT)
+          {
+            // Struct element in nested array - look up size and alignment
+            const std::string &structTag = std::get<StructType>(scalarType->data).name;
+            auto it = type_table.find(structTag);
+            if (it != type_table.end())
+            {
+              elementSize = it->second.size;
+              elementAlignment = it->second.alignment;
+            }
+            else
+            {
+              // Fallback if struct not found in type_table
+              elementSize = 8;
+              elementAlignment = 8;
+            }
           }
         }
         else

@@ -450,6 +450,18 @@ int IRGenerator::getTypeSize(const Type &type)
     const auto &arrayType = std::get<ArrayType>(type.data);
     return arrayType.size * getTypeSize(*arrayType.element);
   }
+  case TypeKind::STRUCT:
+  {
+    // Look up struct size in type_table
+    const std::string &structTag = std::get<StructType>(type.data).name;
+    auto it = type_table.find(structTag);
+    if (it != type_table.end())
+    {
+      return it->second.size;
+    }
+    // Fallback if struct not found
+    return 0;
+  }
   default:
     return 0;
   }
