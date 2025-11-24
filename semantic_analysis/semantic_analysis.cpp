@@ -403,25 +403,29 @@ bool SemanticAnalyzer::isConstantInitializer(InitializerNode *init) {
   return false;
 }
 
-// Helper function to recursively convert initializer elements to match target type
-void SemanticAnalyzer::convertInitializerTypes(InitializerNode *init, const Type &targetType) {
+// Helper function to recursively convert initializer elements to match target
+// type
+void SemanticAnalyzer::convertInitializerTypes(InitializerNode *init,
+                                               const Type &targetType) {
   if (!init) {
     return;
   }
-  
+
   if (init->kind == InitializerKind::SINGLE_INIT) {
     auto &singleInit = std::get<SingleInit>(init->data);
     if (singleInit.expression) {
-      auto initExp = dynamic_cast<ExpressionNode *>(singleInit.expression.get());
+      auto initExp =
+          dynamic_cast<ExpressionNode *>(singleInit.expression.get());
       Type mutableTargetType = targetType; // Create mutable copy for comparison
       if (initExp && initExp->type && *initExp->type != mutableTargetType) {
         // Insert cast expression to convert to target type
-        singleInit.expression = convertByAssignment(std::move(singleInit.expression), mutableTargetType);
+        singleInit.expression = convertByAssignment(
+            std::move(singleInit.expression), mutableTargetType);
       }
     }
   } else if (init->kind == InitializerKind::COMPOUND_INIT) {
     auto &compoundInit = std::get<CompoundInit>(init->data);
-    
+
     // For arrays, convert each element to the element type
     if (targetType.kind == TypeKind::ARRAY) {
       const auto &arrayType = std::get<ArrayType>(targetType.data);
@@ -435,8 +439,11 @@ void SemanticAnalyzer::convertInitializerTypes(InitializerNode *init, const Type
       auto it = type_table.find(structType.name);
       if (it != type_table.end()) {
         const StructEntry &structDef = it->second;
-        for (size_t i = 0; i < compoundInit.initializers.size() && i < structDef.members.size(); ++i) {
-          convertInitializerTypes(&compoundInit.initializers[i], structDef.members[i].member_type);
+        for (size_t i = 0; i < compoundInit.initializers.size() &&
+                           i < structDef.members.size();
+             ++i) {
+          convertInitializerTypes(&compoundInit.initializers[i],
+                                  structDef.members[i].member_type);
         }
       }
     }
@@ -1972,7 +1979,7 @@ void SemanticAnalyzer::visit(ContinueNode &node) {
   }
 }
 
-void SemanticAnalyzer::visit(ForInit &node) {(void)node;}
+void SemanticAnalyzer::visit(ForInit &node) { (void)node; }
 
 void SemanticAnalyzer::visit(InitDecl &node) {
   auto varnode = dynamic_cast<VarDeclNode *>(node.init.get());
