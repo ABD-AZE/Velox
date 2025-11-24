@@ -1,0 +1,35 @@
+int printf(char * t,...);
+int scanf(char * t,...);
+
+void reverse(char *s) {
+    char *start = s;
+    char *end = s;
+
+    /* move end to last valid character */
+    while (*end != '\0') {
+        end++;
+    }
+    end--;  /* step back to last character */
+
+    /* swap from both ends */
+    while (start < end) {
+        char temp = *start;
+        *start = *end;
+        *end = temp;
+        start++;
+        end--;
+    }
+}
+
+int main() {
+    char str[200];
+
+    printf("Enter a string: ");
+    scanf("%s", str);   /* reads until space */
+
+    reverse(str);
+
+    printf("Reversed: %s\n", str);
+
+    return 0;
+}
