@@ -98,6 +98,23 @@ make
 
 The compiler binary will be generated in the `build/` directory.
 
+### Make Targets
+
+- **`make`** or **`make all`** - Build release and debug versions (`build/velox` and `build/debug`)
+- **`make debug`** - Build only the debug version with symbols
+- **`make install`** - Install to `/usr/local/bin` (requires sudo) or custom path with `PREFIX=~/.local`
+- **`make uninstall`** - Remove installed binary
+- **`make test`** - Build and run unit tests (requires Google Test)
+- **`make clean`** - Remove all build artifacts
+- **`make help`** - Show all available targets
+
+```bash
+# Quick start
+make                          # Build
+sudo make install             # Install system-wide
+make install PREFIX=~/.local  # Install locally (no sudo)
+```
+
 ## Usage
 
 ```bash
