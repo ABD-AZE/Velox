@@ -106,6 +106,23 @@ The compiler binary will be generated in the `build/` directory.
 
 The command would generate the executable binary with the name "source"
 
+## Examples
+
+The `tests/` directory contains various example programs demonstrating Velox's features:
+
+- **Control Flow**: `test_ifelse.vlx`, `test_loops.vlx`, `test_control_flow.vlx`
+- **Operators**: `test_arithmetic.vlx`, `test_logical.vlx`
+- **Arrays**: `test_array.vlx`
+- **Pointers**: `test_pointer.vlx`
+- **Memory**: `test_malloc.vlx`
+- **Functions**: `test_variadic.vlx`, `test_recursive.vlx`
+- **File I/O**: `test_file_manipulation.vlx`
+- **Command Line**: `test_cmdline.vlx`
+- **Static Variables**: `test_static.vlx`
+- **Algorithms**: `tower_of_hanoi.vlx`, `string_reversal.vlx`
+
+Feel free to explore these examples to understand Velox's capabilities. **Contributions of new example programs are welcome!** If you create interesting test cases or example programs, please submit them to the `tests/` directory via pull request.
+
 ## Contributing
 
 We welcome contributions to Velox! Here are some guidelines to get you started:
