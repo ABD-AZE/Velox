@@ -26,28 +26,50 @@ using IRInstructionPtr = std::shared_ptr<IRInstructionNode>;
 using IRValuePtr = std::shared_ptr<IRValueNode>;
 
 // Expression result types (for handling lvalue conversion)
-enum class ExpResultType { PLAIN_OPERAND, DEREFERENCED_POINTER };
+enum class ExpResultType
+{
+  PLAIN_OPERAND,
+  DEREFERENCED_POINTER,
+  SUBOBJECT
+};
 
-struct ExpResult {
+struct ExpResult
+{
   ExpResultType type;
   IRValuePtr value;
   std::shared_ptr<ExpResult> inner;
+  std::string base; // For SUBOBJECT: name of the aggregate variable
+  int offset;       // For SUBOBJECT: byte offset within the variable
 
-  static ExpResult makePlainOperand(IRValuePtr val) {
-    return {ExpResultType::PLAIN_OPERAND, std::move(val), nullptr};
+  static ExpResult makePlainOperand(IRValuePtr val)
+  {
+    return {ExpResultType::PLAIN_OPERAND, std::move(val), nullptr, "", 0};
   }
 
   static ExpResult makeDereferencedPointer(IRValuePtr ptr,
-                                           std::shared_ptr<ExpResult> inner) {
-    return {ExpResultType::DEREFERENCED_POINTER, std::move(ptr), std::move(inner)};
+                                           std::shared_ptr<ExpResult> inner)
+  {
+    return {ExpResultType::DEREFERENCED_POINTER, std::move(ptr), std::move(inner), "", 0};
+  }
+
+  static ExpResult makeSubObject(const std::string &base_name, int byte_offset)
+  {
+    return {ExpResultType::SUBOBJECT, nullptr, nullptr, base_name, byte_offset};
   }
 };
 
 // IR Value types
-enum class IRValueType { CONSTANT, VARIABLE, TEMPORARY, ARGS };
+enum class IRValueType
+{
+  CONSTANT,
+  VARIABLE,
+  TEMPORARY,
+  ARGS
+};
 
 // Static initializer types
-enum class StaticInitKind {
+enum class StaticInitKind
+{
   INT_INIT,     // int
   LONG_INIT,    // long
   UINT_INIT,    // unsigned int
@@ -65,23 +87,27 @@ enum class StaticInitKind {
 struct StaticInit;
 
 // Compound initializer
-struct CompoundStaticInit {
+struct CompoundStaticInit
+{
   std::vector<StaticInit> initializers;
 };
 
 // String initializer
-struct StringStaticInit {
+struct StringStaticInit
+{
   std::string value;
   bool null_terminated;
 };
 
 // Pointer initializer
-struct PointerStaticInit {
+struct PointerStaticInit
+{
   std::string name; // Name of the static object being pointed to
 };
 
 // Static initializer variant
-struct StaticInit {
+struct StaticInit
+{
   StaticInitKind kind;
   std::variant<int,               // INT_INIT and ZERO_INIT
                long int,          // LONG_INIT
@@ -97,77 +123,88 @@ struct StaticInit {
       data;
 
   // Factory methods
-  static StaticInit makeIntInit(int value) {
+  static StaticInit makeIntInit(int value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::INT_INIT;
     init.data = value;
     return init;
   }
 
-  static StaticInit makeLongInit(long value) {
+  static StaticInit makeLongInit(long value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::LONG_INIT;
     init.data = (value);
     return init;
   }
 
-  static StaticInit makeUIntInit(unsigned int value) {
+  static StaticInit makeUIntInit(unsigned int value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::UINT_INIT;
     init.data = (value);
     return init;
   }
 
-  static StaticInit makeULongInit(unsigned long value) {
+  static StaticInit makeULongInit(unsigned long value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::ULONG_INIT;
     init.data = (value);
     return init;
   }
 
-  static StaticInit makeCharInit(char value) {
+  static StaticInit makeCharInit(char value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::CHAR_INIT;
     init.data = (value);
     return init;
   }
 
-  static StaticInit makeUCharInit(unsigned char value) {
+  static StaticInit makeUCharInit(unsigned char value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::UCHAR_INIT;
     init.data = (value);
     return init;
   }
 
-  static StaticInit makeDoubleInit(double value) {
+  static StaticInit makeDoubleInit(double value)
+  {
     StaticInit init;
     init.kind = StaticInitKind::DOUBLE_INIT;
     init.data = value;
     return init;
   }
 
-  static StaticInit makeZeroInit(int numBytes) {
+  static StaticInit makeZeroInit(int numBytes)
+  {
     StaticInit init;
     init.kind = StaticInitKind::ZERO_INIT;
     init.data = numBytes;
     return init;
   }
 
-  static StaticInit makeStringInit(std::string value, bool null_terminated) {
+  static StaticInit makeStringInit(std::string value, bool null_terminated)
+  {
     StaticInit init;
     init.kind = StaticInitKind::STRING_INIT;
     init.data = StringStaticInit{std::move(value), null_terminated};
     return init;
   }
 
-  static StaticInit makePointerInit(std::string name) {
+  static StaticInit makePointerInit(std::string name)
+  {
     StaticInit init;
     init.kind = StaticInitKind::POINTER_INIT;
     init.data = PointerStaticInit{std::move(name)};
     return init;
   }
 
-  static StaticInit makeCompound(std::vector<StaticInit> inits) {
+  static StaticInit makeCompound(std::vector<StaticInit> inits)
+  {
     StaticInit init;
     init.kind = StaticInitKind::COMPOUND;
     init.data = CompoundStaticInit{std::move(inits)};
@@ -178,23 +215,38 @@ struct StaticInit {
   static StaticInit
   makeInitial(std::variant<int, long int, long unsigned int, unsigned int, char,
                            unsigned char, double>
-                  value) {
+                  value)
+  {
     return std::visit(
-        [](auto &&val) -> StaticInit {
+        [](auto &&val) -> StaticInit
+        {
           using T = std::decay_t<decltype(val)>;
-          if constexpr (std::is_same_v<T, int>) {
+          if constexpr (std::is_same_v<T, int>)
+          {
             return makeIntInit(val);
-          } else if constexpr (std::is_same_v<T, long int>) {
+          }
+          else if constexpr (std::is_same_v<T, long int>)
+          {
             return makeLongInit(val);
-          } else if constexpr (std::is_same_v<T, unsigned int>) {
+          }
+          else if constexpr (std::is_same_v<T, unsigned int>)
+          {
             return makeUIntInit(val);
-          } else if constexpr (std::is_same_v<T, long unsigned int>) {
+          }
+          else if constexpr (std::is_same_v<T, long unsigned int>)
+          {
             return makeULongInit(val);
-          } else if constexpr (std::is_same_v<T, char>) {
+          }
+          else if constexpr (std::is_same_v<T, char>)
+          {
             return makeCharInit(val);
-          } else if constexpr (std::is_same_v<T, unsigned char>) {
+          }
+          else if constexpr (std::is_same_v<T, unsigned char>)
+          {
             return makeUCharInit(val);
-          } else if constexpr (std::is_same_v<T, double>) {
+          }
+          else if constexpr (std::is_same_v<T, double>)
+          {
             return makeDoubleInit(val);
           }
         },
@@ -202,15 +254,19 @@ struct StaticInit {
   }
 };
 
-struct StaticInitComparator {
-  bool operator()(const StaticInit &a, const StaticInit &b) const {
+struct StaticInitComparator
+{
+  bool operator()(const StaticInit &a, const StaticInit &b) const
+  {
     // First compare by kind
-    if (a.kind != b.kind) {
+    if (a.kind != b.kind)
+    {
       return a.kind < b.kind;
     }
 
     // Same kind, now compare values
-    switch (a.kind) {
+    switch (a.kind)
+    {
     case StaticInitKind::INT_INIT:
       return std::get<int>(a.data) < std::get<int>(b.data);
 
@@ -223,7 +279,8 @@ struct StaticInitComparator {
     case StaticInitKind::ULONG_INIT:
       return std::get<unsigned long>(a.data) < std::get<unsigned long>(b.data);
 
-    case StaticInitKind::DOUBLE_INIT: {
+    case StaticInitKind::DOUBLE_INIT:
+    {
       // For doubles, use memcmp to distinguish between 0.0 and -0.0
       double val_a = std::get<double>(a.data);
       double val_b = std::get<double>(b.data);
@@ -246,35 +303,44 @@ struct StaticInitComparator {
     case StaticInitKind::UCHAR_INIT:
       return std::get<unsigned char>(a.data) < std::get<unsigned char>(b.data);
 
-    case StaticInitKind::STRING_INIT: {
+    case StaticInitKind::STRING_INIT:
+    {
       auto &str_a = std::get<StringStaticInit>(a.data);
       auto &str_b = std::get<StringStaticInit>(b.data);
-      if (str_a.value != str_b.value) {
+      if (str_a.value != str_b.value)
+      {
         return str_a.value < str_b.value;
       }
       return str_a.null_terminated < str_b.null_terminated;
     }
 
-    case StaticInitKind::POINTER_INIT: {
+    case StaticInitKind::POINTER_INIT:
+    {
       auto &ptr_a = std::get<PointerStaticInit>(a.data);
       auto &ptr_b = std::get<PointerStaticInit>(b.data);
       return ptr_a.name < ptr_b.name;
     }
 
-    case StaticInitKind::COMPOUND: {
+    case StaticInitKind::COMPOUND:
+    {
       auto &comp_a = std::get<CompoundStaticInit>(a.data);
       auto &comp_b = std::get<CompoundStaticInit>(b.data);
-      if (comp_a.initializers.size() != comp_b.initializers.size()) {
+      if (comp_a.initializers.size() != comp_b.initializers.size())
+      {
         return comp_a.initializers.size() < comp_b.initializers.size();
       }
       size_t min_size =
           std::min(comp_a.initializers.size(), comp_b.initializers.size());
-      for (size_t i = 0; i < min_size; ++i) {
+      for (size_t i = 0; i < min_size; ++i)
+      {
         if (StaticInitComparator()(comp_a.initializers[i],
-                                   comp_b.initializers[i])) {
+                                   comp_b.initializers[i]))
+        {
           return true;
-        } else if (StaticInitComparator()(comp_b.initializers[i],
-                                          comp_a.initializers[i])) {
+        }
+        else if (StaticInitComparator()(comp_b.initializers[i],
+                                        comp_a.initializers[i]))
+        {
           return false;
         }
       }
@@ -287,7 +353,8 @@ struct StaticInitComparator {
 };
 
 // IR Instruction types
-enum class IROpType {
+enum class IROpType
+{
   // Unary operations
   COMPLEMENT,
   NEGATE,
@@ -306,6 +373,7 @@ enum class IROpType {
   STORE,
   ADD_PTR,
   COPY_TO_OFFSET,
+  COPY_FROM_OFFSET,
   // Binary operations
   ADD,
   SUBTRACT,
@@ -336,7 +404,8 @@ enum class IROpType {
   LABEL
 };
 
-class IRValueNode {
+class IRValueNode
+{
 public:
   IRValueType type;
   TypeKind constType;
@@ -347,7 +416,8 @@ public:
   std::vector<IRValuePtr> args;
   // Constructors
   // copy ctr
-  IRValueNode(IRValuePtr other) {
+  IRValueNode(IRValuePtr other)
+  {
     type = other->type;
     value = other->value;
     name = other->name;
@@ -359,12 +429,14 @@ public:
   static IRValuePtr
   makeConstant(std::variant<int, long int, long unsigned int, unsigned int,
                             double, char, unsigned char>
-                   value) {
+                   value)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::CONSTANT;
     val->value = value;
     val->constType = std::visit(
-        [&](auto &&val) {
+        [&](auto &&val)
+        {
           using T = std::decay_t<decltype(val)>;
           if constexpr (std::is_same_v<T, int>)
             return TypeKind::INT;
@@ -383,39 +455,48 @@ public:
     return val;
   }
 
-  static IRValuePtr makeVariable(const std::string &varName) {
+  static IRValuePtr makeVariable(const std::string &varName)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::VARIABLE;
     val->name = varName;
     return val;
   }
 
-  static IRValuePtr makeTemporary(const std::string &tempName) {
+  static IRValuePtr makeTemporary(const std::string &tempName)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::TEMPORARY;
     val->name = tempName;
     return val;
   }
 
-  static IRValuePtr makeArgs(const std::vector<IRValuePtr> &arguments) {
+  static IRValuePtr makeArgs(const std::vector<IRValuePtr> &arguments)
+  {
     auto val = std::make_shared<IRValueNode>();
     val->type = IRValueType::ARGS;
     val->args = arguments;
     return val;
   }
 
-  std::string toString() const {
-    switch (type) {
+  std::string toString() const
+  {
+    switch (type)
+    {
     case IRValueType::CONSTANT:
-      return std::visit([](auto &&arg) { return std::to_string(arg); }, value);
+      return std::visit([](auto &&arg)
+                        { return std::to_string(arg); }, value);
     case IRValueType::VARIABLE:
     case IRValueType::TEMPORARY:
       return name;
-    case IRValueType::ARGS: {
+    case IRValueType::ARGS:
+    {
       std::string argList = "[";
-      for (size_t i = 0; i < args.size(); i++) {
+      for (size_t i = 0; i < args.size(); i++)
+      {
         argList += args[i]->toString();
-        if (i != args.size() - 1) {
+        if (i != args.size() - 1)
+        {
           argList += ", ";
         }
       }
@@ -427,7 +508,8 @@ public:
   }
 };
 
-class IRInstructionNode {
+class IRInstructionNode
+{
 public:
   IROpType opType;
   IRValuePtr dst;    // Destination (can be null for some operations)
@@ -447,7 +529,8 @@ public:
 
   // Factory methods for different instruction types
   static IRInstructionPtr makeUnary(IROpType op, IRValuePtr dst,
-                                    IRValuePtr src) {
+                                    IRValuePtr src)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = op;
     inst->dst = std::move(dst);
@@ -456,7 +539,8 @@ public:
   }
 
   static IRInstructionPtr makeBinary(IROpType op, IRValuePtr dst,
-                                     IRValuePtr src1, IRValuePtr src2) {
+                                     IRValuePtr src1, IRValuePtr src2)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = op;
     inst->dst = std::move(dst);
@@ -465,7 +549,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeSignExtend(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeSignExtend(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::SIGN_EXTEND;
     inst->src1 = std::move(src);
@@ -473,7 +558,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeTruncate(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeTruncate(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::TRUNCATE;
     inst->src1 = std::move(src);
@@ -481,7 +567,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeZeroExtend(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeZeroExtend(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::ZERO_EXTEND;
     inst->src1 = std::move(src);
@@ -489,7 +576,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeDoubleToLong(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeDoubleToLong(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::DOUBLE_TO_LONG;
     inst->src1 = std::move(src);
@@ -497,7 +585,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeDoubleToULong(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeDoubleToULong(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::DOUBLE_TO_ULONG;
     inst->src1 = std::move(src);
@@ -505,7 +594,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeLongToDouble(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeLongToDouble(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::LONG_TO_DOUBLE;
     inst->src1 = std::move(src);
@@ -513,7 +603,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeULongToDouble(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeULongToDouble(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::ULONG_TO_DOUBLE;
     inst->src1 = std::move(src);
@@ -521,7 +612,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeGetAddress(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeGetAddress(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::GET_ADDRESS;
     inst->src1 = std::move(src);
@@ -529,7 +621,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeLoad(IRValuePtr src_ptr, IRValuePtr dst) {
+  static IRInstructionPtr makeLoad(IRValuePtr src_ptr, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::LOAD;
     inst->src1 = std::move(src_ptr);
@@ -537,7 +630,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeStore(IRValuePtr src, IRValuePtr dst_ptr) {
+  static IRInstructionPtr makeStore(IRValuePtr src, IRValuePtr dst_ptr)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::STORE;
     inst->src1 = std::move(src);
@@ -546,7 +640,8 @@ public:
   }
 
   static IRInstructionPtr makeAddPtr(IRValuePtr ptr, IRValuePtr index,
-                                     int scale, IRValuePtr dst) {
+                                     int scale, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::ADD_PTR;
     inst->src1 = std::move(ptr);
@@ -557,7 +652,8 @@ public:
   }
 
   static IRInstructionPtr
-  makeCopyToOffset(IRValuePtr src, const std::string &dstName, int offset) {
+  makeCopyToOffset(IRValuePtr src, const std::string &dstName, int offset)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::COPY_TO_OFFSET;
     inst->src1 = std::move(src);
@@ -566,21 +662,35 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeReturn(IRValuePtr value = nullptr) {
+  static IRInstructionPtr
+  makeCopyFromOffset(const std::string &srcName, int offset, IRValuePtr dst)
+  {
+    auto inst = std::make_shared<IRInstructionNode>();
+    inst->opType = IROpType::COPY_FROM_OFFSET;
+    inst->label = srcName; // Reusing label field for source name
+    inst->offset = offset;
+    inst->dst = std::move(dst);
+    return inst;
+  }
+
+  static IRInstructionPtr makeReturn(IRValuePtr value = nullptr)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::RETURN;
     inst->src1 = std::move(value);
     return inst;
   }
 
-  static IRInstructionPtr makeLabel(const std::string &labelName) {
+  static IRInstructionPtr makeLabel(const std::string &labelName)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::LABEL;
     inst->label = labelName;
     return inst;
   }
 
-  static IRInstructionPtr makeCopy(IRValuePtr src, IRValuePtr dst) {
+  static IRInstructionPtr makeCopy(IRValuePtr src, IRValuePtr dst)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::COPY;
     inst->src1 = std::move(src);
@@ -588,7 +698,8 @@ public:
     return inst;
   }
 
-  static IRInstructionPtr makeJump(const std::string &target) {
+  static IRInstructionPtr makeJump(const std::string &target)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP;
     inst->label = target;
@@ -596,7 +707,8 @@ public:
   }
 
   static IRInstructionPtr makeJumpIfZero(IRValuePtr condition,
-                                         const std::string &target) {
+                                         const std::string &target)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP_IF_ZERO;
     inst->src1 = std::move(condition);
@@ -605,7 +717,8 @@ public:
   }
 
   static IRInstructionPtr makeJumpIfNotZero(IRValuePtr condition,
-                                            const std::string &target) {
+                                            const std::string &target)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::JUMP_IF_NOT_ZERO;
     inst->src1 = std::move(condition);
@@ -614,7 +727,8 @@ public:
   }
 
   static IRInstructionPtr makeCall(IRValuePtr function, IRValuePtr arguments,
-                                   IRValuePtr result = nullptr) {
+                                   IRValuePtr result = nullptr)
+  {
     auto inst = std::make_shared<IRInstructionNode>();
     inst->opType = IROpType::CALL;
     inst->src1 = std::move(function);
@@ -627,13 +741,15 @@ public:
 };
 
 // Base class for top-level IR nodes (functions and static variables)
-class IRTopLevelNode {
+class IRTopLevelNode
+{
 public:
   virtual ~IRTopLevelNode() = default;
   virtual std::string toString() const = 0;
 };
 
-class IRFunctionNode : public IRTopLevelNode {
+class IRFunctionNode : public IRTopLevelNode
+{
 public:
   std::string identifier;
   bool global;
@@ -643,7 +759,8 @@ public:
   IRFunctionNode(std::string id, bool isGlobal = true)
       : identifier(std::move(id)), global(isGlobal) {}
 
-  void addInstruction(IRInstructionPtr instruction) {
+  void addInstruction(IRInstructionPtr instruction)
+  {
     instructions.push_back(std::move(instruction));
   }
 
@@ -651,7 +768,8 @@ public:
 };
 
 // Represents both external and local static variables
-class IRStaticVariableNode : public IRTopLevelNode {
+class IRStaticVariableNode : public IRTopLevelNode
+{
 public:
   std::string identifier;
   bool global;
@@ -667,7 +785,8 @@ public:
 };
 
 // Represents constant strings (read-only data)
-class IRStaticConstantNode : public IRTopLevelNode {
+class IRStaticConstantNode : public IRTopLevelNode
+{
 public:
   std::string identifier;
   Type type;
@@ -681,19 +800,23 @@ public:
   std::string toString() const override;
 };
 
-class IRProgramNode {
+class IRProgramNode
+{
 public:
   std::vector<IRTopLevelPtr> topLevelItems;
 
-  void addTopLevel(IRTopLevelPtr item) {
+  void addTopLevel(IRTopLevelPtr item)
+  {
     topLevelItems.push_back(std::move(item));
   }
 
-  void addFunction(IRFunctionPtr function) {
+  void addFunction(IRFunctionPtr function)
+  {
     topLevelItems.push_back(std::static_pointer_cast<IRTopLevelNode>(function));
   }
 
-  void addStaticVariable(IRStaticVariablePtr variable) {
+  void addStaticVariable(IRStaticVariablePtr variable)
+  {
     topLevelItems.push_back(std::static_pointer_cast<IRTopLevelNode>(variable));
   }
 
@@ -701,7 +824,8 @@ public:
 };
 
 // IR Generator using visitor pattern
-class IRGenerator : public ASTVisitor {
+class IRGenerator : public ASTVisitor
+{
 public:
   IRGenerator(int labelCounter)
       : tempCounter(), labelCounter(labelCounter), stringCounter(0) {}
@@ -772,24 +896,27 @@ private:
   IRProgramPtr program;
   std::shared_ptr<IRFunctionNode> currentFunction;
   std::shared_ptr<IRValueNode> currentValue; // For expression results
-  ExpResult currentExpResult; // For tracking expression results (plain vs
-                              // dereferenced)
-  bool needsLvalueConversion; // Flag to control lvalue conversion
+  ExpResult currentExpResult;                // For tracking expression results (plain vs
+                                             // dereferenced)
+  bool needsLvalueConversion;                // Flag to control lvalue conversion
 
   int tempCounter;
   int labelCounter;
   int stringCounter;
 
   // Helper methods
-  std::string generateTempName() {
+  std::string generateTempName()
+  {
     return "tmp." + std::to_string(tempCounter++);
   }
 
-  std::string generateStringName() {
+  std::string generateStringName()
+  {
     return "string." + std::to_string(stringCounter++);
   }
 
-  std::string generateLabelName() {
+  std::string generateLabelName()
+  {
     return "label." + std::to_string(labelCounter++);
   }
 
@@ -826,7 +953,8 @@ private:
                                  const Type *arrayType = nullptr);
 };
 
-class Valor {
+class Valor
+{
 public:
   Valor(int labelcounter) : generator(labelcounter) {}
   ~Valor() = default;

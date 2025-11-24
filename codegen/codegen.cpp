@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include "../semantic_analysis/semantic_analysis.hpp"
 #include <cassert>
 std::unordered_map<std::string, int> offset_table;
 
@@ -1615,6 +1616,13 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
                                                         getAssemblyType(irInstruction->src1)));
     break;
   }
+  case IROpType::COPY_FROM_OFFSET:
+  {
+    asmInstructions.push_back(ASMInstruction::createMov(IRValueToOperand(irInstruction->dst),
+                                                        PseudoMem::createPseudoMem(irInstruction->label, irInstruction->offset),
+                                                        getAssemblyType(irInstruction->dst)));
+    break;
+  }
   case IROpType::ADD_PTR:
   {
     // handling separately for constant index, variable index and scale of 1,2,4,8 and variable index and other scale
@@ -1765,6 +1773,114 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue)
   }
 }
 
+// Helper function to allocate space for a variable (array or struct)
+static void allocateVariable(const std::string &varName, int &offset)
+{
+  if (offset_table.find(varName) != offset_table.end())
+  {
+    return; // Already allocated
+  }
+
+  if (global_symbol_table.find(varName) == global_symbol_table.end())
+  {
+    return; // Not in symbol table
+  }
+
+  auto &entry = global_symbol_table[varName];
+
+  // Handle structures
+  if (entry.type.kind == TypeKind::STRUCT)
+  {
+    const auto &structType = std::get<StructType>(entry.type.data);
+    auto it = type_table.find(structType.name);
+    if (it != type_table.end())
+    {
+      const StructEntry &structEntry = it->second;
+      int totalSize = structEntry.size;
+      int alignment = structEntry.alignment;
+
+      // Align offset
+      offset += totalSize;
+      offset = (offset + alignment - 1) & ~(alignment - 1);
+      offset_table[varName] = offset;
+    }
+    return;
+  }
+
+  // Handle arrays
+  if (entry.assemblyType != AssemblyType::BYTE_ARRAY)
+  {
+    return; // Not an array or struct
+  }
+
+  // Get array size and alignment
+  const auto &arrayType = std::get<ArrayType>(entry.type.data);
+  int elementSize = 0;
+  int numElements = arrayType.size;
+  if (arrayType.element->kind == TypeKind::INT ||
+      arrayType.element->kind == TypeKind::UINT)
+  {
+    elementSize = 4;
+  }
+  else if (arrayType.element->kind == TypeKind::LONG ||
+           arrayType.element->kind == TypeKind::ULONG ||
+           arrayType.element->kind == TypeKind::POINTER ||
+           arrayType.element->kind == TypeKind::DOUBLE)
+  {
+    elementSize = 8;
+  }
+  else if (arrayType.element->kind == TypeKind::CHAR ||
+           arrayType.element->kind == TypeKind::UCHAR ||
+           arrayType.element->kind == TypeKind::SCHAR)
+  {
+    elementSize = 1;
+  }
+  else if (arrayType.element->kind == TypeKind::ARRAY)
+  {
+    // Nested array - recursively get the scalar element type
+    Type *scalarType = arrayType.element.get();
+    while (scalarType->kind == TypeKind::ARRAY)
+    {
+      numElements *= std::get<ArrayType>(scalarType->data).size;
+      scalarType = std::get<ArrayType>(scalarType->data).element.get();
+    }
+
+    // Determine scalar element size
+    if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
+        scalarType->kind == TypeKind::SCHAR)
+    {
+      elementSize = 1;
+    }
+    else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
+    {
+      elementSize = 4;
+    }
+    else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
+             scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
+    {
+      elementSize = 8;
+    }
+  }
+
+  int totalSize = elementSize * numElements;
+
+  // Determine alignment based on total size and scalar element size
+  int alignment;
+  if (totalSize >= 16)
+  {
+    alignment = 16;
+  }
+  else
+  {
+    alignment = elementSize;
+  }
+
+  // Align offset
+  offset += totalSize;
+  offset = (offset + alignment - 1) & ~(alignment - 1);
+  offset_table[varName] = offset;
+}
+
 int Codegen::replacePseudoRegisters(ASMBasePtr ast)
 {
   static int offset = 0;
@@ -1802,81 +1918,9 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
           }
           else
           {
-            // Automatic storage duration array
-            // Allocate the array if not already allocated
-            if (offset_table.find(pseudoMem->name) == offset_table.end())
-            {
-              auto &entry = global_symbol_table[pseudoMem->name];
-              if (entry.assemblyType == AssemblyType::BYTE_ARRAY)
-              {
-                // Get array size and alignment
-                const auto &arrayType = std::get<ArrayType>(entry.type.data);
-                int elementSize = 0;
-                int numElements = arrayType.size;
-                if (arrayType.element->kind == TypeKind::INT ||
-                    arrayType.element->kind == TypeKind::UINT)
-                {
-                  elementSize = 4;
-                }
-                else if (arrayType.element->kind == TypeKind::LONG ||
-                         arrayType.element->kind == TypeKind::ULONG ||
-                         arrayType.element->kind == TypeKind::POINTER ||
-                         arrayType.element->kind == TypeKind::DOUBLE)
-                {
-                  elementSize = 8;
-                }
-                else if (arrayType.element->kind == TypeKind::CHAR ||
-                         arrayType.element->kind == TypeKind::UCHAR ||
-                         arrayType.element->kind == TypeKind::SCHAR)
-                {
-                  elementSize = 1;
-                }
-                else if (arrayType.element->kind == TypeKind::ARRAY)
-                {
-                  // Nested array - recursively get the scalar element type
-                  Type *scalarType = arrayType.element.get();
-                  while (scalarType->kind == TypeKind::ARRAY)
-                  {
-                    numElements *= std::get<ArrayType>(scalarType->data).size;
-                    scalarType = std::get<ArrayType>(scalarType->data).element.get();
-                  }
-
-                  // Determine scalar element size and alignment
-                  if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
-                      scalarType->kind == TypeKind::SCHAR)
-                  {
-                    elementSize = 1;
-                  }
-                  else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
-                  {
-                    elementSize = 4;
-                  }
-                  else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
-                           scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
-                  {
-                    elementSize = 8;
-                  }
-                }
-
-                int totalSize = elementSize * numElements;
-
-                // Determine alignment based on total size and scalar element size
-                int alignment;
-                if (totalSize >= 16)
-                {
-                  alignment = 16;
-                }
-                else
-                {
-                  alignment = elementSize;
-                }
-
-                // Align offset
-                offset += totalSize;
-                offset = (offset + alignment - 1) & ~(alignment - 1);
-                offset_table[pseudoMem->name] = offset;
-              }
-            }
+            // Automatic storage duration array or structure
+            // Allocate the variable if not already allocated
+            allocateVariable(pseudoMem->name, offset);
 
             // Compute combined offset
             int combinedOffset = offset_table[pseudoMem->name] - pseudoMem->offset;
@@ -1905,81 +1949,9 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
           }
           else
           {
-            // Automatic storage duration array
-            // Allocate the array if not already allocated
-            if (offset_table.find(pseudoMem->name) == offset_table.end())
-            {
-              auto &entry = global_symbol_table[pseudoMem->name];
-              if (entry.assemblyType == AssemblyType::BYTE_ARRAY)
-              {
-                // Get array size and alignment
-                const auto &arrayType = std::get<ArrayType>(entry.type.data);
-                int elementSize = 0;
-                int numElements = arrayType.size;
-                if (arrayType.element->kind == TypeKind::INT ||
-                    arrayType.element->kind == TypeKind::UINT)
-                {
-                  elementSize = 4;
-                }
-                else if (arrayType.element->kind == TypeKind::LONG ||
-                         arrayType.element->kind == TypeKind::ULONG ||
-                         arrayType.element->kind == TypeKind::POINTER ||
-                         arrayType.element->kind == TypeKind::DOUBLE)
-                {
-                  elementSize = 8;
-                }
-                else if (arrayType.element->kind == TypeKind::CHAR ||
-                         arrayType.element->kind == TypeKind::UCHAR ||
-                         arrayType.element->kind == TypeKind::SCHAR)
-                {
-                  elementSize = 1;
-                }
-                else if (arrayType.element->kind == TypeKind::ARRAY)
-                {
-                  // Nested array - recursively get the scalar element type
-                  Type *scalarType = arrayType.element.get();
-                  while (scalarType->kind == TypeKind::ARRAY)
-                  {
-                    numElements *= std::get<ArrayType>(scalarType->data).size;
-                    scalarType = std::get<ArrayType>(scalarType->data).element.get();
-                  }
-
-                  // Determine scalar element size and alignment
-                  if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
-                      scalarType->kind == TypeKind::SCHAR)
-                  {
-                    elementSize = 1;
-                  }
-                  else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
-                  {
-                    elementSize = 4;
-                  }
-                  else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
-                           scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
-                  {
-                    elementSize = 8;
-                  }
-                }
-
-                int totalSize = elementSize * numElements;
-
-                // Determine alignment based on total size and scalar element size
-                int alignment;
-                if (totalSize >= 16)
-                {
-                  alignment = 16;
-                }
-                else
-                {
-                  alignment = elementSize;
-                }
-
-                // Align offset
-                offset += totalSize;
-                offset = (offset + alignment - 1) & ~(alignment - 1);
-                offset_table[pseudoMem->name] = offset;
-              }
-            }
+            // Automatic storage duration array or structure
+            // Allocate the variable if not already allocated
+            allocateVariable(pseudoMem->name, offset);
 
             // Compute combined offset
             int combinedOffset = offset_table[pseudoMem->name] - pseudoMem->offset;
@@ -2008,81 +1980,9 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
           }
           else
           {
-            // Automatic storage duration array
-            // Allocate the array if not already allocated
-            if (offset_table.find(pseudoMem->name) == offset_table.end())
-            {
-              auto &entry = global_symbol_table[pseudoMem->name];
-              if (entry.assemblyType == AssemblyType::BYTE_ARRAY)
-              {
-                // Get array size and alignment
-                const auto &arrayType = std::get<ArrayType>(entry.type.data);
-                int elementSize = 0;
-                int numElements = arrayType.size;
-                if (arrayType.element->kind == TypeKind::INT ||
-                    arrayType.element->kind == TypeKind::UINT)
-                {
-                  elementSize = 4;
-                }
-                else if (arrayType.element->kind == TypeKind::LONG ||
-                         arrayType.element->kind == TypeKind::ULONG ||
-                         arrayType.element->kind == TypeKind::POINTER ||
-                         arrayType.element->kind == TypeKind::DOUBLE)
-                {
-                  elementSize = 8;
-                }
-                else if (arrayType.element->kind == TypeKind::CHAR ||
-                         arrayType.element->kind == TypeKind::UCHAR ||
-                         arrayType.element->kind == TypeKind::SCHAR)
-                {
-                  elementSize = 1;
-                }
-                else if (arrayType.element->kind == TypeKind::ARRAY)
-                {
-                  // Nested array - recursively get the scalar element type
-                  Type *scalarType = arrayType.element.get();
-                  while (scalarType->kind == TypeKind::ARRAY)
-                  {
-                    numElements *= std::get<ArrayType>(scalarType->data).size;
-                    scalarType = std::get<ArrayType>(scalarType->data).element.get();
-                  }
-
-                  // Determine scalar element size and alignment
-                  if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
-                      scalarType->kind == TypeKind::SCHAR)
-                  {
-                    elementSize = 1;
-                  }
-                  else if (scalarType->kind == TypeKind::INT || scalarType->kind == TypeKind::UINT)
-                  {
-                    elementSize = 4;
-                  }
-                  else if (scalarType->kind == TypeKind::LONG || scalarType->kind == TypeKind::ULONG ||
-                           scalarType->kind == TypeKind::DOUBLE || scalarType->kind == TypeKind::POINTER)
-                  {
-                    elementSize = 8;
-                  }
-                }
-
-                int totalSize = elementSize * numElements;
-
-                // Determine alignment based on total size and scalar element size
-                int alignment;
-                if (totalSize >= 16)
-                {
-                  alignment = 16;
-                }
-                else
-                {
-                  alignment = elementSize;
-                }
-
-                // Align offset
-                offset += totalSize;
-                offset = (offset + alignment - 1) & ~(alignment - 1);
-                offset_table[pseudoMem->name] = offset;
-              }
-            }
+            // Automatic storage duration array or structure
+            // Allocate the variable if not already allocated
+            allocateVariable(pseudoMem->name, offset);
 
             // Compute combined offset
             int combinedOffset = offset_table[pseudoMem->name] - pseudoMem->offset;
