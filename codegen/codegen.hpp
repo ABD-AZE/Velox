@@ -1,5 +1,6 @@
 #pragma once
 #include "../valor/valor.hpp"
+#include <cstring>
 #include <functional>
 #include <sstream>
 #include <string>
@@ -12,6 +13,7 @@ class ASMProgram;
 class ASMFunction;
 class ASMTopLevel;
 class ASMStaticVariable;
+class ASMStaticConstant;
 class ASMInstruction;
 class Operand;
 class Immediate;
@@ -21,6 +23,7 @@ using ASMBasePtr = std::shared_ptr<ASMBase>;
 using ASMProgramPtr = std::shared_ptr<ASMProgram>;
 using ASMTopLevelPtr = std::shared_ptr<ASMTopLevel>;
 using ASMStaticVariablePtr = std::shared_ptr<ASMStaticVariable>;
+using ASMStaticConstantPtr = std::shared_ptr<ASMStaticConstant>;
 using ASMFunctionPtr = std::shared_ptr<ASMFunction>;
 using ASMInstructionPtr = std::shared_ptr<ASMInstruction>;
 using OperandPtr = std::shared_ptr<Operand>;
@@ -336,6 +339,120 @@ public:
   }
 };
 
+class ASMStaticConstant : public ASMTopLevel
+{
+public:
+  std::string name;
+  int alignment;
+  std::vector<StaticInit> init;
+
+  static std::shared_ptr<ASMStaticConstant>
+  createStaticConstant(const std::string &name, int alignment,
+                       std::vector<StaticInit> init)
+  {
+    auto constant = std::make_shared<ASMStaticConstant>();
+    constant->name = name;
+    constant->alignment = alignment;
+    constant->init = init;
+    return constant;
+  }
+
+  std::string toString() const override
+  {
+    std::stringstream ss;
+
+    // Don't use .L prefix for string constants - they need to be referenced
+    ss << name << ":\n";
+
+    // Helper lambda to recursively print static initializers
+    std::function<void(const StaticInit &)> printStaticInit = [&](const StaticInit &init)
+    {
+      switch (init.kind)
+      {
+      case StaticInitKind::INT_INIT:
+        ss << TAB << ".long " << std::get<int>(init.data) << "\n";
+        break;
+      case StaticInitKind::LONG_INIT:
+        ss << TAB << ".quad " << std::get<long int>(init.data) << "\n";
+        break;
+      case StaticInitKind::UINT_INIT:
+        ss << TAB << ".long " << std::get<unsigned int>(init.data) << "\n";
+        break;
+      case StaticInitKind::ULONG_INIT:
+        ss << TAB << ".quad " << std::get<long unsigned int>(init.data) << "\n";
+        break;
+      case StaticInitKind::CHAR_INIT:
+        ss << TAB << ".byte " << static_cast<int>(std::get<char>(init.data)) << "\n";
+        break;
+      case StaticInitKind::UCHAR_INIT:
+        ss << TAB << ".byte " << static_cast<int>(std::get<unsigned char>(init.data)) << "\n";
+        break;
+      case StaticInitKind::DOUBLE_INIT:
+      {
+        double val = std::get<double>(init.data);
+        unsigned long bits;
+        std::memcpy(&bits, &val, sizeof(double));
+        ss << TAB << ".quad " << bits << "\n";
+        break;
+      }
+      case StaticInitKind::ZERO_INIT:
+        ss << TAB << ".zero 1\n";
+        break;
+      case StaticInitKind::STRING_INIT:
+      {
+        const auto &str_init = std::get<StringStaticInit>(init.data);
+        ss << TAB << ".ascii \"";
+        for (char c : str_init.value)
+        {
+          if (c == '\n')
+            ss << "\\n";
+          else if (c == '\t')
+            ss << "\\t";
+          else if (c == '\r')
+            ss << "\\r";
+          else if (c == '\\')
+            ss << "\\\\";
+          else if (c == '"')
+            ss << "\\\"";
+          else if (c == '\0')
+            ss << "\\0";
+          else
+            ss << c;
+        }
+        ss << "\"\n";
+        if (str_init.null_terminated)
+        {
+          ss << TAB << ".byte 0\n";
+        }
+        break;
+      }
+      case StaticInitKind::POINTER_INIT:
+      {
+        const auto &ptr_init = std::get<PointerStaticInit>(init.data);
+        ss << TAB << ".quad " << ptr_init.name << "\n";
+        break;
+      }
+      case StaticInitKind::COMPOUND:
+      {
+        const auto &compound = std::get<CompoundStaticInit>(init.data);
+        for (const auto &elem : compound.initializers)
+        {
+          printStaticInit(elem);
+        }
+        break;
+      }
+      }
+    };
+
+    for (const auto &initializer : init)
+    {
+      printStaticInit(initializer);
+    }
+
+    return ss.str();
+  }
+};
+
 class Operand : public ASMBase
 {
 public:
@@ -642,6 +759,8 @@ public:
   OperandPtr src1;
   OperandPtr src2;
   AssemblyType assemblyType;
+  AssemblyType src_type; // for Movsx and MovZeroExtend
+  AssemblyType dst_type; // for Movsx and MovZeroExtend
   std::string toString() const;
 
   static ASMInstructionPtr createMov(const OperandPtr &dst,
@@ -786,22 +905,30 @@ public:
   }
 
   static ASMInstructionPtr createMovsx(const OperandPtr &dst,
-                                       const OperandPtr &src)
+                                       const OperandPtr &src,
+                                       AssemblyType src_type,
+                                       AssemblyType dst_type)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::MOVSX;
     instr->dst = dst;
     instr->src1 = src;
+    instr->src_type = src_type;
+    instr->dst_type = dst_type;
     return instr;
   }
 
   static ASMInstructionPtr createMovZeroExtend(const OperandPtr &dst,
-                                               const OperandPtr &src)
+                                               const OperandPtr &src,
+                                               AssemblyType src_type,
+                                               AssemblyType dst_type)
   {
     auto instr = std::make_shared<ASMInstruction>();
     instr->opType = ASMOpType::MOVZEROEXTEND;
     instr->dst = dst;
     instr->src1 = src;
+    instr->src_type = src_type;
+    instr->dst_type = dst_type;
     return instr;
   }
 
