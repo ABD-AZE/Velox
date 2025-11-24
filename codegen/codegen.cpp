@@ -51,6 +51,12 @@ AssemblyType getAssemblyType(IRValuePtr irValue)
     {
       return AssemblyType::DOUBLE_WORD;
     }
+    else if (irValue->constType == TypeKind::CHAR ||
+             irValue->constType == TypeKind::SCHAR ||
+             irValue->constType == TypeKind::UCHAR)
+    {
+      return AssemblyType::BYTE;
+    }
     assert(irValue->constType == TypeKind::LONG || irValue->constType == TypeKind::ULONG || irValue->constType == TypeKind::POINTER);
     return AssemblyType::QUAD_WORD; // LONG, ULONG, POINTER
   }
@@ -81,7 +87,7 @@ bool isMemoryAddress(const OperandPtr &operand)
 
 // Helper function to calculate type size in bytes
 int getTypeSize(const Type &type)
-{ 
+{
   switch (type.kind)
   {
   case TypeKind::INT:
@@ -182,6 +188,10 @@ std::string ASMInstruction::toString() const
   {
     eightByte = 1;
   }
+  else if (assemblyType == AssemblyType::BYTE)
+  {
+    oneByte = 1;
+  }
   switch (opType)
   {
   case ASMOpType::MOV:
@@ -189,6 +199,8 @@ std::string ASMInstruction::toString() const
       ss << "movq " << src1->toString() << ", " << dst->toString();
     else if (assemblyType == AssemblyType::DOUBLE_WORD)
       ss << "movsd " << src1->toString() << ", " << dst->toString();
+    else if (assemblyType == AssemblyType::BYTE)
+      ss << "movb " << src1->toString() << ", " << dst->toString();
     else
       ss << "movl " << src1->toString() << ", " << dst->toString();
     break;
@@ -198,12 +210,16 @@ std::string ASMInstruction::toString() const
     case UnaryOpType::NEG:
       if (assemblyType == AssemblyType::QUAD_WORD)
         ss << "negq " << src1->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "negb " << src1->toString();
       else
         ss << "negl " << src1->toString();
       break;
     case UnaryOpType::NOT:
       if (assemblyType == AssemblyType::QUAD_WORD)
         ss << "notq " << src1->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "notb " << src1->toString();
       else
         ss << "notl " << src1->toString();
       break;
@@ -222,6 +238,8 @@ std::string ASMInstruction::toString() const
         ss << "addq " << src2->toString() << ", " << dst->toString();
       else if (assemblyType == AssemblyType::DOUBLE_WORD)
         ss << "addsd " << src2->toString() << ", " << dst->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "addb " << src2->toString() << ", " << dst->toString();
       else
         ss << "addl " << src2->toString() << ", " << dst->toString();
       break;
@@ -230,6 +248,8 @@ std::string ASMInstruction::toString() const
         ss << "subq " << src2->toString() << ", " << dst->toString();
       else if (assemblyType == AssemblyType::DOUBLE_WORD)
         ss << "subsd " << src2->toString() << ", " << dst->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "subb " << src2->toString() << ", " << dst->toString();
       else
         ss << "subl " << src2->toString() << ", " << dst->toString();
       break;
@@ -247,12 +267,16 @@ std::string ASMInstruction::toString() const
     case BinaryOpType::AND:
       if (assemblyType == AssemblyType::QUAD_WORD)
         ss << "andq " << src2->toString() << ", " << dst->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "andb " << src2->toString() << ", " << dst->toString();
       else
         ss << "andl " << src2->toString() << ", " << dst->toString();
       break;
     case BinaryOpType::OR:
       if (assemblyType == AssemblyType::QUAD_WORD)
         ss << "orq " << src2->toString() << ", " << dst->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "orb " << src2->toString() << ", " << dst->toString();
       else
         ss << "orl " << src2->toString() << ", " << dst->toString();
       break;
@@ -261,6 +285,8 @@ std::string ASMInstruction::toString() const
         ss << "xorq " << src2->toString() << ", " << dst->toString();
       else if (assemblyType == AssemblyType::DOUBLE_WORD)
         ss << "xorpd " << src2->toString() << ", " << dst->toString();
+      else if (assemblyType == AssemblyType::BYTE)
+        ss << "xorb " << src2->toString() << ", " << dst->toString();
       else
         ss << "xorl " << src2->toString() << ", " << dst->toString();
       break;
@@ -334,6 +360,8 @@ std::string ASMInstruction::toString() const
       ss << "cmpq " << src2->toString() << ", " << src1->toString();
     else if (assemblyType == AssemblyType::DOUBLE_WORD)
       ss << "comisd " << src2->toString() << ", " << src1->toString();
+    else if (assemblyType == AssemblyType::BYTE)
+      ss << "cmpb " << src2->toString() << ", " << src1->toString();
     else
       ss << "cmpl " << src2->toString() << ", " << src1->toString();
     break;
@@ -430,16 +458,88 @@ std::string ASMInstruction::toString() const
     }
     break;
   case ASMOpType::MOVSX:
-    ss << "movslq ";
-    eightByte = 0;
-    ss << src1->toString() << ", ";
-    eightByte = 1;
+  {
+    // Determine the instruction suffix based on src_type and dst_type
+    std::string suffix;
+    if (src_type == AssemblyType::BYTE && dst_type == AssemblyType::LONG_WORD)
+      suffix = "movsbl";
+    else if (src_type == AssemblyType::BYTE && dst_type == AssemblyType::QUAD_WORD)
+      suffix = "movsbq";
+    else if (src_type == AssemblyType::LONG_WORD && dst_type == AssemblyType::QUAD_WORD)
+      suffix = "movslq";
+    else
+      throw std::runtime_error("Invalid type combination for MOVSX");
+
+    // Set eightByte flags for proper register naming
+    bool saved_eightByte = eightByte;
+    bool saved_oneByte = oneByte;
+
+    // Set flags for source operand
+    if (src_type == AssemblyType::BYTE)
+      oneByte = true;
+    else if (src_type == AssemblyType::LONG_WORD)
+      eightByte = false;
+    else
+      eightByte = true;
+
+    ss << suffix << " " << src1->toString() << ", ";
+
+    // Set flags for destination operand
+    oneByte = false;
+    if (dst_type == AssemblyType::QUAD_WORD)
+      eightByte = true;
+    else
+      eightByte = false;
+
     ss << dst->toString();
-    if (assemblyType != AssemblyType::QUAD_WORD)
+
+    // Restore flags
+    eightByte = saved_eightByte;
+    oneByte = saved_oneByte;
+    break;
+  }
+  case ASMOpType::MOVZEROEXTEND:
+  {
+    // For MovZeroExtend, if src_type is LONG_WORD, use regular mov
+    if (src_type == AssemblyType::LONG_WORD)
     {
-      eightByte = 0;
+      ss << "movl " << src1->toString() << ", " << dst->toString();
+    }
+    else
+    {
+      // Determine the instruction suffix based on src_type and dst_type
+      std::string suffix;
+      if (src_type == AssemblyType::BYTE && dst_type == AssemblyType::LONG_WORD)
+        suffix = "movzbl";
+      else if (src_type == AssemblyType::BYTE && dst_type == AssemblyType::QUAD_WORD)
+        suffix = "movzbq";
+      else
+        throw std::runtime_error("Invalid type combination for MOVZEROEXTEND");
+
+      // Set eightByte flags for proper register naming
+      bool saved_eightByte = eightByte;
+      bool saved_oneByte = oneByte;
+
+      // Set flags for source operand
+      oneByte = true;
+
+      ss << suffix << " " << src1->toString() << ", ";
+
+      // Set flags for destination operand
+      oneByte = false;
+      if (dst_type == AssemblyType::QUAD_WORD)
+        eightByte = true;
+      else
+        eightByte = false;
+
+      ss << dst->toString();
+
+      // Restore flags
+      eightByte = saved_eightByte;
+      oneByte = saved_oneByte;
     }
     break;
+  }
   case ASMOpType::CVTTSD2SI:
     if (assemblyType == AssemblyType::QUAD_WORD)
       ss << "cvttsd2siq " << src1->toString() << ", " << dst->toString();
@@ -463,6 +563,10 @@ std::string ASMInstruction::toString() const
   if (assemblyType == AssemblyType::QUAD_WORD)
   {
     eightByte = 0;
+  }
+  if (assemblyType == AssemblyType::BYTE)
+  {
+    oneByte = 0;
   }
   return ss.str();
 }
@@ -500,7 +604,8 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
         int elementSize;
         int elementAlignment;
         int numElements = arr.size;
-        if (arr.element->kind == TypeKind::UCHAR || arr.element->kind == TypeKind::CHAR)
+        if (arr.element->kind == TypeKind::UCHAR || arr.element->kind == TypeKind::CHAR ||
+            arr.element->kind == TypeKind::SCHAR)
         {
           elementSize = 1;
           elementAlignment = 1;
@@ -519,15 +624,16 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
         else if (arr.element->kind == TypeKind::ARRAY)
         {
           // Nested array - recursively get the scalar element type
-          Type* scalarType = arr.element.get();
+          Type *scalarType = arr.element.get();
           while (scalarType->kind == TypeKind::ARRAY)
           {
             numElements *= std::get<ArrayType>(scalarType->data).size;
             scalarType = std::get<ArrayType>(scalarType->data).element.get();
           }
-          
+
           // Determine scalar element size and alignment
-          if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR)
+          if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
+              scalarType->kind == TypeKind::SCHAR)
           {
             elementSize = 1;
             elementAlignment = 1;
@@ -544,7 +650,8 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
             elementAlignment = 8;
           }
         }
-        else {
+        else
+        {
           assert(false && "Unsupported array element type for static variable");
         }
 
@@ -560,7 +667,8 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
           alignment = elementAlignment;
         }
       }
-      else if (typekind == TypeKind::UCHAR || typekind == TypeKind::CHAR)
+      else if (typekind == TypeKind::UCHAR || typekind == TypeKind::CHAR ||
+               typekind == TypeKind::SCHAR)
       {
         alignment = 1;
       }
@@ -576,6 +684,54 @@ ASMProgramPtr Codegen::IRProgramtoASM(const IRProgramPtr &irProgram)
       auto asmStaticVar = ASMStaticVariable::createStaticVariable(
           irStaticVar->identifier, irStaticVar->global, alignment, init, false);
       asmProgram->topLevelItems.push_back(asmStaticVar);
+    }
+    else if (auto irStaticConst =
+                 std::dynamic_pointer_cast<IRStaticConstantNode>(
+                     irTopLevel))
+    {
+      // Handle static constant nodes (string literals, etc.)
+      auto init = irStaticConst->init_list;
+      auto typekind = irStaticConst->type.kind;
+      int alignment;
+
+      if (typekind == TypeKind::ARRAY)
+      {
+        // Get element type for alignment
+        ArrayType arr = std::get<ArrayType>(irStaticConst->type.data);
+        if (arr.element->kind == TypeKind::CHAR ||
+            arr.element->kind == TypeKind::UCHAR ||
+            arr.element->kind == TypeKind::SCHAR)
+        {
+          alignment = 1;
+        }
+        else if (arr.element->kind == TypeKind::INT ||
+                 arr.element->kind == TypeKind::UINT)
+        {
+          alignment = 4;
+        }
+        else
+        {
+          alignment = 8;
+        }
+      }
+      else if (typekind == TypeKind::CHAR ||
+               typekind == TypeKind::UCHAR ||
+               typekind == TypeKind::SCHAR)
+      {
+        alignment = 1;
+      }
+      else if (typekind == TypeKind::INT || typekind == TypeKind::UINT)
+      {
+        alignment = 4;
+      }
+      else
+      {
+        alignment = 8;
+      }
+
+      auto asmStaticConst = ASMStaticConstant::createStaticConstant(
+          irStaticConst->identifier, alignment, init);
+      asmProgram->topLevelItems.push_back(asmStaticConst);
     }
   }
   asmProgram->topLevelItems.insert(asmProgram->topLevelItems.begin(),
@@ -746,19 +902,28 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
   }
   case IROpType::RETURN:
   {
-    AssemblyType type = getAssemblyType(irInstruction->src1);
-    if (type == AssemblyType::DOUBLE_WORD)
+    // Check if there's a return value (src1 is present for non-void returns)
+    if (irInstruction->src1)
     {
-      asmInstructions.push_back(ASMInstruction::createMov(
-          Reg::createRegister(RegisterType::XMM0),
-          IRValueToOperand(irInstruction->src1), type));
-      asmInstructions.push_back(ASMInstruction::createRet());
+      AssemblyType type = getAssemblyType(irInstruction->src1);
+      if (type == AssemblyType::DOUBLE_WORD)
+      {
+        asmInstructions.push_back(ASMInstruction::createMov(
+            Reg::createRegister(RegisterType::XMM0),
+            IRValueToOperand(irInstruction->src1), type));
+        asmInstructions.push_back(ASMInstruction::createRet());
+      }
+      else
+      {
+        asmInstructions.push_back(ASMInstruction::createMov(
+            Reg::createRegister(RegisterType::AX),
+            IRValueToOperand(irInstruction->src1), type));
+        asmInstructions.push_back(ASMInstruction::createRet());
+      }
     }
     else
     {
-      asmInstructions.push_back(ASMInstruction::createMov(
-          Reg::createRegister(RegisterType::AX),
-          IRValueToOperand(irInstruction->src1), type));
+      // Void return - just emit Ret instruction
       asmInstructions.push_back(ASMInstruction::createRet());
     }
     break;
@@ -1179,37 +1344,67 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
   }
   case IROpType::TRUNCATE:
   {
+    AssemblyType dst_type = getAssemblyType(irInstruction->dst);
     asmInstructions.push_back(ASMInstruction::createMov(
         IRValueToOperand(irInstruction->dst),
-        IRValueToOperand(irInstruction->src1), AssemblyType::LONG_WORD));
+        IRValueToOperand(irInstruction->src1), dst_type));
     break;
   }
   case IROpType::SIGN_EXTEND:
   {
+    AssemblyType src_type = getAssemblyType(irInstruction->src1);
+    AssemblyType dst_type = getAssemblyType(irInstruction->dst);
     asmInstructions.push_back(
         ASMInstruction::createMovsx(IRValueToOperand(irInstruction->dst),
-                                    IRValueToOperand(irInstruction->src1)));
+                                    IRValueToOperand(irInstruction->src1),
+                                    src_type, dst_type));
     break;
   }
   case IROpType::ZERO_EXTEND:
   {
+    AssemblyType src_type = getAssemblyType(irInstruction->src1);
+    AssemblyType dst_type = getAssemblyType(irInstruction->dst);
     asmInstructions.push_back(ASMInstruction::createMovZeroExtend(
         IRValueToOperand(irInstruction->dst),
-        IRValueToOperand(irInstruction->src1)));
+        IRValueToOperand(irInstruction->src1),
+        src_type, dst_type));
     break;
   }
   case IROpType::DOUBLE_TO_LONG:
   {
     AssemblyType type = getAssemblyType(irInstruction->dst);
-    asmInstructions.push_back(ASMInstruction::createCvttsd2si(
-        IRValueToOperand(irInstruction->dst),
-        IRValueToOperand(irInstruction->src1), type));
+    if (type == AssemblyType::BYTE)
+    {
+      // Convert double to int first, then truncate to byte
+      asmInstructions.push_back(ASMInstruction::createCvttsd2si(
+          Reg::createRegister(RegisterType::AX),
+          IRValueToOperand(irInstruction->src1), AssemblyType::LONG_WORD));
+      asmInstructions.push_back(ASMInstruction::createMov(
+          IRValueToOperand(irInstruction->dst),
+          Reg::createRegister(RegisterType::AX), AssemblyType::BYTE));
+    }
+    else
+    {
+      asmInstructions.push_back(ASMInstruction::createCvttsd2si(
+          IRValueToOperand(irInstruction->dst),
+          IRValueToOperand(irInstruction->src1), type));
+    }
     break;
   }
   case IROpType::DOUBLE_TO_ULONG:
   {
     AssemblyType type = getAssemblyType(irInstruction->dst);
-    if (type == AssemblyType::LONG_WORD)
+    if (type == AssemblyType::BYTE)
+    {
+      // Convert double to int first, then truncate to byte
+      asmInstructions.push_back(ASMInstruction::createCvttsd2si(
+          Reg::createRegister(RegisterType::AX),
+          IRValueToOperand(irInstruction->src1), AssemblyType::LONG_WORD));
+      asmInstructions.push_back(ASMInstruction::createMov(
+          IRValueToOperand(irInstruction->dst),
+          Reg::createRegister(RegisterType::AX), AssemblyType::BYTE));
+    }
+    else if (type == AssemblyType::LONG_WORD)
     {
       asmInstructions.push_back(ASMInstruction::createCvttsd2si(
           Reg::createRegister(RegisterType::AX),
@@ -1268,9 +1463,23 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
   case IROpType::LONG_TO_DOUBLE:
   {
     AssemblyType type = getAssemblyType(irInstruction->src1);
-    asmInstructions.push_back(ASMInstruction::createCvttsi2sd(
-        IRValueToOperand(irInstruction->dst),
-        IRValueToOperand(irInstruction->src1), type));
+    if (type == AssemblyType::BYTE)
+    {
+      // Sign extend byte to int first, then convert to double
+      asmInstructions.push_back(ASMInstruction::createMovsx(
+          Reg::createRegister(RegisterType::AX),
+          IRValueToOperand(irInstruction->src1),
+          AssemblyType::BYTE, AssemblyType::LONG_WORD));
+      asmInstructions.push_back(ASMInstruction::createCvttsi2sd(
+          IRValueToOperand(irInstruction->dst),
+          Reg::createRegister(RegisterType::AX), AssemblyType::LONG_WORD));
+    }
+    else
+    {
+      asmInstructions.push_back(ASMInstruction::createCvttsi2sd(
+          IRValueToOperand(irInstruction->dst),
+          IRValueToOperand(irInstruction->src1), type));
+    }
     break;
   }
   case IROpType::ULONG_TO_DOUBLE:
@@ -1279,7 +1488,16 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
     auto src = IRValueToOperand(irInstruction->src1);
     auto dst = IRValueToOperand(irInstruction->dst);
 
-    if (type == AssemblyType::LONG_WORD)
+    if (type == AssemblyType::BYTE)
+    {
+      // Zero extend byte to int first, then convert to double
+      asmInstructions.push_back(ASMInstruction::createMovZeroExtend(
+          Reg::createRegister(RegisterType::AX), src,
+          AssemblyType::BYTE, AssemblyType::LONG_WORD));
+      asmInstructions.push_back(ASMInstruction::createCvttsi2sd(
+          dst, Reg::createRegister(RegisterType::AX), AssemblyType::LONG_WORD));
+    }
+    else if (type == AssemblyType::LONG_WORD)
     {
       // 32-bit unsigned: zero-extend to 64-bit, then convert
       asmInstructions.push_back(ASMInstruction::createMov(
@@ -1405,7 +1623,7 @@ Codegen::IRInstructionToASM(const IRInstructionPtr &irInstruction)
     {
       int64_t index = std::get<int64_t>(irInstruction->src2->value);
       asmInstructions.push_back(ASMInstruction::createMov(Reg::createRegister(RegisterType::AX), IRValueToOperand(irInstruction->src1), AssemblyType::QUAD_WORD));
-      asmInstructions.push_back(ASMInstruction::createLea(IRValueToOperand(irInstruction->dst), Memory::createMemory(RegisterType::AX, index * irInstruction->scale)));
+      asmInstructions.push_back(ASMInstruction::createLea(IRValueToOperand(irInstruction->dst), Memory::createMemory(RegisterType::AX, -index * irInstruction->scale)));
       break;
     }
     if ((irInstruction->scale == 1) || (irInstruction->scale == 2) || (irInstruction->scale == 4) || (irInstruction->scale == 8))
@@ -1485,6 +1703,16 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue)
             // Handle unsigned long constant
             imm->value = static_cast<int64_t>(arg);
           }
+          else if constexpr (std::is_same_v<T, char>)
+          {
+            // Handle char constant
+            imm->value = static_cast<int64_t>(arg);
+          }
+          else if constexpr (std::is_same_v<T, unsigned char>)
+          {
+            // Handle unsigned char constant
+            imm->value = static_cast<int64_t>(arg);
+          }
           else if constexpr (std::is_same_v<T, double>)
           {
             // Handle double constant
@@ -1509,9 +1737,19 @@ OperandPtr Codegen::IRValueToOperand(const IRValuePtr &irValue)
   }
   case IRValueType::VARIABLE:
   {
-    if (global_symbol_table.find(irValue->name) != global_symbol_table.end() && global_symbol_table[irValue->name].assemblyType == AssemblyType::BYTE_ARRAY)
+    // Check if this is a constant (like string constants)
+    if (global_symbol_table.find(irValue->name) != global_symbol_table.end())
     {
-      return std::make_shared<PseudoMem>(irValue->name, 0);
+      auto &entry = global_symbol_table[irValue->name];
+      if (entry.symbolType == SymbolType::CONSTANT)
+      {
+        // Return a Data operand for constants (like string.0)
+        return std::make_shared<Data>(irValue->name);
+      }
+      if (entry.assemblyType == AssemblyType::BYTE_ARRAY)
+      {
+        return std::make_shared<PseudoMem>(irValue->name, 0);
+      }
     }
     return std::make_shared<Pseudo>(irValue->name);
   }
@@ -1596,13 +1834,13 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 else if (arrayType.element->kind == TypeKind::ARRAY)
                 {
                   // Nested array - recursively get the scalar element type
-                  Type* scalarType = arrayType.element.get();
+                  Type *scalarType = arrayType.element.get();
                   while (scalarType->kind == TypeKind::ARRAY)
                   {
                     numElements *= std::get<ArrayType>(scalarType->data).size;
                     scalarType = std::get<ArrayType>(scalarType->data).element.get();
                   }
-                  
+
                   // Determine scalar element size and alignment
                   if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
                       scalarType->kind == TypeKind::SCHAR)
@@ -1699,13 +1937,13 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 else if (arrayType.element->kind == TypeKind::ARRAY)
                 {
                   // Nested array - recursively get the scalar element type
-                  Type* scalarType = arrayType.element.get();
+                  Type *scalarType = arrayType.element.get();
                   while (scalarType->kind == TypeKind::ARRAY)
                   {
                     numElements *= std::get<ArrayType>(scalarType->data).size;
                     scalarType = std::get<ArrayType>(scalarType->data).element.get();
                   }
-                  
+
                   // Determine scalar element size and alignment
                   if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
                       scalarType->kind == TypeKind::SCHAR)
@@ -1802,13 +2040,13 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
                 else if (arrayType.element->kind == TypeKind::ARRAY)
                 {
                   // Nested array - recursively get the scalar element type
-                  Type* scalarType = arrayType.element.get();
+                  Type *scalarType = arrayType.element.get();
                   while (scalarType->kind == TypeKind::ARRAY)
                   {
                     numElements *= std::get<ArrayType>(scalarType->data).size;
                     scalarType = std::get<ArrayType>(scalarType->data).element.get();
                   }
-                  
+
                   // Determine scalar element size and alignment
                   if (scalarType->kind == TypeKind::UCHAR || scalarType->kind == TypeKind::CHAR ||
                       scalarType->kind == TypeKind::SCHAR)
@@ -1870,17 +2108,25 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
             }
             else
             {
-              if (global_symbol_table[pseudo->name].assemblyType ==
-                      AssemblyType::QUAD_WORD ||
-                  global_symbol_table[pseudo->name].assemblyType ==
-                      AssemblyType::DOUBLE_WORD)
+              // Check if the pseudo is in the symbol table to get its type
+              AssemblyType asmType = AssemblyType::LONG_WORD; // default
+              if (global_symbol_table.find(pseudo->name) != global_symbol_table.end())
+              {
+                asmType = global_symbol_table[pseudo->name].assemblyType;
+              }
+
+              if (asmType == AssemblyType::QUAD_WORD ||
+                  asmType == AssemblyType::DOUBLE_WORD)
               {
                 offset = (offset + 7) & ~7; // Align to 8 bytes
                 offset += 8;
               }
-              // will always be 4 byte aligned since minimum size of type is 4
-              // bytes
-              else
+              else if (asmType == AssemblyType::BYTE)
+              {
+                // No alignment needed for bytes
+                offset += 1;
+              }
+              else // LONG_WORD
               {
                 offset = (offset + 3) & ~3; // Align to 4 bytes
                 offset += 4;
@@ -1915,17 +2161,25 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
             }
             else
             {
-              if (global_symbol_table[pseudo->name].assemblyType ==
-                      AssemblyType::QUAD_WORD ||
-                  global_symbol_table[pseudo->name].assemblyType ==
-                      AssemblyType::DOUBLE_WORD)
+              // Check if the pseudo is in the symbol table to get its type
+              AssemblyType asmType = AssemblyType::LONG_WORD; // default
+              if (global_symbol_table.find(pseudo->name) != global_symbol_table.end())
+              {
+                asmType = global_symbol_table[pseudo->name].assemblyType;
+              }
+
+              if (asmType == AssemblyType::QUAD_WORD ||
+                  asmType == AssemblyType::DOUBLE_WORD)
               {
                 offset = (offset + 7) & ~7; // Align to 8 bytes
                 offset += 8;
               }
-              // will always be 4 byte aligned since minimum size of type is 4
-              // bytes
-              else
+              else if (asmType == AssemblyType::BYTE)
+              {
+                // No alignment needed for bytes
+                offset += 1;
+              }
+              else // LONG_WORD
               {
                 offset = (offset + 3) & ~3; // Align to 4 bytes
                 offset += 4;
@@ -1960,17 +2214,25 @@ int Codegen::replacePseudoRegisters(ASMBasePtr ast)
             }
             else
             {
-              if (global_symbol_table[pseudo->name].assemblyType ==
-                      AssemblyType::QUAD_WORD ||
-                  global_symbol_table[pseudo->name].assemblyType ==
-                      AssemblyType::DOUBLE_WORD)
+              // Check if the pseudo is in the symbol table to get its type
+              AssemblyType asmType = AssemblyType::LONG_WORD; // default
+              if (global_symbol_table.find(pseudo->name) != global_symbol_table.end())
+              {
+                asmType = global_symbol_table[pseudo->name].assemblyType;
+              }
+
+              if (asmType == AssemblyType::QUAD_WORD ||
+                  asmType == AssemblyType::DOUBLE_WORD)
               {
                 offset = (offset + 7) & ~7; // Align to 8 bytes
                 offset += 8;
               }
-              // will always be 4 byte aligned since minimum size of type is 4
-              // bytes
-              else
+              else if (asmType == AssemblyType::BYTE)
+              {
+                // No alignment needed for bytes
+                offset += 1;
+              }
+              else // LONG_WORD
               {
                 offset = (offset + 3) & ~3; // Align to 4 bytes
                 offset += 4;
@@ -2030,7 +2292,13 @@ void Codegen::finalPass(ASMBasePtr ast)
         // converting 8 byte immediate values in src to 4 bytes
         if (auto imm = dynamic_pointer_cast<Immediate>(instruction->src1))
         {
-          if (instruction->assemblyType == AssemblyType::LONG_WORD)
+          if (instruction->assemblyType == AssemblyType::BYTE)
+          {
+            // Reduce immediate value modulo 256 for byte operations
+            instruction->src1 = Immediate::createImmediate(
+                static_cast<unsigned char>(imm->value) & 0xFF);
+          }
+          else if (instruction->assemblyType == AssemblyType::LONG_WORD)
           {
             if ((int64_t)imm->value > std::numeric_limits<int32_t>::max() ||
                 (int64_t)imm->value < std::numeric_limits<int32_t>::min())
@@ -2281,7 +2549,7 @@ void Codegen::finalPass(ASMBasePtr ast)
           newinstructions.push_back(instruction);
           newinstructions.push_back(ASMInstruction::createMov(
               d, Reg::createRegister(RegisterType::R11),
-              AssemblyType::QUAD_WORD));
+              instruction->dst_type)); // Use actual destination type, not hardcoded QUAD_WORD
         }
         else
         {
@@ -2337,19 +2605,69 @@ void Codegen::finalPass(ASMBasePtr ast)
       }
       case ASMOpType::MOVZEROEXTEND:
       {
-        if (dynamic_cast<Reg *>(instruction->dst.get()))
+        // If src_type is Byte, handle movz instruction constraints
+        if (instruction->src_type == AssemblyType::BYTE)
         {
-          newinstructions.push_back(ASMInstruction::createMov(
-              instruction->dst, instruction->src1, AssemblyType::LONG_WORD));
+          // movz destination must be a register
+          // movz source must not be an immediate
+          if (dynamic_cast<Immediate *>(instruction->src1.get()))
+          {
+            // Source is immediate - need to use intermediate movb
+            newinstructions.push_back(ASMInstruction::createMov(
+                Reg::createRegister(RegisterType::R10), instruction->src1,
+                AssemblyType::BYTE));
+            newinstructions.push_back(ASMInstruction::createMovZeroExtend(
+                Reg::createRegister(RegisterType::R11),
+                Reg::createRegister(RegisterType::R10),
+                instruction->src_type, instruction->dst_type));
+            if (!dynamic_cast<Reg *>(instruction->dst.get()))
+            {
+              newinstructions.push_back(ASMInstruction::createMov(
+                  instruction->dst, Reg::createRegister(RegisterType::R11),
+                  instruction->dst_type));
+            }
+            else
+            {
+              instruction->dst = Reg::createRegister(RegisterType::R11);
+              instruction->src1 = Reg::createRegister(RegisterType::R10);
+              newinstructions.push_back(ASMInstruction::createMov(
+                  instruction->dst, Reg::createRegister(RegisterType::R11),
+                  instruction->dst_type));
+            }
+          }
+          else if (!dynamic_cast<Reg *>(instruction->dst.get()))
+          {
+            // Destination is not a register - fix it
+            newinstructions.push_back(ASMInstruction::createMovZeroExtend(
+                Reg::createRegister(RegisterType::R11), instruction->src1,
+                instruction->src_type, instruction->dst_type));
+            newinstructions.push_back(ASMInstruction::createMov(
+                instruction->dst, Reg::createRegister(RegisterType::R11),
+                instruction->dst_type));
+          }
+          else
+          {
+            // Both src and dst are valid
+            newinstructions.push_back(instruction);
+          }
         }
-        else if (isMemoryAddress(instruction->dst))
+        else
         {
-          newinstructions.push_back(ASMInstruction::createMov(
-              Reg::createRegister(RegisterType::R11), instruction->src1,
-              AssemblyType::LONG_WORD));
-          newinstructions.push_back(ASMInstruction::createMov(
-              instruction->dst, Reg::createRegister(RegisterType::R11),
-              AssemblyType::QUAD_WORD));
+          // src_type is LONG_WORD - replace with regular mov
+          if (dynamic_cast<Reg *>(instruction->dst.get()))
+          {
+            newinstructions.push_back(ASMInstruction::createMov(
+                instruction->dst, instruction->src1, AssemblyType::LONG_WORD));
+          }
+          else if (isMemoryAddress(instruction->dst))
+          {
+            newinstructions.push_back(ASMInstruction::createMov(
+                Reg::createRegister(RegisterType::R11), instruction->src1,
+                AssemblyType::LONG_WORD));
+            newinstructions.push_back(ASMInstruction::createMov(
+                instruction->dst, Reg::createRegister(RegisterType::R11),
+                AssemblyType::QUAD_WORD));
+          }
         }
         break;
       }

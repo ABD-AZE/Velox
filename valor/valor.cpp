@@ -479,8 +479,8 @@ void IRGenerator::convertSymbolTableToIR()
 
     if (entry.type.kind == TypeKind::ARRAY)
     {
-      // Check if this is a string constant (has stringValue set)
-      if (!entry.stringValue.empty())
+      // Check if this is a string constant (symbolType is CONSTANT for string literals)
+      if (entry.symbolType == SymbolType::CONSTANT)
       {
         // This is a string constant - create StringInit
         int arraySize = entry.type.kind == TypeKind::ARRAY
@@ -491,7 +491,7 @@ void IRGenerator::convertSymbolTableToIR()
         bool hasNullTerminator =
             (entry.stringValue.length() + 1) <= static_cast<size_t>(arraySize);
 
-        // Add StringInit
+        // Add StringInit (even for empty strings!)
         init_list.push_back(
             StaticInit::makeStringInit(entry.stringValue, hasNullTerminator));
 
@@ -698,7 +698,7 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
             currentExpResult.type == ExpResultType::PLAIN_OPERAND
                 ? currentValue
                 : convertExpResult(currentExpResult, *exprNode->type);
-        
+
         // Now check if we need type conversion to match the target type
         // Create a mutable copy for comparison
         Type mutableVarType = varType;
@@ -706,38 +706,47 @@ void IRGenerator::processCompoundInitializer(InitializerNode *init,
         {
           // Need to convert the expression type to the target type
           IRValuePtr convertedValue = makeTackyVariable(varType);
-          
+
           // Emit the appropriate conversion instruction
           Type srcType = *exprNode->type;
           Type dstType = varType;
-          
+
           // Handle pointer types - treat as ULong
-          if (srcType.kind == TypeKind::POINTER) {
+          if (srcType.kind == TypeKind::POINTER)
+          {
             srcType = Type::ULong();
           }
-          if (dstType.kind == TypeKind::POINTER) {
+          if (dstType.kind == TypeKind::POINTER)
+          {
             dstType = Type::ULong();
           }
-          
-          if (size(dstType.kind) == size(srcType.kind)) {
+
+          if (size(dstType.kind) == size(srcType.kind))
+          {
             // Same size - just copy
             auto copyInst = IRInstructionNode::makeCopy(
                 std::move(exprValue), std::make_shared<IRValueNode>(*convertedValue));
             currentFunction->addInstruction(std::move(copyInst));
-          } else if (size(dstType.kind) < size(srcType.kind)) {
+          }
+          else if (size(dstType.kind) < size(srcType.kind))
+          {
             // Truncation
             auto truncInst = IRInstructionNode::makeTruncate(std::move(exprValue), convertedValue);
             currentFunction->addInstruction(std::move(truncInst));
-          } else if (srcType.kind == TypeKind::INT || srcType.kind == TypeKind::LONG) {
+          }
+          else if (srcType.kind == TypeKind::INT || srcType.kind == TypeKind::LONG)
+          {
             // Sign extension for signed types
             auto signExtInst = IRInstructionNode::makeSignExtend(std::move(exprValue), convertedValue);
             currentFunction->addInstruction(std::move(signExtInst));
-          } else {
+          }
+          else
+          {
             // Zero extension for unsigned types
             auto zeroExtInst = IRInstructionNode::makeZeroExtend(std::move(exprValue), convertedValue);
             currentFunction->addInstruction(std::move(zeroExtInst));
           }
-          
+
           exprValue = convertedValue;
         }
 
@@ -899,16 +908,18 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
           dynamic_cast<ConstantExpression *>(singleInit.expression.get());
       if (constExpr)
       {
-        // Extract the constant value and convert to the supported variant type
+        // Extract the constant value and create appropriate StaticInit
         return std::visit(
             [](auto &&val) -> StaticInit
             {
               using T = std::decay_t<decltype(val)>;
-              if constexpr (std::is_same_v<T, char> ||
-                            std::is_same_v<T, unsigned char>)
+              if constexpr (std::is_same_v<T, char>)
               {
-                // Convert char types to int
-                return StaticInit::makeInitial(static_cast<int>(val));
+                return StaticInit::makeCharInit(val);
+              }
+              else if constexpr (std::is_same_v<T, unsigned char>)
+              {
+                return StaticInit::makeUCharInit(val);
               }
               else
               {
@@ -1591,57 +1602,59 @@ void IRGenerator::visit(BinaryExpression &node)
                    : currentValue);
 
     // Check for pointer + integer or integer + pointer
-    if (leftExpr && leftExpr->type && leftExpr->type->kind == TypeKind::POINTER &&
+    if (node.op == TokenType::PLUS &&
+        leftExpr && leftExpr->type && leftExpr->type->kind == TypeKind::POINTER &&
         rightExpr && rightExpr->type && rightExpr->type->kind != TypeKind::POINTER)
     {
       // pointer + integer
-      const auto& ptrType = std::get<PointerType>(leftExpr->type->data);
+      const auto &ptrType = std::get<PointerType>(leftExpr->type->data);
       int scale = getTypeSize(*ptrType.base);
       IRValuePtr result = makeTackyVariable(Type::ULong());
-      
+
       auto addPtrInst = IRInstructionNode::makeAddPtr(
           std::move(leftValue), std::move(rightValue), scale, result);
       currentFunction->addInstruction(std::move(addPtrInst));
-      
+
       currentValue = std::move(result);
       currentExpResult = ExpResult::makePlainOperand(currentValue);
       return;
     }
-    else if (rightExpr && rightExpr->type && rightExpr->type->kind == TypeKind::POINTER &&
+    else if (node.op == TokenType::PLUS &&
+             rightExpr && rightExpr->type && rightExpr->type->kind == TypeKind::POINTER &&
              leftExpr && leftExpr->type && leftExpr->type->kind != TypeKind::POINTER)
     {
       // integer + pointer
-      const auto& ptrType = std::get<PointerType>(rightExpr->type->data);
+      const auto &ptrType = std::get<PointerType>(rightExpr->type->data);
       int scale = getTypeSize(*ptrType.base);
       IRValuePtr result = makeTackyVariable(Type::ULong());
-      
+
       auto addPtrInst = IRInstructionNode::makeAddPtr(
           std::move(rightValue), std::move(leftValue), scale, result);
       currentFunction->addInstruction(std::move(addPtrInst));
-      
+
       currentValue = std::move(result);
       currentExpResult = ExpResult::makePlainOperand(currentValue);
       return;
     }
-    else if (node.op == TokenType::HYPHEN && 
+    else if (node.op == TokenType::HYPHEN &&
              leftExpr && leftExpr->type && leftExpr->type->kind == TypeKind::POINTER &&
              rightExpr && rightExpr->type && rightExpr->type->kind != TypeKind::POINTER)
     {
       // pointer - integer
-      const auto& ptrType = std::get<PointerType>(leftExpr->type->data);
+      const auto &ptrType = std::get<PointerType>(leftExpr->type->data);
       int scale = getTypeSize(*ptrType.base);
-      
+
       // Negate the right value
       IRValuePtr negatedRight = makeTackyVariable(*rightExpr->type);
       auto negInst = IRInstructionNode::makeUnary(
-          IROpType::NEGATE, negatedRight, std::make_shared<IRValueNode>(*rightValue));
+          IROpType::NEGATE, negatedRight, rightValue);
       currentFunction->addInstruction(std::move(negInst));
-      
+
       IRValuePtr result = makeTackyVariable(Type::ULong());
       auto addPtrInst = IRInstructionNode::makeAddPtr(
           std::move(leftValue), std::move(negatedRight), scale, result);
       currentFunction->addInstruction(std::move(addPtrInst));
-      
+
       currentValue = std::move(result);
       currentExpResult = ExpResult::makePlainOperand(currentValue);
       return;
@@ -1700,15 +1713,15 @@ void IRGenerator::visit(AssignmentExpression &node)
   // Save and restore state to avoid lvalue conversion
   node.left->accept(*this);
   ExpResult leftResult = currentExpResult;
- 
+
   // Check if left side is a dereferenced pointer or plain variable
   if (leftResult.type == ExpResultType::DEREFERENCED_POINTER)
   {
     // *ptr = value => Store(value, ptr)
     IRValuePtr leftValue = leftResult.value;
-    while(leftResult.inner)
+    while (leftResult.inner)
     {
-      currentFunction->addInstruction(IRInstructionNode::makeLoad(leftValue,leftValue));
+      currentFunction->addInstruction(IRInstructionNode::makeLoad(leftValue, leftValue));
       leftValue = leftResult.value;
       leftResult = *leftResult.inner;
     }
@@ -1991,7 +2004,10 @@ IRValuePtr IRGenerator::makeTackyVariable(Type varType)
   entry.storageClass = StorageClass::AUTO;
   global_symbol_table[varName] = entry;
 
-  return IRValueNode::makeTemporary(varName);
+  // Create temporary with constType set
+  auto temp = IRValueNode::makeTemporary(varName);
+  temp->constType = varType.kind;
+  return temp;
 }
 
 // Helper function to convert ExpResult to IRValuePtr with lvalue conversion
@@ -2085,7 +2101,9 @@ void IRGenerator::visit(CastExpression &node)
 
   if (effectiveTargetType.kind == TypeKind::DOUBLE &&
       (effectiveInnerType.kind == TypeKind::INT ||
-       effectiveInnerType.kind == TypeKind::LONG))
+       effectiveInnerType.kind == TypeKind::LONG ||
+       effectiveInnerType.kind == TypeKind::CHAR ||
+       effectiveInnerType.kind == TypeKind::SCHAR))
   {
 
     auto longToDoubleInst =
@@ -2096,10 +2114,12 @@ void IRGenerator::visit(CastExpression &node)
     return;
   }
   else if ((effectiveTargetType.kind == TypeKind::INT ||
-            effectiveTargetType.kind == TypeKind::LONG) &&
+            effectiveTargetType.kind == TypeKind::LONG ||
+            effectiveTargetType.kind == TypeKind::CHAR ||
+            effectiveTargetType.kind == TypeKind::SCHAR) &&
            effectiveInnerType.kind == TypeKind::DOUBLE)
   {
-    // Double to Int/Long
+    // Double to Int/Long/Char
     auto doubleToLongInst =
         IRInstructionNode::makeDoubleToLong(std::move(result), dst);
     currentFunction->addInstruction(std::move(doubleToLongInst));
@@ -2109,9 +2129,10 @@ void IRGenerator::visit(CastExpression &node)
   }
   else if (effectiveInnerType.kind == TypeKind::DOUBLE &&
            (effectiveTargetType.kind == TypeKind::UINT ||
-            effectiveTargetType.kind == TypeKind::ULONG))
+            effectiveTargetType.kind == TypeKind::ULONG ||
+            effectiveTargetType.kind == TypeKind::UCHAR))
   {
-    // Double to Unsigned Int/Long
+    // Double to Unsigned Int/Long/Char
     auto doubleToULongInst =
         IRInstructionNode::makeDoubleToULong(std::move(result), dst);
     currentFunction->addInstruction(std::move(doubleToULongInst));
@@ -2120,7 +2141,8 @@ void IRGenerator::visit(CastExpression &node)
     return;
   }
   else if ((effectiveInnerType.kind == TypeKind::UINT ||
-            effectiveInnerType.kind == TypeKind::ULONG) &&
+            effectiveInnerType.kind == TypeKind::ULONG ||
+            effectiveInnerType.kind == TypeKind::UCHAR) &&
            effectiveTargetType.kind == TypeKind::DOUBLE)
   {
 
@@ -2147,6 +2169,8 @@ void IRGenerator::visit(CastExpression &node)
   }
   else if (effectiveInnerType.kind == TypeKind::INT ||
            effectiveInnerType.kind == TypeKind::LONG ||
+           effectiveInnerType.kind == TypeKind::CHAR ||
+           effectiveInnerType.kind == TypeKind::SCHAR ||
            effectiveInnerType.kind == TypeKind::DOUBLE)
   {
     // Sign extension
@@ -2190,6 +2214,17 @@ void IRGenerator::visit(AddressOfExpression &node)
 {
   if (node.variableExpr)
   {
+    // Check if the inner expression is a string literal
+    auto *stringLiteral =
+        dynamic_cast<StringLiteralExpression *>(node.variableExpr.get());
+    if (stringLiteral)
+    {
+      // String literals already decay to pointers, so just visit it
+      // It will emit GET_ADDRESS itself
+      stringLiteral->accept(*this);
+      return;
+    }
+
     // Process the inner expression WITHOUT lvalue conversion
     // We need to check if it's a dereference or a regular variable
     auto *derefExpr =
@@ -2217,14 +2252,15 @@ void IRGenerator::visit(AddressOfExpression &node)
         auto getAddrInst = IRInstructionNode::makeGetAddress(src, dst);
         currentFunction->addInstruction(getAddrInst);
         currentValue = dst;
-        currentExpResult = ExpResult::makePlainOperand(dst);      
+        currentExpResult = ExpResult::makePlainOperand(dst);
       }
-      else {
+      else
+      {
         // Dereferenced pointer - need to get the original pointer
         IRValuePtr src = currentExpResult.value;
-        while(currentExpResult.inner)
+        while (currentExpResult.inner)
         {
-          currentFunction->addInstruction(IRInstructionNode::makeLoad(src,src));
+          currentFunction->addInstruction(IRInstructionNode::makeLoad(src, src));
           currentExpResult = *currentExpResult.inner;
         }
         currentValue = src;

@@ -4,22 +4,41 @@
 #include <unordered_map>
 #include <variant>
 
-enum class InitType { TENTATIVE, ZERO_INITIALIZED, INITIALIZED, UNINITIALIZED };
+enum class InitType
+{
+  TENTATIVE,
+  ZERO_INITIALIZED,
+  INITIALIZED,
+  UNINITIALIZED
+};
 
-enum class LinkageType { INTERNAL, EXTERNAL, NONE };
+enum class LinkageType
+{
+  INTERNAL,
+  EXTERNAL,
+  NONE
+};
 
-enum class SymbolType { VARIABLE, FUNCTION, CONSTANT };
+enum class SymbolType
+{
+  VARIABLE,
+  FUNCTION,
+  CONSTANT
+};
 
-enum class AssemblyType {
+enum class AssemblyType
+{
   LONG_WORD,
   QUAD_WORD,
   DOUBLE_WORD,
   BYTE_ARRAY,
+  BYTE,
 };
 
 extern bool operator==(const StorageClass &a, const LinkageType &b);
 
-class SymbolTableEntry {
+class SymbolTableEntry
+{
 public:
   std::string name;
   LinkageType linkage;
@@ -43,9 +62,16 @@ public:
   SymbolTableEntry(std::string name, SymbolType symbolType, InitType initType,
                    Type type, std::vector<Type> param_types = {})
       : name(name), symbolType(symbolType), initType(initType),
-        param_types(param_types), type(type) {
+        param_types(param_types), type(type)
+  {
     // Determine assembly type based on TypeKind
-    switch (type.kind) {
+    switch (type.kind)
+    {
+    case TypeKind::CHAR:
+    case TypeKind::SCHAR:
+    case TypeKind::UCHAR:
+      assemblyType = AssemblyType::BYTE;
+      break;
     case TypeKind::INT:
     case TypeKind::UINT:
       assemblyType = AssemblyType::LONG_WORD;
@@ -68,10 +94,13 @@ public:
   }
   void
   setValue(const std::variant<int, long int, long unsigned int, unsigned int,
-                              double, char, unsigned char> &val) {
+                              double, char, unsigned char> &val)
+  {
     std::visit(
-        [this](auto &&extracted_val) {
-          switch (type.kind) {
+        [this](auto &&extracted_val)
+        {
+          switch (type.kind)
+          {
           case TypeKind::INT:
             value = static_cast<int>(extracted_val);
             break;
