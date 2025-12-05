@@ -768,8 +768,26 @@ StaticInit IRGenerator::createZeroStaticInit(const Type &type) {
     }
     return StaticInit::makeCompound(std::move(zeroInits));
   } else {
-    // Scalar type - return a zero constant
-    return StaticInit::makeInitial(0);
+    // Scalar type - return a zero constant of appropriate type
+    switch (type.kind) {
+    case TypeKind::CHAR:
+    case TypeKind::SCHAR:
+      return StaticInit::makeCharInit(0);
+    case TypeKind::UCHAR:
+      return StaticInit::makeUCharInit(0);
+    case TypeKind::INT:
+      return StaticInit::makeIntInit(0);
+    case TypeKind::UINT:
+      return StaticInit::makeUIntInit(0);
+    case TypeKind::LONG:
+      return StaticInit::makeLongInit(0);
+    case TypeKind::ULONG:
+      return StaticInit::makeULongInit(0);
+    case TypeKind::DOUBLE:
+      return StaticInit::makeDoubleInit(0.0);
+    default:
+      return StaticInit::makeInitial(0);
+    }
   }
 }
 
@@ -860,6 +878,72 @@ StaticInit IRGenerator::convertToStaticInit(InitializerNode *init,
               }
             },
             constExpr->value);
+      }
+
+      // Try cast expression wrapping constant expression
+      auto castExpr =
+          dynamic_cast<CastExpression *>(singleInit.expression.get());
+      if (castExpr && castExpr->expression) {
+        auto innerConstExpr =
+            dynamic_cast<ConstantExpression *>(castExpr->expression.get());
+        if (innerConstExpr) {
+          // Extract the constant value and create appropriate StaticInit based
+          // on cast target type
+          return std::visit(
+              [&castExpr](auto &&val) -> StaticInit {
+                using T = std::decay_t<decltype(val)>;
+                if constexpr (std::is_same_v<T, int>) {
+                  // Check target type of the cast
+                  if (castExpr->targetType.kind == TypeKind::LONG) {
+                    return StaticInit::makeLongInit(static_cast<long>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::ULONG) {
+                    return StaticInit::makeULongInit(
+                        static_cast<unsigned long>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::UINT) {
+                    return StaticInit::makeUIntInit(
+                        static_cast<unsigned int>(val));
+                  } else {
+                    return StaticInit::makeIntInit(val);
+                  }
+                } else if constexpr (std::is_same_v<T, char>) {
+                  return StaticInit::makeCharInit(val);
+                } else if constexpr (std::is_same_v<T, unsigned char>) {
+                  return StaticInit::makeUCharInit(val);
+                } else if constexpr (std::is_same_v<T, unsigned int>) {
+                  // Check target type of the cast for unsigned int
+                  if (castExpr->targetType.kind == TypeKind::LONG) {
+                    return StaticInit::makeLongInit(static_cast<long>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::ULONG) {
+                    return StaticInit::makeULongInit(
+                        static_cast<unsigned long>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::INT) {
+                    return StaticInit::makeIntInit(static_cast<int>(val));
+                  } else {
+                    return StaticInit::makeUIntInit(val);
+                  }
+                } else if constexpr (std::is_same_v<T, double>) {
+                  // Handle double to integer casts
+                  if (castExpr->targetType.kind == TypeKind::LONG) {
+                    return StaticInit::makeLongInit(static_cast<long>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::ULONG) {
+                    return StaticInit::makeULongInit(
+                        static_cast<unsigned long>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::INT) {
+                    return StaticInit::makeIntInit(static_cast<int>(val));
+                  } else if (castExpr->targetType.kind == TypeKind::UINT) {
+                    return StaticInit::makeUIntInit(
+                        static_cast<unsigned int>(val));
+                  } else {
+                    // For double to double, use original value
+                    return StaticInit::makeInitial(val);
+                  }
+                } else {
+                  // For other types, use original value
+                  return StaticInit::makeInitial(val);
+                }
+              },
+              innerConstExpr->value);
+        }
       }
     }
     // If not a constant, return zero init (shouldn't happen for static
@@ -1455,23 +1539,25 @@ void IRGenerator::visit(BinaryExpression &node) {
     currentExpResult = ExpResult::makePlainOperand(currentValue);
     return;
   }
-
+  ExpressionNode *leftExpr = nullptr;
+  ExpressionNode *rightExpr = nullptr;
+  IRValuePtr leftValue = nullptr;
+  IRValuePtr rightValue = nullptr;
   // Handle pointer arithmetic specially
   if ((node.op == TokenType::PLUS || node.op == TokenType::HYPHEN)) {
     // Generate IR for left operand with lvalue-to-rvalue conversion
     node.left->accept(*this);
-    auto leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
-    IRValuePtr leftValue =
-        currentExpResult.type == ExpResultType::PLAIN_OPERAND
-            ? currentValue
-            : (leftExpr && leftExpr->type
-                   ? convertExpResult(currentExpResult, *leftExpr->type)
-                   : currentValue);
+    leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
+    leftValue = currentExpResult.type == ExpResultType::PLAIN_OPERAND
+                    ? currentValue
+                    : (leftExpr && leftExpr->type
+                           ? convertExpResult(currentExpResult, *leftExpr->type)
+                           : currentValue);
 
     // Generate IR for right operand with lvalue-to-rvalue conversion
     node.right->accept(*this);
-    auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
-    IRValuePtr rightValue =
+    rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
+    rightValue =
         currentExpResult.type == ExpResultType::PLAIN_OPERAND
             ? currentValue
             : (rightExpr && rightExpr->type
@@ -1530,30 +1616,49 @@ void IRGenerator::visit(BinaryExpression &node) {
       currentValue = std::move(result);
       currentExpResult = ExpResult::makePlainOperand(currentValue);
       return;
+      // pointer - pointer
+    } else if (node.op == TokenType::HYPHEN && leftExpr && leftExpr->type &&
+               leftExpr->type->kind == TypeKind::POINTER && rightExpr &&
+               rightExpr->type && rightExpr->type->kind == TypeKind::POINTER) {
+      const auto &ptrType = std::get<PointerType>(leftExpr->type->data);
+      int scale = getTypeSize(*ptrType.base);
+
+      IRValuePtr result = makeTackyVariable(Type::Long());
+      auto subPtrInst = IRInstructionNode::makeBinary(
+          IROpType::SUBTRACT, result, std::move(leftValue),
+          std::move(rightValue));
+      currentFunction->addInstruction(std::move(subPtrInst));
+      auto scaleValue = IRValueNode::makeConstant(scale);
+      IRValuePtr scaledResult = makeTackyVariable(Type::Long());
+      auto divInst = IRInstructionNode::makeBinary(
+          IROpType::DIVIDE, scaledResult, result, std::move(scaleValue));
+      currentFunction->addInstruction(std::move(divInst));
+      currentValue = std::move(scaledResult);
+      currentExpResult = ExpResult::makePlainOperand(currentValue);
+      return;
     }
   }
-
   // Handle regular binary operations (non-short-circuiting)
   // Generate IR for left operand with lvalue-to-rvalue conversion
-  node.left->accept(*this);
-  auto leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
-  IRValuePtr leftValue =
-      currentExpResult.type == ExpResultType::PLAIN_OPERAND
-          ? currentValue
-          : (leftExpr && leftExpr->type
-                 ? convertExpResult(currentExpResult, *leftExpr->type)
-                 : currentValue);
+  else {
+    node.left->accept(*this);
+    leftExpr = dynamic_cast<ExpressionNode *>(node.left.get());
+    leftValue = currentExpResult.type == ExpResultType::PLAIN_OPERAND
+                    ? currentValue
+                    : (leftExpr && leftExpr->type
+                           ? convertExpResult(currentExpResult, *leftExpr->type)
+                           : currentValue);
 
-  // Generate IR for right operand with lvalue-to-rvalue conversion
-  node.right->accept(*this);
-  auto rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
-  IRValuePtr rightValue =
-      currentExpResult.type == ExpResultType::PLAIN_OPERAND
-          ? currentValue
-          : (rightExpr && rightExpr->type
-                 ? convertExpResult(currentExpResult, *rightExpr->type)
-                 : currentValue);
-
+    // Generate IR for right operand with lvalue-to-rvalue conversion
+    node.right->accept(*this);
+    rightExpr = dynamic_cast<ExpressionNode *>(node.right.get());
+    rightValue =
+        currentExpResult.type == ExpResultType::PLAIN_OPERAND
+            ? currentValue
+            : (rightExpr && rightExpr->type
+                   ? convertExpResult(currentExpResult, *rightExpr->type)
+                   : currentValue);
+  }
   // Create temporary for result with proper type tracking
   IRValuePtr result = makeTackyVariable(*node.type);
 

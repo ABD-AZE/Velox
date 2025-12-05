@@ -1450,6 +1450,8 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
             node.name + "'");
         return;
       }
+      // After validation, convert initializer elements to match target types
+      convertInitializerTypes(InitNode, node.type);
     }
 
     if (InitNode && node.type.kind == TypeKind::STRUCT &&
@@ -1461,6 +1463,8 @@ void SemanticAnalyzer::visit(VarDeclNode &node) {
             node.name + "'");
         return;
       }
+      // After validation, convert initializer elements to match target types
+      convertInitializerTypes(InitNode, node.type);
     }
 
     // Validate string literal array initialization (single init)

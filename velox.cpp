@@ -97,18 +97,11 @@ bool parseArguments(int argc, char *argv[], CompilerOptions &opts) {
 
 std::string getBaseName(const std::string &path) {
   size_t lastDot = path.find_last_of('.');
-  size_t lastSlash = path.find_last_of('/');
 
-  if (lastSlash == std::string::npos) {
-    lastSlash = 0;
-  } else {
-    lastSlash++;
+  if (lastDot != std::string::npos) {
+    return path.substr(0, lastDot);
   }
-
-  if (lastDot != std::string::npos && lastDot > lastSlash) {
-    return path.substr(lastSlash, lastDot - lastSlash);
-  }
-  return path.substr(lastSlash);
+  return path;
 }
 
 void cleanupFile(const std::string &filename) { std::remove(filename.c_str()); }
