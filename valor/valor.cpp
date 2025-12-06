@@ -1857,7 +1857,15 @@ void IRGenerator::visit(FunctionCallNode &node) {
   std::vector<IRValuePtr> argValues;
   for (const auto &arg : node.args) {
     arg->accept(*this);
-    argValues.push_back(std::make_shared<IRValueNode>(*currentValue));
+    // Convert ExpResult to proper value (handles lvalue to rvalue conversion)
+    auto argExpr = dynamic_cast<ExpressionNode *>(arg.get());
+    if (argExpr && argExpr->type) {
+      IRValuePtr argValue = convertExpResult(currentExpResult, *argExpr->type);
+      argValues.push_back(std::make_shared<IRValueNode>(*argValue));
+    } else {
+      // Fallback to currentValue for non-expression arguments
+      argValues.push_back(std::make_shared<IRValueNode>(*currentValue));
+    }
   }
 
   // Create IRValue for function name
